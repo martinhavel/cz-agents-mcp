@@ -2,7 +2,7 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { createRateLimiter, checkBodySize } from '@cz-agents/shared';
+import { createRateLimiter, checkBodySize } from '@czagents/shared';
 import { buildCnbServer } from './server.js';
 
 const PORT = Number(process.env.PORT ?? 3031);

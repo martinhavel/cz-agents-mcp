@@ -1,4 +1,4 @@
-import { HttpClient, TtlCache } from '@cz-agents/shared';
+import { HttpClient, TtlCache } from '@czagents/shared';
 
 /**
  * ČNB FX rates client.

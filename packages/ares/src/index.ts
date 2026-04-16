@@ -2,7 +2,7 @@
 /**
  * stdio entry — for Claude Desktop / Cursor / local MCP clients.
  * Run via:  claude_desktop_config.json → command: "node", args: [".../dist/index.js"]
- *          or:  npx @cz-agents/ares
+ *          or:  npx @czagents/ares
  */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { buildAresServer } from './server.js';

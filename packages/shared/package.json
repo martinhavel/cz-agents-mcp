@@ -1,5 +1,5 @@
 {
-  "name": "@cz-agents/shared",
+  "name": "@czagents/shared",
   "version": "0.1.0",
   "description": "Shared utilities for cz-agents MCP servers",
   "type": "module",

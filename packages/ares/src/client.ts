@@ -1,4 +1,4 @@
-import { HttpClient, TtlCache } from '@cz-agents/shared';
+import { HttpClient, TtlCache } from '@czagents/shared';
 
 /**
  * Typed client for ARES REST v3 API.

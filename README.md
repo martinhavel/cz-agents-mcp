@@ -7,9 +7,9 @@ Give your AI agent native access to ARES, ČNB, ISIR, and more.
 
 | Package | Source | Status |
 |---|---|---|
-| [`@cz-agents/ares`](./packages/ares) | ARES — Czech Business Register (company lookup by IČO) | ✅ v0.1.0 |
-| `@cz-agents/cnb` | ČNB — daily FX rates | 🚧 planned |
-| `@cz-agents/isir` | ISIR — Czech insolvency register | 🚧 planned |
+| [`@czagents/ares`](./packages/ares) | ARES — Czech Business Register (company lookup by IČO) | ✅ v0.1.0 |
+| `@czagents/cnb` | ČNB — daily FX rates | 🚧 planned |
+| `@czagents/isir` | ISIR — Czech insolvency register | 🚧 planned |
 
 ## Quick start
 
@@ -20,7 +20,7 @@ Give your AI agent native access to ARES, ČNB, ISIR, and more.
   "mcpServers": {
     "ares": {
       "command": "npx",
-      "args": ["-y", "@cz-agents/ares"]
+      "args": ["-y", "@czagents/ares"]
     }
   }
 }

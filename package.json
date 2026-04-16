@@ -14,8 +14,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=@cz-agents/shared && npm run build --workspace=@cz-agents/ares && npm run build --workspace=@cz-agents/cnb",
-    "dev:ares": "npm run dev --workspace=@cz-agents/ares",
+    "build": "npm run build --workspace=@czagents/shared && npm run build --workspace=@czagents/ares && npm run build --workspace=@czagents/cnb",
+    "dev:ares": "npm run dev --workspace=@czagents/ares",
     "test": "npm run test --workspaces --if-present",
     "lint": "eslint packages/*/src --ext .ts"
   },

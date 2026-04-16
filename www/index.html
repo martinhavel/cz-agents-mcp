@@ -183,22 +183,22 @@
     <h2>Dostupné servery</h2>
     <div class="servers">
       <div class="server">
-        <h3>@cz-agents/ares</h3>
+        <h3>@czagents/ares</h3>
         <p>Obchodní rejstřík — lookup podle IČO, fulltext, transparentní účty, historie</p>
         <div class="tools">lookup_by_ico · search_companies · get_bank_accounts · get_history</div>
       </div>
       <div class="server">
-        <h3>@cz-agents/cnb</h3>
+        <h3>@czagents/cnb</h3>
         <p>ČNB kurzy — denní kurzovní lístek, konverze, historie</p>
         <div class="tools">get_rates · convert · get_rate</div>
       </div>
       <div class="server soon">
-        <h3>@cz-agents/hlidac</h3>
+        <h3>@czagents/hlidac</h3>
         <p>Hlídač státu — smlouvy, dotace, transparentnost (plánováno)</p>
         <div class="tools">search_contracts · check_subject · …</div>
       </div>
       <div class="server soon">
-        <h3>@cz-agents/isir</h3>
+        <h3>@czagents/isir</h3>
         <p>Insolvenční rejstřík — kontrola dlužníků (plánováno)</p>
         <div class="tools">check_ico_insolvency · …</div>
       </div>
@@ -208,8 +208,8 @@
     <p style="color:var(--fg-dim); font-size: 14px;">Přidej do <code>claude_desktop_config.json</code>:</p>
     <pre class="code"><span class="k">{</span>
   <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
-    <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@cz-agents/ares"</span>] <span class="k">},</span>
-    <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@cz-agents/cnb"</span>] <span class="k">}</span>
+    <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/ares"</span>] <span class="k">},</span>
+    <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/cnb"</span>] <span class="k">}</span>
   <span class="k">}</span>
 <span class="k">}</span></pre>
 

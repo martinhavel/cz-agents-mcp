@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput } from '@cz-agents/shared';
+import { validateIcoInput } from '@czagents/shared';
 import { AresClient } from './client.js';
 
 /**
