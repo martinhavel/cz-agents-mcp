@@ -1,5 +1,8 @@
 # cz-agents-mcp
 
+[![CI](https://github.com/martinhavel/cz-agents-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/martinhavel/cz-agents-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 Model Context Protocol servers for Czech government & business data.
 Give your AI agent native access to ARES, ČNB, and more.
 
