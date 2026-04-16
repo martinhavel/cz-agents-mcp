@@ -2,14 +2,18 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { createRateLimiter, checkBodySize } from '@cz-agents/shared';
 import { buildCnbServer } from './server.js';
 
 const PORT = Number(process.env.PORT ?? 3031);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
+const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 60);
+const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
+const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
 
 async function main() {
-  const server = buildCnbServer();
   const transports = new Map<string, StreamableHTTPServerTransport>();
+  const limiter = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX });
 
   const http = createServer(async (req, res) => {
     if (req.url === '/health' || req.url === '/healthz') {
@@ -34,6 +38,9 @@ async function main() {
       return;
     }
 
+    if (!limiter(req, res)) return;
+    if (!checkBodySize(req, res, MAX_BODY_BYTES)) return;
+
     const sessionHeader = req.headers['mcp-session-id'];
     const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
 
@@ -41,7 +48,9 @@ async function main() {
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
     } else {
+      // New session — fresh McpServer instance (SDK limitation)
       const newSessionId = randomUUID();
+      const server = buildCnbServer();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         onsessioninitialized: (id) => { transports.set(id, transport); },

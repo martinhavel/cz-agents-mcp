@@ -16,6 +16,9 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+    networks:
+      - default
+      - apache
 
   cnb:
     build:
@@ -34,3 +37,12 @@ services:
       interval: 30s
       timeout: 3s
       retries: 3
+    networks:
+      - default
+      - apache
+
+networks:
+  default:
+  apache:
+    external: true
+    name: apache_default

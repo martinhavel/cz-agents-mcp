@@ -1,4 +1,4 @@
-import { HttpClient } from '@cz-agents/shared';
+import { HttpClient, TtlCache } from '@cz-agents/shared';
 
 /**
  * ČNB FX rates client.
@@ -37,6 +37,11 @@ export interface CnbRateSheet {
 
 export class CnbClient {
   private readonly http: HttpClient;
+  // ČNB publishes rates once per business day at ~14:30 CET — cache 10 min is safe
+  private readonly sheetCache = new TtlCache<string, CnbRateSheet>({
+    ttlMs: 10 * 60 * 1000,
+    maxSize: 500,
+  });
 
   constructor() {
     this.http = new HttpClient({
@@ -48,12 +53,15 @@ export class CnbClient {
 
   /**
    * Fetch daily FX rates. If `date` is given (YYYY-MM-DD), fetch historical;
-   * else returns today's (or last business day's) rates.
+   * else returns today's (or last business day's) rates. Cached 10 min.
    */
   async getDailyRates(date?: string): Promise<CnbRateSheet> {
-    const url = date ? `${CNB_DAILY}?date=${formatCzDate(date)}` : CNB_DAILY;
-    const text = await this.http.getText(url);
-    return parseCnbDailyText(text);
+    const cacheKey = date ?? 'today';
+    return this.sheetCache.memoize(cacheKey, async () => {
+      const url = date ? `${CNB_DAILY}?date=${formatCzDate(date)}` : CNB_DAILY;
+      const text = await this.http.getText(url);
+      return parseCnbDailyText(text);
+    });
   }
 
   /** Convert amount between currencies using latest rates. */

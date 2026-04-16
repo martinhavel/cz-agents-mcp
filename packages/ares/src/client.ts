@@ -1,4 +1,4 @@
-import { HttpClient } from '@cz-agents/shared';
+import { HttpClient, TtlCache } from '@cz-agents/shared';
 
 /**
  * Typed client for ARES REST v3 API.
@@ -49,6 +49,15 @@ export interface AresBankAccount {
 
 export class AresClient {
   private readonly http: HttpClient;
+  // ARES company data changes rarely — cache lookups 1 hour to ease upstream load
+  private readonly subjectCache = new TtlCache<string, AresSubject | null>({
+    ttlMs: 60 * 60 * 1000, // 1 hour
+    maxSize: 5000,
+  });
+  private readonly bankCache = new TtlCache<string, AresBankAccount[]>({
+    ttlMs: 60 * 60 * 1000,
+    maxSize: 2000,
+  });
 
   constructor() {
     this.http = new HttpClient({
@@ -58,14 +67,16 @@ export class AresClient {
     });
   }
 
-  /** Get single economic subject by IČO. 404 → null (not an error). */
+  /** Get single economic subject by IČO. 404 → null (not an error). Cached 1h. */
   async getByIco(ico: string): Promise<AresSubject | null> {
-    try {
-      return await this.http.getJson<AresSubject>(`/${ico}`);
-    } catch (e: any) {
-      if (e?.status === 404) return null;
-      throw e;
-    }
+    return this.subjectCache.memoize(ico, async () => {
+      try {
+        return await this.http.getJson<AresSubject>(`/${ico}`);
+      } catch (e: any) {
+        if (e?.status === 404) return null;
+        throw e;
+      }
+    });
   }
 
   /** Full-text search. ARES v3 accepts POST with `obchodniJmeno`, `sidlo.*`, etc. */
@@ -103,15 +114,17 @@ export class AresClient {
    * ARES wraps the ADIS registry here.
    */
   async getBankAccounts(ico: string): Promise<AresBankAccount[]> {
-    try {
-      const data = await this.http.getJson<{ uctyCslib?: AresBankAccount[] }>(
-        `/ekonomicky-subjekt-cuds/${ico}`,
-      );
-      return data.uctyCslib ?? [];
-    } catch (e: any) {
-      if (e?.status === 404) return [];
-      throw e;
-    }
+    return this.bankCache.memoize(ico, async () => {
+      try {
+        const data = await this.http.getJson<{ uctyCslib?: AresBankAccount[] }>(
+          `/ekonomicky-subjekt-cuds/${ico}`,
+        );
+        return data.uctyCslib ?? [];
+      } catch (e: any) {
+        if (e?.status === 404) return [];
+        throw e;
+      }
+    });
   }
 
   /** Historical records for subject (previous names, sídlo changes). */
