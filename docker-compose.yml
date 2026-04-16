@@ -1,0 +1,36 @@
+services:
+  ares:
+    build:
+      context: .
+      dockerfile: packages/ares/Dockerfile
+    image: cz-agents-ares:latest
+    container_name: cz-agents-ares
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3030:3030"
+    environment:
+      - PORT=3030
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  cnb:
+    build:
+      context: .
+      dockerfile: packages/cnb/Dockerfile
+    image: cz-agents-cnb:latest
+    container_name: cz-agents-cnb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3031:3031"
+    environment:
+      - PORT=3031
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3031/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3

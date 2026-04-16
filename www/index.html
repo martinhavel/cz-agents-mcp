@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>cz-agents — MCP servery pro české gov & business data</title>
+  <meta name="description" content="Model Context Protocol servers pro ARES, ČNB, ISIR. Dejte svému AI agentovi nativní přístup k českému ekosystému.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://cz-agents.dev/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="cz-agents — MCP servery pro český ekosystém">
+  <meta property="og:description" content="Open-source Model Context Protocol servers for Czech government & business data.">
+  <meta property="og:url" content="https://cz-agents.dev/">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0e14;
+      --bg-elev: #131820;
+      --fg: #e6e9ef;
+      --fg-dim: #8a93a6;
+      --fg-ghost: #4a5365;
+      --accent: #ff6b35;
+      --accent-dim: #c94a1a;
+      --border: #1f2630;
+      --green: #6ece58;
+      --yellow: #e4d050;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    pre, code {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.85em;
+    }
+    .container {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+      margin-bottom: 48px;
+    }
+    .logo {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .logo h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+    .logo .tld {
+      color: var(--accent);
+      font-size: 32px;
+      font-weight: 800;
+    }
+    .tagline {
+      font-size: 18px;
+      color: var(--fg-dim);
+      max-width: 620px;
+    }
+    .badges {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      padding: 4px 10px;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--fg-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .badge.live { color: var(--green); border-color: rgba(110, 206, 88, 0.3); }
+    .badge.soon { color: var(--yellow); border-color: rgba(228, 208, 80, 0.3); }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      margin-top: 48px;
+    }
+
+    .servers {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .server {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .server:hover { border-color: var(--accent-dim); }
+    .server h3 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .server p {
+      font-size: 14px;
+      color: var(--fg-dim);
+      margin-bottom: 12px;
+    }
+    .server .tools {
+      font-size: 11px;
+      color: var(--fg-ghost);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .server.soon { opacity: 0.6; }
+
+    pre.code {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 12px 0 16px;
+      color: var(--fg);
+    }
+    pre.code .k { color: var(--accent); }
+    pre.code .s { color: var(--green); }
+
+    .url { color: var(--accent); text-decoration: none; font-family: 'JetBrains Mono', monospace; }
+    .url:hover { text-decoration: underline; }
+
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--fg-ghost);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a { color: var(--fg-dim); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
+    .hl { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <h1>cz-agents<span class="tld">.dev</span></h1>
+      </div>
+      <p class="tagline">
+        Model Context Protocol servery pro český ekosystém —
+        <span class="hl">ARES</span>, <span class="hl">ČNB</span>, <span class="hl">ISIR</span>.
+        Dejte svému AI agentovi nativní přístup k firemním a státním datům v ČR.
+      </p>
+      <div class="badges">
+        <span class="badge">MCP 1.10</span>
+        <span class="badge">TypeScript</span>
+        <span class="badge">MIT</span>
+        <span class="badge live">● 2 servery live</span>
+      </div>
+    </header>
+
+    <h2>Dostupné servery</h2>
+    <div class="servers">
+      <div class="server">
+        <h3>@cz-agents/ares</h3>
+        <p>Obchodní rejstřík — lookup podle IČO, fulltext, transparentní účty, historie</p>
+        <div class="tools">lookup_by_ico · search_companies · get_bank_accounts · get_history</div>
+      </div>
+      <div class="server">
+        <h3>@cz-agents/cnb</h3>
+        <p>ČNB kurzy — denní kurzovní lístek, konverze, historie</p>
+        <div class="tools">get_rates · convert · get_rate</div>
+      </div>
+      <div class="server soon">
+        <h3>@cz-agents/hlidac</h3>
+        <p>Hlídač státu — smlouvy, dotace, transparentnost (plánováno)</p>
+        <div class="tools">search_contracts · check_subject · …</div>
+      </div>
+      <div class="server soon">
+        <h3>@cz-agents/isir</h3>
+        <p>Insolvenční rejstřík — kontrola dlužníků (plánováno)</p>
+        <div class="tools">check_ico_insolvency · …</div>
+      </div>
+    </div>
+
+    <h2>Claude Desktop / Cursor</h2>
+    <p style="color:var(--fg-dim); font-size: 14px;">Přidej do <code>claude_desktop_config.json</code>:</p>
+    <pre class="code"><span class="k">{</span>
+  <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
+    <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@cz-agents/ares"</span>] <span class="k">},</span>
+    <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@cz-agents/cnb"</span>] <span class="k">}</span>
+  <span class="k">}</span>
+<span class="k">}</span></pre>
+
+    <h2>Remote HTTP (bez npm)</h2>
+    <pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
+    <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">}</span>
+<span class="k">}}</span></pre>
+
+    <h2>Příklad</h2>
+    <pre class="code">User: <span class="s">Jaká je DIČ a sídlo firmy Seznam.cz? Přepočti 100 EUR na CZK.</span>
+
+Agent → <span class="k">lookup_by_ico</span>(ico=<span class="s">"26168685"</span>)
+Agent → <span class="k">convert</span>(amount=100, from=<span class="s">"EUR"</span>, to=<span class="s">"CZK"</span>)
+
+Seznam.cz, a.s., DIČ CZ26168685, Radlická 3294/10, Praha 5 Smíchov.
+100 EUR = 2436.00 CZK (kurz ČNB 2026-04-15).</pre>
+
+    <footer>
+      <div>
+        <a href="https://github.com/martinhavel/cz-agents-mcp">GitHub</a> ·
+        <a href="https://modelcontextprotocol.io">MCP spec</a> ·
+        <a href="https://registry.modelcontextprotocol.io">MCP registry</a>
+      </div>
+      <div>
+        by <a href="https://martinhavel.cz">Martin Havel</a> · MIT
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
