@@ -8,8 +8,8 @@ COPY packages/shared ./packages/shared
 COPY packages/ares ./packages/ares
 
 RUN npm install --workspaces --include-workspace-root
-RUN npm run build --workspace=@cz-agents/shared
-RUN npm run build --workspace=@cz-agents/ares
+RUN npm run build --workspace=@czagents/shared
+RUN npm run build --workspace=@czagents/ares
 
 FROM node:20-alpine AS runner
 WORKDIR /app

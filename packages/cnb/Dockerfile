@@ -7,8 +7,8 @@ COPY packages/shared ./packages/shared
 COPY packages/cnb ./packages/cnb
 
 RUN npm install --workspaces --include-workspace-root
-RUN npm run build --workspace=@cz-agents/shared
-RUN npm run build --workspace=@cz-agents/cnb
+RUN npm run build --workspace=@czagents/shared
+RUN npm run build --workspace=@czagents/cnb
 
 FROM node:20-alpine AS runner
 WORKDIR /app

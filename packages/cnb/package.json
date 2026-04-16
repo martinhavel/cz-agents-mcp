@@ -1,6 +1,6 @@
 {
   "name": "@czagents/cnb",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for ČNB (Czech National Bank) — daily FX rates, currency conversion",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,7 +26,7 @@
     "start:http": "node dist/http.js"
   },
   "dependencies": {
-    "@czagents/shared": "0.1.0",
+    "@czagents/shared": "^0.1.1",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "zod": "^3.23.0"
   },
