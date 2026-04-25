@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdnList>
+  <sdnEntry>
+    <uid>12345</uid>
+    <firstName>Vladimir</firstName>
+    <lastName>Putin</lastName>
+    <sdnType>Individual</sdnType>
+    <programList>
+      <program>RUSSIA-EO14024</program>
+    </programList>
+    <akaList>
+      <aka>
+        <type>a.k.a.</type>
+        <category>strong</category>
+        <firstName>Vladimir Vladimirovich</firstName>
+        <lastName>Putin</lastName>
+      </aka>
+    </akaList>
+    <dateOfBirthList>
+      <dateOfBirthItem><dateOfBirth>07 Oct 1952</dateOfBirth></dateOfBirthItem>
+    </dateOfBirthList>
+    <nationalityList>
+      <nationality><country>Russia</country></nationality>
+    </nationalityList>
+    <addressList>
+      <address>
+        <city>Moscow</city>
+        <country>Russia</country>
+      </address>
+    </addressList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>67890</uid>
+    <firstName>Bank</firstName>
+    <lastName>Rossiya</lastName>
+    <sdnType>Entity</sdnType>
+    <programList>
+      <program>RUSSIA-EO14024</program>
+      <program>UKRAINE-EO13662</program>
+    </programList>
+    <addressList>
+      <address>
+        <city>Saint Petersburg</city>
+        <country>Russia</country>
+      </address>
+    </addressList>
+    <idList>
+      <id>
+        <idType>Tax ID No.</idType>
+        <idNumber>7831000122</idNumber>
+        <idCountry>Russia</idCountry>
+      </id>
+    </idList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>55555</uid>
+    <firstName>MV</firstName>
+    <lastName>Nautica</lastName>
+    <sdnType>Vessel</sdnType>
+    <programList>
+      <program>SDGT</program>
+    </programList>
+  </sdnEntry>
+</sdnList>
