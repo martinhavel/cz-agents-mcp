@@ -14,6 +14,8 @@ Give your AI agent native access to ARES, ČNB, and more.
 |---|---|---|
 | [`@czagents/ares`](./packages/ares) | ARES — Czech Business Register | ✅ live |
 | [`@czagents/cnb`](./packages/cnb) | ČNB — daily FX rates | ✅ live |
+| [`@czagents/sanctions`](./packages/sanctions) | EU + OFAC sanctions screening (KYC/AML) | 🧪 beta |
+| [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR) | 🧪 beta |
 | `@czagents/isir` | ISIR — Czech insolvency register | 🚧 future |
 
 ## Quick start
@@ -23,8 +25,10 @@ Give your AI agent native access to ARES, ČNB, and more.
 ```json
 {
   "mcpServers": {
-    "ares": { "command": "npx", "args": ["-y", "@czagents/ares"] },
-    "cnb":  { "command": "npx", "args": ["-y", "@czagents/cnb"] }
+    "ares":      { "command": "npx", "args": ["-y", "@czagents/ares"] },
+    "cnb":       { "command": "npx", "args": ["-y", "@czagents/cnb"] },
+    "sanctions": { "command": "npx", "args": ["-y", "@czagents/sanctions"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db" } },
+    "dd":        { "command": "npx", "args": ["-y", "@czagents/dd"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db" } }
   }
 }
 ```
@@ -34,8 +38,10 @@ Give your AI agent native access to ARES, ČNB, and more.
 ```json
 {
   "mcpServers": {
-    "ares": { "url": "https://ares.cz-agents.dev/mcp" },
-    "cnb":  { "url": "https://cnb.cz-agents.dev/mcp" }
+    "ares":      { "url": "https://ares.cz-agents.dev/mcp" },
+    "cnb":       { "url": "https://cnb.cz-agents.dev/mcp" },
+    "sanctions": { "url": "https://sanctions.cz-agents.dev/mcp" },
+    "dd":        { "url": "https://dd.cz-agents.dev/mcp" }
   }
 }
 ```
@@ -59,6 +65,20 @@ Give your AI agent native access to ARES, ČNB, and more.
 - `get_rates({ date? })` — full daily FX sheet
 - `convert({ amount, from, to, date? })` — CZK-crossed conversion
 - `get_rate({ code, date? })` — single currency rate
+
+### `@czagents/sanctions` (5 tools)
+
+- `search_person({ name, dob?, nationality?, threshold? })` — fuzzy KYC screen against EU + OFAC
+- `search_entity({ name, country?, threshold? })` — entity / company screen
+- `check_ico({ ico, name? })` — direct lookup of a Czech IČO on sanctions lists
+- `get_listing({ id })` — full record by `${source}:${id}`
+- `list_recent_updates({ since, source? })` — daily monitoring (added/removed/modified)
+
+### `@czagents/dd` (3 tools)
+
+- `get_dd_report({ ico, depth })` — unified ARES + sanctions + ISIR report with risk score
+- `get_risk_score({ ico })` — fast 0–100 score + top red flags
+- `get_statutory_chain({ ico, max_depth })` — UBO / shell-company tree walk
 
 ## Further reading
 

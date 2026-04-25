@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<export generationDate="2026-04-15">
+  <sanctionEntity logicalId="EU.13845.2014" euReferenceNumber="EU.13845.2014" designationDate="2014-07-31">
+    <subjectType code="P"/>
+    <nameAlias firstName="Vladimir" lastName="Putin" wholeName="Vladimir Vladimirovich Putin" function="President"/>
+    <nameAlias wholeName="Владимир Владимирович Путин" nameLanguage="RU"/>
+    <birthdate birthdate="1952-10-07" country="USSR"/>
+    <citizenship countryDescription="Russia" region="RU"/>
+    <address street="Kremlin" city="Moscow" countryDescription="Russia"/>
+    <regulation programme="UKR.RUSSIA"/>
+  </sanctionEntity>
+  <sanctionEntity logicalId="EU.999.2022" designationDate="2022-02-25">
+    <subjectType code="E"/>
+    <nameAlias wholeName="Bank Rossiya"/>
+    <nameAlias wholeName="Банк Россия" nameLanguage="RU"/>
+    <address city="Saint Petersburg" countryDescription="Russia"/>
+    <identification documentType="tax_id" number="7831000122" countryDescription="Russia"/>
+    <regulation programme="UKR.RUSSIA"/>
+  </sanctionEntity>
+  <sanctionEntity logicalId="EU.42.2025" designationDate="2025-01-15">
+    <subjectType code="P"/>
+    <nameAlias firstName="John" lastName="Doe" wholeName="John Doe"/>
+    <birthdate birthdate="1978-03-14"/>
+    <citizenship countryDescription="United Kingdom"/>
+    <identification documentType="passport" number="GBR987654" countryDescription="United Kingdom"/>
+    <regulation programme="EU.GLOBAL_HUMAN_RIGHTS"/>
+  </sanctionEntity>
+</export>
