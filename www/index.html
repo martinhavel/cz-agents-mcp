@@ -176,6 +176,26 @@
     pre.code .k { color: var(--accent); }
     pre.code .s { color: var(--green); }
 
+    .snippet { position: relative; }
+    .snippet .copy {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg-dim);
+      padding: 4px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+      opacity: 0;
+    }
+    .snippet:hover .copy { opacity: 1; }
+    .snippet .copy:hover { color: var(--accent); border-color: var(--accent-dim); }
+    .snippet .copy.copied { color: var(--green); border-color: rgba(110, 206, 88, 0.5); opacity: 1; }
+
     .url { color: var(--accent); text-decoration: none; font-family: 'JetBrains Mono', monospace; }
     .url:hover { text-decoration: underline; }
 
@@ -244,18 +264,26 @@
 
     <h2>Claude Desktop / Cursor</h2>
     <p style="color:var(--fg-dim); font-size: 14px;">Add to <code>claude_desktop_config.json</code>:</p>
-    <pre class="code"><span class="k">{</span>
+    <div class="snippet"><button class="copy" type="button" data-copy='{
+  "mcpServers": {
+    "ares": { "command": "npx", "args": ["-y", "@czagents/ares"] },
+    "cnb":  { "command": "npx", "args": ["-y", "@czagents/cnb"] }
+  }
+}'>copy</button><pre class="code"><span class="k">{</span>
   <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
     <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/ares"</span>] <span class="k">},</span>
     <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/cnb"</span>] <span class="k">}</span>
   <span class="k">}</span>
-<span class="k">}</span></pre>
+<span class="k">}</span></pre></div>
 
     <h2>Remote HTTP (no npm)</h2>
-    <pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
+    <div class="snippet"><button class="copy" type="button" data-copy='{ "mcpServers": {
+    "ares": { "url": "https://ares.cz-agents.dev/mcp" },
+    "cnb":  { "url": "https://cnb.cz-agents.dev/mcp" }
+}}'>copy</button><pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
     <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">}</span>
-<span class="k">}}</span></pre>
+<span class="k">}}</span></pre></div>
 
     <h2>Example</h2>
     <pre class="code">User: <span class="s">What is the VAT ID and address of Seznam.cz? Convert 100 EUR to CZK.</span>
@@ -288,6 +316,25 @@ Seznam.cz, a.s., VAT ID CZ26168685, Radlická 3294/10, Prague 5 – Smíchov.
     document.querySelectorAll('nav.lang a').forEach(function (a) {
       a.addEventListener('click', function () {
         try { localStorage.setItem('lang', a.dataset.lang); } catch (e) {}
+      });
+    });
+    document.querySelectorAll('button.copy').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        var text = btn.dataset.copy || '';
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            var ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+          }
+          var orig = btn.textContent;
+          btn.textContent = 'copied!';
+          btn.classList.add('copied');
+          setTimeout(function () { btn.textContent = orig; btn.classList.remove('copied'); }, 1600);
+        } catch (e) {}
       });
     });
   </script>
