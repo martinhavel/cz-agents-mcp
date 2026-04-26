@@ -1,6 +1,6 @@
 {
   "name": "@czagents/sanctions",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "MCP server for sanctions screening (EU consolidated list, OFAC SDN, UN, OFSI) — KYC/AML for fintech, banks, payment institutions",
   "type": "module",
   "main": "./dist/index.js",
@@ -45,7 +45,7 @@
     "@czagents/shared": "^0.1.6",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "better-sqlite3": "^11.5.0",
-    "fast-xml-parser": "^4.5.0",
+    "fast-xml-parser": "^5.7.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {
