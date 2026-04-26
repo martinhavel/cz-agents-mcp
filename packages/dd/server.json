@@ -8,13 +8,13 @@
     "source": "github",
     "subfolder": "packages/dd"
   },
-  "version": "0.1.5",
+  "version": "0.1.6",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/dd",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

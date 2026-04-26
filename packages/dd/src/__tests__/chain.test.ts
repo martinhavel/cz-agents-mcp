@@ -134,4 +134,36 @@ describe('buildChain', () => {
     const chain = await buildChain('A', ares, { maxDepth: 2, minNameLength: 5 });
     expect(chain.tree.children).toBeUndefined();
   });
+
+  it('auto-skips persons whose surname matches > threshold companies', async () => {
+    const fakeAres: AresLike = {
+      getByIco: async (ico) => ({ ico, obchodniJmeno: ico }),
+      getBankAccounts: async () => [],
+      getVrRecord: async (ico) =>
+        ico === 'ROOT'
+          ? {
+              ico: 'ROOT',
+              statutarniOrgany: [{
+                clenoveOrganu: [
+                  { fyzickaOsoba: { jmeno: 'Jan', prijmeni: 'Novakovic' } }, // <= threshold
+                  { fyzickaOsoba: { jmeno: 'Petr', prijmeni: 'Tooooocommonsurname' } }, // common
+                ],
+              }],
+            }
+          : null,
+      search: async (params) => {
+        const s = params.obchodniJmeno;
+        if (s === 'Novakovic') return { pocetCelkem: 2, ekonomickeSubjekty: [{ ico: 'X' }, { ico: 'Y' }] };
+        if (s === 'Tooooocommonsurname') return { pocetCelkem: 999, ekonomickeSubjekty: [] };
+        return { pocetCelkem: 0, ekonomickeSubjekty: [] };
+      },
+    };
+    const chain = await buildChain('ROOT', fakeAres, { maxDepth: 1, commonSurnameThreshold: 50 });
+    // Novakovic surname (2 matches) should expand to children
+    expect(chain.tree.children?.length).toBeGreaterThan(0);
+    // Tooooocommonsurname should be in skipped list
+    expect(chain.tree.skipped_common_surnames).toBeDefined();
+    expect(chain.tree.skipped_common_surnames!.find((s) => s.name.includes('Tooooocommonsurname'))).toBeDefined();
+    expect(chain.tree.skipped_common_surnames!.find((s) => s.name.includes('Tooooocommonsurname'))!.total_match_count).toBe(999);
+  });
 });

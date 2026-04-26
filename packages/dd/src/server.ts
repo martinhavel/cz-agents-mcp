@@ -61,7 +61,7 @@ export function buildDdServer(clients: DdClients): McpServer {
 
   server.tool(
     'get_statutory_chain',
-    'Discover the statutory chain (UBO-style tree) for a Czech IČO. Walks: this company → its statutory persons → other companies they sit on → ... up to max_depth. Useful for KYC and shell-company unwinding.',
+    'Surname-based heuristic walk through statutory bodies of related Czech companies. Best for shell-company unwinding in small s.r.o. with RARE surnames. NOT a true UBO source — for actual beneficial ownership use the ESM (evidence skutečných majitelů, separate registry, future @czagents/esm). For boards of large public companies with common Czech surnames (Novák, Zima, Kolář…) results are noisy by design; the tool auto-skips persons whose surname matches >50 companies with a SURNAME_TOO_COMMON note.',
     {
       ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
       max_depth: z.number().int().min(1).max(5).default(3).describe('Max recursion depth (default 3, hard cap 5).'),
