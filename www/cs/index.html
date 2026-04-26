@@ -407,15 +407,16 @@
     </p>
 
     <h2>Příklad</h2>
-    <pre class="code">User: <span class="s">Udělej due-diligence report na IČO 08156123.</span>
+    <p style="color:var(--fg-ghost); font-size: 12px;">Smyšlená data — IČO i údaje níže jsou fiktivní, slouží jen k ukázce tvaru odpovědi.</p>
+    <pre class="code">User: <span class="s">Udělej due-diligence report na IČO 12345678.</span>
 
-Agent → <span class="k">get_dd_report</span>(ico=<span class="s">"08156123"</span>, depth=<span class="s">"full"</span>)
+Agent → <span class="k">get_dd_report</span>(ico=<span class="s">"12345678"</span>, depth=<span class="s">"full"</span>)
         ↳ ARES + EU/OFAC sankce + screen statutárů
 
-Financial Group DYNASTY s.r.o. — Tržiště 366/13, Praha 1, vznik 2019.
-Plátce DPH (CZ08156123). Statutář: ELENA KRONNAYA (od 2022-06-10).
+Acme Imports s.r.o. — Pražská 100, Praha 1, vznik 2018.
+Plátce DPH (CZ12345678). Statutář: Jan Novák (od 2023-04-12).
 Sankce: BEZ MATCHE (0/24 856 záznamů).
-Risk score: 5/100 (low) — jediný flag: chybí transparentní účet DPH.</pre>
+Risk score: 12/100 (low) — flag: chybí transparentní účet DPH.</pre>
 
     <h2>Further reading</h2>
     <p style="color:var(--fg-dim); font-size: 14px; line-height: 1.7;">

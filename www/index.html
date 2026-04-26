@@ -419,15 +419,16 @@
     </p>
 
     <h2>Example</h2>
-    <pre class="code">User: <span class="s">Run a due-diligence report on IČO 08156123.</span>
+    <p style="color:var(--fg-ghost); font-size: 12px;">Synthetic data — IČO and details below are fictional, used only to illustrate response shape.</p>
+    <pre class="code">User: <span class="s">Run a due-diligence report on IČO 12345678.</span>
 
-Agent → <span class="k">get_dd_report</span>(ico=<span class="s">"08156123"</span>, depth=<span class="s">"full"</span>)
+Agent → <span class="k">get_dd_report</span>(ico=<span class="s">"12345678"</span>, depth=<span class="s">"full"</span>)
         ↳ ARES + EU/OFAC sanctions + statutory body screen
 
-Financial Group DYNASTY s.r.o. — Tržiště 366/13, Praha 1, founded 2019.
-VAT-registered (CZ08156123). Statutory: ELENA KRONNAYA (since 2022-06-10).
+Acme Imports s.r.o. — Pražská 100, Praha 1, founded 2018.
+VAT-registered (CZ12345678). Statutory: Jan Novák (since 2023-04-12).
 Sanctions: NO MATCH (0/24,856 records).
-Risk score: 5/100 (low) — only flag is missing transparent VAT account.</pre>
+Risk score: 12/100 (low) — flagged: missing transparent VAT account.</pre>
 
     <h2>Further reading</h2>
     <p style="color:var(--fg-dim); font-size: 14px; line-height: 1.7;">
