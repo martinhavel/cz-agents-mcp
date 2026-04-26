@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "dev.cz-agents/dd",
+  "description": "Czech company due diligence — ARES + sanctions + risk score, statutory chain UBO walk",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/martinhavel/cz-agents-mcp",
+    "source": "github",
+    "subfolder": "packages/dd"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://cz-agents.dev",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@czagents/dd",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://dd.cz-agents.dev/mcp"
+    }
+  ]
+}

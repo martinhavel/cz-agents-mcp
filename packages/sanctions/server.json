@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "dev.cz-agents/sanctions",
+  "description": "Sanctions screening (EU + OFAC) for KYC/AML — fuzzy person/entity match, IČO check",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/martinhavel/cz-agents-mcp",
+    "source": "github",
+    "subfolder": "packages/sanctions"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://cz-agents.dev",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@czagents/sanctions",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://sanctions.cz-agents.dev/mcp"
+    }
+  ]
+}

@@ -42,7 +42,7 @@
   "dependencies": {
     "@czagents/ares": "^0.1.5",
     "@czagents/sanctions": "^0.1.0",
-    "@czagents/shared": "^0.1.3",
+    "@czagents/shared": "^0.1.4",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "zod": "^3.23.0"
   },
