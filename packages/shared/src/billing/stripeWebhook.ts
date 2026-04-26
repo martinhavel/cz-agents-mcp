@@ -94,6 +94,7 @@ function handleCheckoutCompleted(
   const metadata = (session['metadata'] ?? {}) as Record<string, string>;
   const price_id = metadata['price_id'] ?? extractPriceFromSession(session);
   const subscription_id = (session['subscription'] as string | null) ?? null;
+  const session_id = (session['id'] as string | null) ?? null;
 
   if (!price_id) {
     return { status: 200, body: JSON.stringify({ received: true, skipped: 'no price_id' }) };
@@ -125,6 +126,7 @@ function handleCheckoutCompleted(
     tier: tier.kind,
     stripe_customer_id: customer_id,
     stripe_subscription_id: subscription_id,
+    stripe_session_id: session_id,
     monthly_quota: tier.monthly_quota,
     credits,
   });

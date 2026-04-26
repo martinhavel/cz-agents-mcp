@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your API token — cz-agents</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+         max-width: 720px; margin: 60px auto; padding: 0 20px; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 24px; }
+  pre { background: #f3f4f6; padding: 14px 16px; border-radius: 8px; font-size: 13px; overflow-x: auto;
+        border: 1px solid #e5e7eb; }
+  .token { background: #ecfdf5; border-color: #a7f3d0; word-break: break-all; }
+  .err { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+  .muted { color: #6b7280; font-size: 14px; }
+  button { background: #111827; color: white; border: 0; padding: 8px 12px; border-radius: 6px;
+           cursor: pointer; font-size: 13px; }
+  button:hover { background: #374151; }
+  .grid { display: grid; gap: 8px; grid-template-columns: 110px 1fr; font-size: 14px; }
+  .grid div:nth-child(odd) { color: #6b7280; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<h1>Welcome — here is your API token</h1>
+<p class="muted">Thanks for purchasing! Save this token securely — it can only be retrieved once from this page.</p>
+<div id="result"><p class="muted">Loading…</p></div>
+
+<script>
+(async function () {
+  const params = new URLSearchParams(location.search);
+  const sid = params.get('session_id');
+  const service = params.get('service'); // 'sanctions' | 'dd'
+  const root = document.getElementById('result');
+
+  if (!sid || !service) {
+    root.innerHTML = '<pre class="err">Missing session_id or service in URL.</pre>';
+    return;
+  }
+  if (service !== 'sanctions' && service !== 'dd') {
+    root.innerHTML = '<pre class="err">Unknown service: ' + escapeHtml(service) + '</pre>';
+    return;
+  }
+
+  const base = 'https://' + service + '.cz-agents.dev';
+  let res;
+  try {
+    res = await fetch(base + '/onboard/token?session_id=' + encodeURIComponent(sid), {
+      headers: { 'Accept': 'application/json' },
+    });
+  } catch (e) {
+    root.innerHTML = '<pre class="err">Network error: ' + escapeHtml(String(e)) + '</pre>';
+    return;
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    root.innerHTML = '<pre class="err">' + escapeHtml(data.message || data.error || ('HTTP ' + res.status)) + '</pre>'
+      + '<p class="muted">If you just paid, give it 30 seconds and refresh — the webhook may still be processing. If this keeps failing, email <a href="mailto:martin.havel@gmail.com">martin.havel@gmail.com</a> with this URL and we will recover the token from our records.</p>';
+    return;
+  }
+
+  root.innerHTML = `
+    <p>Save this token in a password manager. It will not be shown again.</p>
+    <pre class="token" id="tok">${escapeHtml(data.token)}</pre>
+    <button onclick="navigator.clipboard.writeText(document.getElementById('tok').textContent).then(()=>this.textContent='Copied ✓')">Copy</button>
+    <h3 style="margin-top:32px">Plan</h3>
+    <div class="grid">
+      <div>Service</div><div>${escapeHtml(service)}</div>
+      <div>Tier</div><div>${escapeHtml(data.tier)}</div>
+      ${data.monthly_quota !== null ? `<div>Monthly quota</div><div>${data.monthly_quota.toLocaleString()} calls</div>` : ''}
+      ${data.credits !== null ? `<div>Credits</div><div>${data.credits} reports</div>` : ''}
+    </div>
+    <h3 style="margin-top:32px">How to use</h3>
+    <p>For local clients (Claude Desktop, Cursor):</p>
+<pre>{
+  "mcpServers": {
+    "${service}": {
+      "url": "${base}/mcp",
+      "headers": { "Authorization": "Bearer ${escapeHtml(data.token)}" }
+    }
+  }
+}</pre>
+    <p class="muted">For programmatic use, send <code>Authorization: Bearer &lt;token&gt;</code> with each request.</p>
+  `;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+  }
+})();
+</script>
+</body>
+</html>

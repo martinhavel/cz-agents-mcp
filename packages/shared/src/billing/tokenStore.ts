@@ -13,13 +13,19 @@ import { dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { ServiceKind, Tier, TokenRecord } from './types.js';
 
-const SCHEMA = `
+// Two-phase init so ALTER TABLE migrations run before any index that
+// references a newly-added column:
+//   1) CREATE_TABLE — base table only
+//   2) MIGRATIONS — add columns absent on legacy DBs
+//   3) CREATE_INDEXES — indexes (may reference migrated columns)
+const CREATE_TABLE = `
 CREATE TABLE IF NOT EXISTS tokens (
   token                  TEXT PRIMARY KEY,
   service                TEXT NOT NULL,
   tier                   TEXT NOT NULL,
   stripe_customer_id     TEXT NOT NULL,
   stripe_subscription_id TEXT,
+  stripe_session_id      TEXT,
   monthly_quota          INTEGER,
   counter                INTEGER NOT NULL DEFAULT 0,
   credits                INTEGER,
@@ -28,9 +34,19 @@ CREATE TABLE IF NOT EXISTS tokens (
   updated_at             INTEGER NOT NULL,
   revoked_at             INTEGER
 );
+`;
 
+const MIGRATIONS: Array<{ check: string; apply: string }> = [
+  {
+    check: "SELECT 1 FROM pragma_table_info('tokens') WHERE name='stripe_session_id'",
+    apply: 'ALTER TABLE tokens ADD COLUMN stripe_session_id TEXT',
+  },
+];
+
+const CREATE_INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_tokens_customer ON tokens(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_subscription ON tokens(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_tokens_session ON tokens(stripe_session_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_service_active ON tokens(service, revoked_at);
 `;
 
@@ -43,7 +59,12 @@ export class TokenStore {
     mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
-    this.db.exec(SCHEMA);
+    this.db.exec(CREATE_TABLE);
+    for (const m of MIGRATIONS) {
+      const present = this.db.prepare(m.check).get();
+      if (!present) this.db.exec(m.apply);
+    }
+    this.db.exec(CREATE_INDEXES);
   }
 
   close(): void {
@@ -56,6 +77,7 @@ export class TokenStore {
     tier: Tier['kind'];
     stripe_customer_id: string;
     stripe_subscription_id: string | null;
+    stripe_session_id?: string | null;
     monthly_quota: number | null;
     credits: number | null;
   }): TokenRecord {
@@ -63,14 +85,16 @@ export class TokenStore {
     const now = Date.now();
     this.db.prepare(`
       INSERT INTO tokens (token, service, tier, stripe_customer_id, stripe_subscription_id,
-                          monthly_quota, counter, credits, period_started_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
+                          stripe_session_id, monthly_quota, counter, credits,
+                          period_started_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
     `).run(
       token,
       input.service,
       input.tier,
       input.stripe_customer_id,
       input.stripe_subscription_id,
+      input.stripe_session_id ?? null,
       input.monthly_quota,
       input.credits,
       now,
@@ -78,6 +102,27 @@ export class TokenStore {
       now,
     );
     return this.find(token)!;
+  }
+
+  /**
+   * One-shot lookup by Stripe Checkout session_id. Returns the token once,
+   * then clears the session_id mapping so a leaked session_id can't be
+   * replayed later. Returns null if unknown / already retrieved.
+   */
+  retrieveBySession(stripe_session_id: string): TokenRecord | null {
+    const tx = this.db.transaction(() => {
+      const row = this.db
+        .prepare<[string], TokenRecord>(
+          'SELECT * FROM tokens WHERE stripe_session_id = ? AND revoked_at IS NULL',
+        )
+        .get(stripe_session_id);
+      if (!row) return null;
+      this.db
+        .prepare('UPDATE tokens SET stripe_session_id = NULL, updated_at = ? WHERE token = ?')
+        .run(Date.now(), row.token);
+      return row;
+    });
+    return tx();
   }
 
   /** Look up a token by its opaque secret. Returns null for unknown or revoked. */

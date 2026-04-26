@@ -61,6 +61,22 @@ async function main() {
       return;
     }
 
+    if (req.url?.startsWith('/onboard/token') && req.method === 'GET') {
+      const url = new URL(req.url, 'http://localhost');
+      const sessionId = url.searchParams.get('session_id');
+      if (!sessionId || !sessionId.startsWith('cs_')) {
+        res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ error: 'invalid_session_id' }));
+        return;
+      }
+      const t = tokenStore.retrieveBySession(sessionId);
+      res.writeHead(t ? 200 : 404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify(t
+        ? { token: t.token, tier: t.tier, monthly_quota: t.monthly_quota, credits: t.credits }
+        : { error: 'not_found', message: 'Session unknown or token already retrieved.' }));
+      return;
+    }
+
     if (req.url === '/webhook/stripe' && req.method === 'POST') {
       if (!webhookSecret) {
         res.writeHead(503, { 'Content-Type': 'application/json' });

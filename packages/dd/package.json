@@ -1,6 +1,6 @@
 {
   "name": "@czagents/dd",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for Czech company due diligence — aggregates ARES, sanctions, ISIR, statutory chain into a single risk-scored report",
   "type": "module",
   "main": "./dist/index.js",
@@ -41,8 +41,8 @@
   },
   "dependencies": {
     "@czagents/ares": "^0.1.5",
-    "@czagents/sanctions": "^0.1.0",
-    "@czagents/shared": "^0.1.4",
+    "@czagents/sanctions": "^0.1.1",
+    "@czagents/shared": "^0.1.5",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "zod": "^3.23.0"
   },
