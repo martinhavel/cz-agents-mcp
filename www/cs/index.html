@@ -303,7 +303,7 @@
       </div>
       <div class="server">
         <h3>@czagents/dd <span class="pill beta">beta</span> <span class="pill paid">placený tier</span></h3>
-        <p>Due-diligence agregátor — ARES + sankce + insolvence + statutární řetězec (UBO walk) sloučené do jednoho rizikově skórovaného reportu</p>
+        <p>Due-diligence agregátor — ARES + sankce + ISIR insolvence + statutární řetězec. Detekuje vzory bílého koně: bydliště na úřadu, předchozí firmy v konkurzu, osobní insolvence jednatele. Jediný report s rizikovým skóre a vysvětlitelnými red flags.</p>
         <div class="tools">get_dd_report · get_risk_score · get_statutory_chain</div>
       </div>
       <div class="server">
@@ -348,6 +348,15 @@
     <span class="s">"isir"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://isir.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">}</span>
 <span class="k">}}</span></pre></div>
+
+    <h2>Datové principy</h2>
+    <p style="color:var(--fg-dim); font-size: 14px;">
+      cz-agents používá <strong>pouze státem garantované veřejné registry</strong>: ARES (MF),
+      ČNB, ISIR (MSp), EU FSF, OFAC SDN. Nekupujeme od paywally profesních komor
+      (Centrální evidence exekucí Exekutorské komory) ani od komerčních přeprodejců
+      (Cribis, Bisnode). Veřejná data mají zůstat zdarma v místě použití — tvoje
+      předplatné platí <em>údržbu</em>, ne přístup k datům, která stát už publikuje.
+    </p>
 
     <h2>Ceník</h2>
     <p style="color:var(--fg-dim); font-size: 14px;">
@@ -420,6 +429,9 @@ Agent → <span class="k">get_dd_report</span>(ico=<span class="s">"12345678"</s
 Acme Imports s.r.o. — Pražská 100, Praha 1, vznik 2018.
 Plátce DPH (CZ12345678). Statutář: Jan Novák (od 2023-04-12).
 Sankce: BEZ MATCHE (0/24 856 záznamů).
+Osobní insolvence Jana Nováka: bez záznamu.
+Bydliště na úřadu: bez záznamu (běžná ulice).
+Předchozí firmy v konkurzu (dle příjmení): bez záznamu.
 Risk score: 12/100 (low) — flag: chybí transparentní účet DPH.</pre>
 
     <h2>Further reading</h2>

@@ -315,7 +315,7 @@
       </div>
       <div class="server">
         <h3>@czagents/dd <span class="pill beta">beta</span> <span class="pill paid">paid tier</span></h3>
-        <p>Czech company due diligence aggregator — ARES + sanctions + insolvency check + statutory chain (UBO walk) into a single risk-scored report</p>
+        <p>Czech company due diligence aggregator — ARES + sanctions + ISIR insolvency + statutory chain. Detects bílý-kůň patterns: úřad-registered residence, prior bankrupt companies, personal insolvency of directors. Single risk-scored report with explainable red flags.</p>
         <div class="tools">get_dd_report · get_risk_score · get_statutory_chain</div>
       </div>
       <div class="server">
@@ -360,6 +360,15 @@
     <span class="s">"isir"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://isir.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">}</span>
 <span class="k">}}</span></pre></div>
+
+    <h2>Data principles</h2>
+    <p style="color:var(--fg-dim); font-size: 14px;">
+      cz-agents uses <strong>only state-guaranteed public registries</strong>: ARES (MoF), ČNB, ISIR
+      (Justice), EU FSF, OFAC SDN. We do not buy from professional-chamber paywalls
+      (Centrální evidence exekucí) or commercial resellers (Cribis, Bisnode).
+      Public data should stay free at the point of use — your subscription pays for
+      <em>maintenance</em>, not for renting access to data the state already publishes.
+    </p>
 
     <h2>Pricing</h2>
     <p style="color:var(--fg-dim); font-size: 14px;">
@@ -432,6 +441,9 @@ Agent → <span class="k">get_dd_report</span>(ico=<span class="s">"12345678"</s
 Acme Imports s.r.o. — Pražská 100, Praha 1, founded 2018.
 VAT-registered (CZ12345678). Statutory: Jan Novák (since 2023-04-12).
 Sanctions: NO MATCH (0/24,856 records).
+Personal insolvency check on Jan Novák: no match.
+Govt-address check on residence: no match (regular street address).
+Prior-bankrupt-company check by surname: no match.
 Risk score: 12/100 (low) — flagged: missing transparent VAT account.</pre>
 
     <h2>Further reading</h2>
