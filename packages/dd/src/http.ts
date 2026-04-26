@@ -56,11 +56,6 @@ async function main() {
   const limiter = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX });
 
   const http = createServer(async (req, res) => {
-    // TEMPORARY DEBUG: log incoming requests (remove after Anthropic flow works)
-    if (req.url?.startsWith(MCP_PATH)) {
-      console.error(`[debug] ${req.method} ${req.url} | Origin=${req.headers.origin ?? '-'} | Accept=${req.headers.accept ?? '-'} | UA=${(req.headers['user-agent'] ?? '-').substring(0, 80)} | session=${req.headers['mcp-session-id'] ?? '-'}`);
-    }
-
     // Permissive Accept-header rewrite for clients that send "*/*"
     // (Anthropic Connector probe-tester uses python-httpx with default
     // Accept: */* — MCP SDK does literal string-includes check and returns
