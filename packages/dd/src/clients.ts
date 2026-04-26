@@ -8,6 +8,18 @@
  * version bumps that don't change the consumed surface.
  */
 
+export interface AresAddressLike {
+  textovaAdresa?: string;
+  nazevUlice?: string;
+  cisloDomovni?: number;
+  cisloOrientacni?: string;
+  nazevObce?: string;
+  nazevCastiObce?: string;
+  psc?: number;
+  kodObce?: number;
+  kodAdresnihoMista?: number;
+}
+
 export interface AresStatutoryMember {
   fyzickaOsoba?: {
     jmeno?: string;
@@ -15,6 +27,8 @@ export interface AresStatutoryMember {
     titulPredJmenem?: string;
     titulZaJmenem?: string;
     datumNarozeni?: string;
+    statniObcanstvi?: string;
+    adresa?: AresAddressLike;
   };
   pravnickaOsoba?: {
     obchodniJmeno?: string;
