@@ -125,6 +125,27 @@ describe('scoreFromFlags', () => {
     expect(scoreFromFlags([{ code: 'X', severity: 'high', weight: 60, description: '', source: '' }]).level).toBe('high');
   });
 
+  it('triggers STATUTORY_REGISTERED_AT_GOVT_OFFICE for úřad bydliště', () => {
+    const flags = evaluateFlags(baseInput({
+      statutoryGovtAddresses: [{ name: 'Jan Novák', signal: 'marker', matched_token: 'úřad' }],
+    }));
+    const f = flags.find((x) => x.code === 'STATUTORY_REGISTERED_AT_GOVT_OFFICE');
+    expect(f).toBeDefined();
+    expect(f!.weight).toBe(25);
+    expect(f!.severity).toBe('high');
+  });
+
+  it('triggers STATUTORY_PRIOR_BANKRUPT_COMPANY for surname match on insolvent firm', () => {
+    const flags = evaluateFlags(baseInput({
+      statutoryPriorBankruptcies: [
+        { name: 'Pavel Novák', ico: '99999999', company_name: 'Old Co.', spisova_znacka: 'KSPH 60 INS 1/2024' },
+      ],
+    }));
+    const f = flags.find((x) => x.code === 'STATUTORY_PRIOR_BANKRUPT_COMPANY');
+    expect(f).toBeDefined();
+    expect(f!.weight).toBe(20);
+  });
+
   it('any critical flag forces high regardless of weight', () => {
     expect(scoreFromFlags([{ code: 'X', severity: 'critical', weight: 5, description: '', source: '' }]).level).toBe('high');
     expect(scoreFromFlags([{ code: 'X', severity: 'critical', weight: 50, description: '', source: '' }]).level).toBe('high');

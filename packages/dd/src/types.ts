@@ -42,6 +42,17 @@ export interface StatutoryMember {
     phase?: string;
     url?: string;
   };
+  /** Set if this person's permanent residence is at a municipal office (úřad bydliště). */
+  registered_at_govt_office?: {
+    signal: 'marker' | 'known_address';
+    matched_token?: string;
+  };
+  /** Other Czech companies sharing surname that have or had insolvency. */
+  prior_bankrupt_companies?: Array<{
+    ico: string;
+    name?: string;
+    spisova_znacka?: string;
+  }>;
 }
 
 export interface DdReport {

@@ -29,6 +29,10 @@ export interface ScoreInputs {
   mostRecentStatutoryChange?: string;
   /** Statutory persons with active personal insolvency in ISIR. */
   statutoryPersonalInsolvencies?: Array<{ name: string; spisova_znacka: string }>;
+  /** Statutory persons with permanent residence at a municipal office address. */
+  statutoryGovtAddresses?: Array<{ name: string; signal: string; matched_token?: string }>;
+  /** Statutory persons matched to a (possibly insolvent) prior company by surname. */
+  statutoryPriorBankruptcies?: Array<{ name: string; ico: string; company_name?: string; spisova_znacka?: string }>;
 }
 
 export function evaluateFlags(input: ScoreInputs): RedFlag[] {
@@ -67,6 +71,28 @@ export function evaluateFlags(input: ScoreInputs): RedFlag[] {
         evidence: s,
       });
     }
+  }
+
+  for (const g of input.statutoryGovtAddresses ?? []) {
+    flags.push({
+      code: 'STATUTORY_REGISTERED_AT_GOVT_OFFICE',
+      severity: 'high',
+      weight: 25,
+      description: `Statutární osoba ${g.name} má trvalé bydliště evidované na úřadu (signál: ${g.signal}${g.matched_token ? `, ${g.matched_token}` : ''}). Klasický indikátor "bílého koně" — nestabilní bydlení nebo nominální statutář pro shell company.`,
+      source: 'ares',
+      evidence: g,
+    });
+  }
+
+  for (const p of input.statutoryPriorBankruptcies ?? []) {
+    flags.push({
+      code: 'STATUTORY_PRIOR_BANKRUPT_COMPANY',
+      severity: 'high',
+      weight: 20,
+      description: `Statutární osoba ${p.name} je pravděpodobně spojena s firmou ${p.company_name ?? p.ico} (IČO ${p.ico}), která má aktivní insolvenční řízení (${p.spisova_znacka ?? 'spis. zn. neznámá'}). Možný serial-bankrupt founder pattern. Volitelně ověřit přes ARES /historie.`,
+      source: 'ares+isir',
+      evidence: p,
+    });
   }
 
   for (const p of input.statutoryPersonalInsolvencies ?? []) {

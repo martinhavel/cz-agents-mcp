@@ -4,6 +4,7 @@
  * report with explainable risk score.
  */
 import type {
+  AresAddressLike,
   AresLike,
   AresStatutoryMember,
   AresStatutoryOrgan,
@@ -12,6 +13,7 @@ import type {
   SanctionsMatch,
 } from './clients.js';
 import { evaluateFlags, scoreFromFlags } from './score.js';
+import { detectGovtAddress } from './govtAddress.js';
 import type {
   DdReport,
   SanctionMatchSummary,
@@ -42,6 +44,55 @@ export async function buildReport(
   const { members, mostRecentStatutoryChange } = extractStatutoryMembers(vr);
 
   const screenedMembers = await screenStatutory(members, clients.sanctions);
+
+  // Govt-address detection on each statutory FO (úřad bydliště = bílý kůň indicator).
+  // Cheap heuristic — runs even in basic depth.
+  const govtAddrFlags: Array<{ name: string; signal: string; matched_token?: string }> = [];
+  for (let i = 0; i < members.length; i++) {
+    const m = members[i]!;
+    if (!m.is_person) continue;
+    const detect = detectGovtAddress(m.address);
+    if (detect.is_govt_address) {
+      const sm = screenedMembers[i];
+      if (sm) {
+        sm.registered_at_govt_office = {
+          signal: detect.signal as 'marker' | 'known_address',
+          matched_token: detect.matched_token,
+        };
+      }
+      govtAddrFlags.push({ name: m.name, signal: detect.signal, matched_token: detect.matched_token });
+    }
+  }
+
+  // Fáze 2: historical bankrupt-company check per statutory person.
+  // For each surname, search ARES for other companies → check ISIR per company.
+  // Conservative: only flag when an OTHER company (not the current ICO) had/has insolvency.
+  const priorBankruptcyHits: Array<{ name: string; ico: string; company_name?: string; spisova_znacka?: string }> = [];
+  if (!basicOnly && clients.isir) {
+    await Promise.all(
+      members.map(async (m, i) => {
+        if (!m.is_person) return;
+        const surname = m.surname;
+        if (!surname || surname.length < 5) return; // Skip short common surnames
+        const otherIcos = await findOtherCompaniesBySurname(clients.ares, surname, ico);
+        for (const co of otherIcos.slice(0, 5)) {
+          const status = await safe(() => clients.isir!.checkActiveInsolvency(co.ico));
+          if (status?.has_active) {
+            const sm = screenedMembers[i];
+            if (sm) {
+              if (!sm.prior_bankrupt_companies) sm.prior_bankrupt_companies = [];
+              sm.prior_bankrupt_companies.push({
+                ico: co.ico,
+                name: co.name,
+                spisova_znacka: status.spisova_znacka,
+              });
+            }
+            priorBankruptcyHits.push({ name: m.name, ico: co.ico, company_name: co.name, spisova_znacka: status.spisova_znacka });
+          }
+        }
+      }),
+    );
+  }
 
   // Person-level insolvency screen (full depth only) — uses ISIR person search
   // by name + DOB. Skip silently when ISIR client doesn't expose searchPersonInsolvency.
@@ -96,6 +147,8 @@ export async function buildReport(
     statutoryPersonalInsolvencies: screenedMembers
       .filter((m) => m.personal_insolvency)
       .map((m) => ({ name: m.name, spisova_znacka: m.personal_insolvency!.spisova_znacka })),
+    statutoryGovtAddresses: govtAddrFlags,
+    statutoryPriorBankruptcies: priorBankruptcyHits,
   });
 
   return {
@@ -145,7 +198,17 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | null> {
 }
 
 interface StatutoryExtract {
-  members: Array<{ name: string; role: string; since?: string; is_person: boolean; legal_entity_ico?: string; nationality?: string; dob?: string }>;
+  members: Array<{
+    name: string;
+    surname?: string;
+    role: string;
+    since?: string;
+    is_person: boolean;
+    legal_entity_ico?: string;
+    nationality?: string;
+    dob?: string;
+    address?: AresAddressLike;
+  }>;
   mostRecentStatutoryChange?: string;
 }
 
@@ -180,10 +243,13 @@ function mapMember(raw: AresStatutoryMember): StatutoryExtract['members'][number
     if (!name) return null;
     return {
       name,
+      surname: fo.prijmeni,
       role,
       since,
       is_person: true,
       dob: fo.datumNarozeni,
+      nationality: fo.statniObcanstvi,
+      address: fo.adresa,
     };
   }
   if (raw.pravnickaOsoba) {
@@ -259,6 +325,21 @@ function rebuildSanctionsMatch(s: SanctionMatchSummary): SanctionsMatch {
     confidence: s.confidence,
     matched_on: s.matched_on,
   };
+}
+
+async function findOtherCompaniesBySurname(
+  ares: AresLike,
+  surname: string,
+  excludeIco: string,
+): Promise<Array<{ ico: string; name?: string }>> {
+  try {
+    const r = await ares.search({ obchodniJmeno: surname, pocet: 20 });
+    return r.ekonomickeSubjekty
+      .filter((s) => s.ico && s.ico !== excludeIco)
+      .map((s) => ({ ico: s.ico, name: s.obchodniJmeno }));
+  } catch {
+    return [];
+  }
 }
 
 async function checkVirtualAddress(
