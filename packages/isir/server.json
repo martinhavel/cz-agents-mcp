@@ -8,13 +8,13 @@
     "source": "github",
     "subfolder": "packages/isir"
   },
-  "version": "0.1.1",
+  "version": "0.2.0",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/isir",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

@@ -36,6 +36,12 @@ export interface StatutoryMember {
   sanctions_match?: SanctionMatchSummary;
   /** Sub-IČO if statutory is itself a legal entity. */
   legal_entity_ico?: string;
+  /** Set if this person has an active personal insolvency proceeding in ISIR. */
+  personal_insolvency?: {
+    spisova_znacka: string;
+    phase?: string;
+    url?: string;
+  };
 }
 
 export interface DdReport {

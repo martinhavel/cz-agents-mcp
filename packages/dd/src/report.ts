@@ -43,6 +43,30 @@ export async function buildReport(
 
   const screenedMembers = await screenStatutory(members, clients.sanctions);
 
+  // Person-level insolvency screen (full depth only) — uses ISIR person search
+  // by name + DOB. Skip silently when ISIR client doesn't expose searchPersonInsolvency.
+  if (!basicOnly && clients.isir?.searchPersonInsolvency) {
+    await Promise.all(
+      screenedMembers.map(async (m, i) => {
+        if (!m.is_person) return;
+        const dob = members[i]?.dob;
+        try {
+          const hits = await clients.isir!.searchPersonInsolvency!({ name: m.name, dob, onlyActive: true });
+          if (hits.length > 0) {
+            const top = hits[0]!;
+            m.personal_insolvency = {
+              spisova_znacka: top.spisova_znacka,
+              phase: top.druh_stav_konkursu,
+              url: top.url_detail,
+            };
+          }
+        } catch {
+          // Network/ISIR error — degrade gracefully, do not fail whole report
+        }
+      }),
+    );
+  }
+
   const companyMatch = screenCompany(ico, subject?.obchodniJmeno, clients.sanctions);
 
   const insolvency = !basicOnly && clients.isir
@@ -69,6 +93,9 @@ export async function buildReport(
     insolvency: insolvency ?? null,
     isVirtualAddress,
     mostRecentStatutoryChange,
+    statutoryPersonalInsolvencies: screenedMembers
+      .filter((m) => m.personal_insolvency)
+      .map((m) => ({ name: m.name, spisova_znacka: m.personal_insolvency!.spisova_znacka })),
   });
 
   return {

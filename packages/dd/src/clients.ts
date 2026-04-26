@@ -113,11 +113,26 @@ export interface SanctionsLike {
   searchByIco(ico: string, fallbackName?: string): SanctionsMatch[];
 }
 
+export interface IsirPersonHit {
+  spisova_znacka: string;
+  jmeno_osoby?: string;
+  datum_narozeni?: string;
+  druh_stav_konkursu?: string;
+  url_detail?: string;
+}
+
 export interface IsirLike {
   /** Returns null if ISIR can't determine status; tool degrades gracefully. */
   checkActiveInsolvency(
     ico: string,
-  ): Promise<{ has_active: boolean; spisova_znacka?: string; started_on?: string } | null>;
+  ): Promise<{ has_active: boolean; spisova_znacka?: string; started_on?: string; phase?: string } | null>;
+
+  /** Optional: search insolvency by person name + DOB. May not be implemented by all clients. */
+  searchPersonInsolvency?(input: {
+    name: string;
+    dob?: string;
+    onlyActive?: boolean;
+  }): Promise<IsirPersonHit[]>;
 }
 
 export interface DdClients {

@@ -27,6 +27,8 @@ export interface ScoreInputs {
   isVirtualAddress?: boolean;
   /** Most recent statutory zápis (ISO date), used for "recent change" rule. */
   mostRecentStatutoryChange?: string;
+  /** Statutory persons with active personal insolvency in ISIR. */
+  statutoryPersonalInsolvencies?: Array<{ name: string; spisova_znacka: string }>;
 }
 
 export function evaluateFlags(input: ScoreInputs): RedFlag[] {
@@ -65,6 +67,17 @@ export function evaluateFlags(input: ScoreInputs): RedFlag[] {
         evidence: s,
       });
     }
+  }
+
+  for (const p of input.statutoryPersonalInsolvencies ?? []) {
+    flags.push({
+      code: 'STATUTORY_PERSONAL_INSOLVENCY',
+      severity: 'critical',
+      weight: 50,
+      description: `Statutární osoba v osobní insolvenci: ${p.name} (${p.spisova_znacka}). Dle § 13 ZSVR je nezpůsobilá řídit firmu.`,
+      source: 'isir',
+      evidence: p,
+    });
   }
 
   if (input.subject?.datumZaniku) {

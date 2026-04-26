@@ -25,6 +25,7 @@
  */
 import { XMLParser } from 'fast-xml-parser';
 import type { InsolvencyStatus, ProceedingDetail } from './types.js';
+import { CuzkClient, type CuzkProceeding } from './cuzk.js';
 
 const DEFAULT_ENDPOINT =
   'https://isir.justice.cz:8443/isir_public_ws/IsirWsPublicService';
@@ -63,11 +64,13 @@ export class IsirClient {
   private readonly stub: boolean;
   private readonly fetchImpl: typeof fetch;
   private readonly parser: XMLParser;
+  private readonly cuzk: CuzkClient;
 
   constructor(opts: IsirClientOptions = {}) {
     this.endpoint = opts.endpoint ?? DEFAULT_ENDPOINT;
     this.stub = opts.stub ?? !process.env.ISIR_SOAP_ENABLED;
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.cuzk = new CuzkClient({ stub: this.stub, fetchImpl: this.fetchImpl });
     this.parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
@@ -117,19 +120,31 @@ export class IsirClient {
 
   /**
    * Returns active insolvency status for an IČO, or null if no proceeding.
-   * v0.1.1: still null pending IČO index built from ISIR_CUZK_WS2 (next
-   * iteration). Stub-safe — never throws on unknown.
+   * v0.2.0: backed by IsirWsCuzkService (IČO-indexed lookup).
    */
-  async checkActiveInsolvency(_ico: string): Promise<InsolvencyStatus | null> {
-    return null;
+  async checkActiveInsolvency(ico: string): Promise<InsolvencyStatus | null> {
+    return this.cuzk.checkActiveByIco(ico);
   }
 
-  /** Detail for a known proceeding ID. v0.2.0+. */
+  /**
+   * Search ISIR for an individual by name + optional date of birth.
+   * Returns active insolvency proceedings (oddlužení / osobní bankrot).
+   * Use for screening statutory persons in due-diligence reports.
+   */
+  async searchPersonInsolvency(input: {
+    name: string;
+    dob?: string;
+    onlyActive?: boolean;
+  }): Promise<CuzkProceeding[]> {
+    return this.cuzk.searchPerson(input);
+  }
+
+  /** Detail for a known proceeding ID. Future iteration. */
   async getProceedingDetail(_id: string | number): Promise<ProceedingDetail | null> {
     return null;
   }
 
-  /** Recent proceedings since a date. v0.2.0+. */
+  /** Recent proceedings since a date. Future iteration. */
   async listRecentProceedings(_sinceIso: string): Promise<InsolvencyStatus[]> {
     return [];
   }

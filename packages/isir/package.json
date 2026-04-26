@@ -1,7 +1,7 @@
 {
   "name": "@czagents/isir",
-  "version": "0.1.1",
-  "description": "MCP server for ISIR (Czech Insolvency Register) — event-streaming SOAP client + IČO check (alpha; IČO index pending WS2 integration).",
+  "version": "0.2.0",
+  "description": "MCP server for ISIR (Czech Insolvency Register) — IČO and person insolvency check via official SOAP web services (PublicWS event feed + CuzkWS for lookups).",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

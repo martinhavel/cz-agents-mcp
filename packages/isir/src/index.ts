@@ -10,6 +10,8 @@ import { buildIsirServer } from './server.js';
 
 export { IsirClient } from './client.js';
 export type { IsirClientOptions } from './client.js';
+export { CuzkClient } from './cuzk.js';
+export type { CuzkProceeding, CuzkSearchInput, CuzkResult } from './cuzk.js';
 export { buildIsirServer } from './server.js';
 export type {
   InsolvencyStatus,

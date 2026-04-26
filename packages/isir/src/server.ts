@@ -44,6 +44,28 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
   );
 
   server.tool(
+    'search_person_insolvency',
+    'Search ISIR for an individual person (FO) by name and optional date of birth. Returns active insolvency proceedings (oddlužení / osobní bankrot). Used to screen statutory persons in KYC and DD workflows.',
+    {
+      name: z.string().describe('Full name in any case (Czech diacritics tolerated). E.g. "Pavel Novák" or "Jana Svobodová".'),
+      dob: z.string().optional().describe('Date of birth, YYYY-MM-DD. Optional but strongly recommended — common names produce many false positives without DOB.'),
+      only_active: z.boolean().default(true).describe('When true (default), return only currently active proceedings. False also returns closed/dismissed.'),
+    },
+    async ({ name, dob, only_active }) => {
+      try {
+        const matches = await client.searchPersonInsolvency({ name, dob, onlyActive: only_active });
+        if (matches.length === 0) {
+          return wrap(`Žádné insolvenční řízení pro "${name}"${dob ? ` (nar. ${dob})` : ''} v ISIR.`);
+        }
+        return wrap(JSON.stringify({ query: { name, dob, only_active }, matches: matches.length, results: matches }, null, 2));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return { content: [{ type: 'text', text: `ISIR person search failed: ${msg}` }], isError: true };
+      }
+    },
+  );
+
+  server.tool(
     'poll_isir_events',
     'Pull a batch of recent ISIR events (insolvency register publications) since the given event id. ISIR is an append-only feed — each call returns up to ~1000 events newer than `since_id`. Use `last_id` from response as next `since_id`. Useful for compliance monitoring or to back-fill an index.',
     {
