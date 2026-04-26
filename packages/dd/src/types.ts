@@ -104,6 +104,10 @@ export interface ChainNode {
   children?: ChainNode[];
   /** Cycle / repeated ICO already visited at lower depth. */
   cycle?: boolean;
+  /** Statutory persons whose surname matched too many companies in ARES
+   *  (auto-skipped to avoid false-positive explosion on common Czech
+   *  surnames like Novák / Zima / Kolář on boards of large public firms). */
+  skipped_common_surnames?: Array<{ name: string; total_match_count: number }>;
 }
 
 export interface ChainResult {
