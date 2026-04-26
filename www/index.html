@@ -163,6 +163,64 @@
       font-family: 'JetBrains Mono', monospace;
     }
     .server.soon { opacity: 0.6; }
+    .server .pill {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-left: 6px;
+      vertical-align: middle;
+      letter-spacing: 0.5px;
+    }
+    .pill.live { color: var(--green); border: 1px solid rgba(110,206,88,0.4); }
+    .pill.beta { color: var(--yellow); border: 1px solid rgba(228,208,80,0.4); }
+    .pill.soon { color: var(--fg-ghost); border: 1px solid var(--border); }
+    .pill.paid { color: var(--accent); border: 1px solid var(--accent-dim); }
+
+    .pricing {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 16px 0 24px;
+    }
+    .tier {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .tier h4 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+    }
+    .tier .price {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .tier .price small { font-size: 13px; color: var(--fg-dim); font-weight: 400; }
+    .tier .desc { font-size: 13px; color: var(--fg-dim); flex: 1; }
+    .tier .buy {
+      display: inline-block;
+      text-align: center;
+      background: var(--accent);
+      color: var(--bg);
+      text-decoration: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .tier .buy:hover { background: var(--accent-dim); color: var(--fg); }
+    .tier.free .buy { background: transparent; color: var(--fg-dim); border: 1px solid var(--border); }
+    .tier.free .buy:hover { color: var(--accent); border-color: var(--accent-dim); }
 
     pre.code {
       background: var(--bg-elev);
@@ -227,72 +285,149 @@
       </div>
       <p class="tagline">
         Model Context Protocol servers for the Czech ecosystem —
-        <span class="hl">ARES</span>, <span class="hl">ČNB</span>, <span class="hl">ISIR</span>.
+        <span class="hl">ARES</span>, <span class="hl">ČNB</span>, <span class="hl">sanctions</span>, <span class="hl">due-diligence</span>.
         Give your AI agent native access to Czech business and government data.
       </p>
       <div class="badges">
         <span class="badge">MCP 1.10</span>
         <span class="badge">TypeScript</span>
         <span class="badge">MIT</span>
-        <span class="badge live">● 2 servers live</span>
+        <span class="badge live">● 4 servers live</span>
       </div>
     </header>
 
     <h2>Available servers</h2>
     <div class="servers">
       <div class="server">
-        <h3>@czagents/ares</h3>
-        <p>Czech Business Register — IČO lookup, full-text search, transparent bank accounts, history</p>
+        <h3>@czagents/ares <span class="pill live">live</span></h3>
+        <p>Czech Business Register — IČO lookup, full-text search, statutory body, transparent accounts, history</p>
         <div class="tools">lookup_by_ico · search_companies · get_statutaries · check_vat_payer · validate_dic · get_bank_accounts · get_history</div>
       </div>
       <div class="server">
-        <h3>@czagents/cnb</h3>
+        <h3>@czagents/cnb <span class="pill live">live</span></h3>
         <p>Czech National Bank — daily FX rates, conversion, historical rates</p>
         <div class="tools">get_rates · convert · get_rate</div>
       </div>
-      <div class="server soon">
-        <h3>@czagents/hlidac</h3>
-        <p>Hlídač státu — public contracts, subsidies, transparency (planned)</p>
-        <div class="tools">search_contracts · check_subject · …</div>
+      <div class="server">
+        <h3>@czagents/sanctions <span class="pill beta">beta</span> <span class="pill paid">paid tier</span></h3>
+        <p>Sanctions screening (EU + OFAC, ~25k records, daily refresh) — fuzzy person/entity match, IČO check, recent updates feed for KYC/AML</p>
+        <div class="tools">search_person · search_entity · check_ico · get_listing · list_recent_updates</div>
+      </div>
+      <div class="server">
+        <h3>@czagents/dd <span class="pill beta">beta</span> <span class="pill paid">paid tier</span></h3>
+        <p>Czech company due diligence aggregator — ARES + sanctions + insolvency check + statutory chain (UBO walk) into a single risk-scored report</p>
+        <div class="tools">get_dd_report · get_risk_score · get_statutory_chain</div>
       </div>
       <div class="server soon">
-        <h3>@czagents/isir</h3>
-        <p>Insolvency register — debtor checks (planned)</p>
+        <h3>@czagents/isir <span class="pill soon">planned</span></h3>
+        <p>Insolvency register — active proceeding checks (will plug into <code>get_dd_report</code>)</p>
         <div class="tools">check_ico_insolvency · …</div>
       </div>
     </div>
 
-    <h2>Claude Desktop / Cursor</h2>
+    <h2 id="claude-desktop--cursor">Claude Desktop / Cursor</h2>
     <p style="color:var(--fg-dim); font-size: 14px;">Add to <code>claude_desktop_config.json</code>:</p>
     <div class="snippet"><button class="copy" type="button" data-copy='{
   "mcpServers": {
-    "ares": { "command": "npx", "args": ["-y", "@czagents/ares"] },
-    "cnb":  { "command": "npx", "args": ["-y", "@czagents/cnb"] }
+    "ares":      { "command": "npx", "args": ["-y", "@czagents/ares"] },
+    "cnb":       { "command": "npx", "args": ["-y", "@czagents/cnb"] },
+    "sanctions": { "command": "npx", "args": ["-y", "@czagents/sanctions"] },
+    "dd":        { "command": "npx", "args": ["-y", "@czagents/dd"] }
   }
 }'>copy</button><pre class="code"><span class="k">{</span>
   <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
-    <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/ares"</span>] <span class="k">},</span>
-    <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/cnb"</span>] <span class="k">}</span>
+    <span class="s">"ares"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/ares"</span>] <span class="k">},</span>
+    <span class="s">"cnb"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/cnb"</span>] <span class="k">},</span>
+    <span class="s">"sanctions"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/sanctions"</span>] <span class="k">},</span>
+    <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/dd"</span>] <span class="k">}</span>
   <span class="k">}</span>
 <span class="k">}</span></pre></div>
 
     <h2>Remote HTTP (no npm)</h2>
+    <p style="color:var(--fg-dim); font-size: 14px;">Free tier requires no token. Paid tiers add <code>"headers": { "Authorization": "Bearer czat_..." }</code>.</p>
     <div class="snippet"><button class="copy" type="button" data-copy='{ "mcpServers": {
-    "ares": { "url": "https://ares.cz-agents.dev/mcp" },
-    "cnb":  { "url": "https://cnb.cz-agents.dev/mcp" }
+    "ares":      { "url": "https://ares.cz-agents.dev/mcp" },
+    "cnb":       { "url": "https://cnb.cz-agents.dev/mcp" },
+    "sanctions": { "url": "https://sanctions.cz-agents.dev/mcp" },
+    "dd":        { "url": "https://dd.cz-agents.dev/mcp" }
 }}'>copy</button><pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
-    <span class="s">"ares"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
-    <span class="s">"cnb"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">}</span>
+    <span class="s">"ares"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"cnb"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"sanctions"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://sanctions.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">}</span>
 <span class="k">}}</span></pre></div>
 
+    <h2>Pricing</h2>
+    <p style="color:var(--fg-dim); font-size: 14px;">
+      ARES &amp; ČNB are <span class="hl">free, unlimited</span> for everyone.
+      Sanctions and DD have a free tier with daily limit; paid tiers below remove it
+      and add features (alerts, batch, statutory chain). Cancel anytime.
+    </p>
+
+    <h3 style="margin-top:24px; font-family:'JetBrains Mono', monospace; font-size:14px; color:var(--fg-dim);">@czagents/sanctions</h3>
+    <div class="pricing">
+      <div class="tier free">
+        <h4>Free</h4>
+        <div class="price">€0<small>/mo</small></div>
+        <div class="desc">Anonymous use, daily IP-based limit. EU + OFAC datasets.</div>
+        <a class="buy" href="#claude-desktop--cursor">Use without signup</a>
+      </div>
+      <div class="tier">
+        <h4>Starter</h4>
+        <div class="price">€19<small>/mo</small></div>
+        <div class="desc">5,000 lookups / month. Hosted MCP, daily refresh, change feed.</div>
+        <a class="buy" href="https://buy.stripe.com/aFa5kF1Oy0CU8Tl6IfeAg00" target="_blank" rel="noopener">Subscribe</a>
+      </div>
+      <div class="tier">
+        <h4>Pro</h4>
+        <div class="price">€99<small>/mo</small></div>
+        <div class="desc">50,000 lookups / month. All sources, batch endpoint, webhook alerts on watched IČOs.</div>
+        <a class="buy" href="https://buy.stripe.com/bJebJ3bp8dpGglN4A7eAg01" target="_blank" rel="noopener">Subscribe</a>
+      </div>
+    </div>
+
+    <h3 style="margin-top:8px; font-family:'JetBrains Mono', monospace; font-size:14px; color:var(--fg-dim);">@czagents/dd</h3>
+    <div class="pricing">
+      <div class="tier free">
+        <h4>Free</h4>
+        <div class="price">€0<small>/mo</small></div>
+        <div class="desc">5 reports / day, basic depth (ARES + sanctions, no statutory chain).</div>
+        <a class="buy" href="#claude-desktop--cursor">Use without signup</a>
+      </div>
+      <div class="tier">
+        <h4>Pay-per-report</h4>
+        <div class="price">€0.50<small>/report</small></div>
+        <div class="desc">Buy a credit pack (min 100 reports = €50). Full depth, no subscription. Credits don't expire.</div>
+        <a class="buy" href="https://buy.stripe.com/cNi14p3WG5Xed9BaYveAg02" target="_blank" rel="noopener">Buy credits</a>
+      </div>
+      <div class="tier">
+        <h4>Pro</h4>
+        <div class="price">€49<small>/mo</small></div>
+        <div class="desc">200 reports/month, full depth + statutory chain, monitoring on 1 IČO.</div>
+        <a class="buy" href="https://buy.stripe.com/fZu8wRbp8adu6Ldd6DeAg03" target="_blank" rel="noopener">Subscribe</a>
+      </div>
+      <div class="tier">
+        <h4>Agency</h4>
+        <div class="price">€199<small>/mo</small></div>
+        <div class="desc">1,500 reports/month, bulk CSV in/out, webhook alerts, priority support.</div>
+        <a class="buy" href="https://buy.stripe.com/7sY5kFbp81GY2uXgiPeAg04" target="_blank" rel="noopener">Subscribe</a>
+      </div>
+    </div>
+    <p style="color:var(--fg-ghost); font-size: 12px;">
+      After paying you'll be redirected to a page showing your API token — save it in a password manager.
+      Need a custom plan, on-premise install, or invoicing for a Czech company? <a class="url" href="mailto:martin.havel@gmail.com">Email me.</a>
+    </p>
+
     <h2>Example</h2>
-    <pre class="code">User: <span class="s">What is the VAT ID and address of Seznam.cz? Convert 100 EUR to CZK.</span>
+    <pre class="code">User: <span class="s">Run a due-diligence report on IČO 08156123.</span>
 
-Agent → <span class="k">lookup_by_ico</span>(ico=<span class="s">"26168685"</span>)
-Agent → <span class="k">convert</span>(amount=100, from=<span class="s">"EUR"</span>, to=<span class="s">"CZK"</span>)
+Agent → <span class="k">get_dd_report</span>(ico=<span class="s">"08156123"</span>, depth=<span class="s">"full"</span>)
+        ↳ ARES + EU/OFAC sanctions + statutory body screen
 
-Seznam.cz, a.s., VAT ID CZ26168685, Radlická 3294/10, Prague 5 – Smíchov.
-100 EUR = 2436.00 CZK (ČNB rate, 2026-04-15).</pre>
+Financial Group DYNASTY s.r.o. — Tržiště 366/13, Praha 1, founded 2019.
+VAT-registered (CZ08156123). Statutory: ELENA KRONNAYA (since 2022-06-10).
+Sanctions: NO MATCH (0/24,856 records).
+Risk score: 5/100 (low) — only flag is missing transparent VAT account.</pre>
 
     <h2>Further reading</h2>
     <p style="color:var(--fg-dim); font-size: 14px; line-height: 1.7;">
