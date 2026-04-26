@@ -27,6 +27,18 @@ async function main() {
   });
 
   const http = createServer(async (req, res) => {
+    // Permissive Accept rewrite — clients (Anthropic probe) sending */* otherwise hit MCP SDK strict 406.
+    if (req.url?.startsWith(MCP_PATH)) {
+      const accept = req.headers.accept;
+      if (!accept || accept === "*/*" || accept.includes("*/*")) {
+        const fixed = "application/json, text/event-stream";
+        req.headers.accept = fixed;
+        const rh = req.rawHeaders;
+        for (let i = 0; i + 1 < rh.length; i += 2) {
+          if (rh[i] && rh[i]!.toLowerCase() === "accept") rh[i + 1] = fixed;
+        }
+      }
+    }
     if (req.url === '/health' || req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
@@ -74,6 +86,7 @@ async function main() {
       const server = buildIsirServer(client);
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
+        enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/isir] new session: ${id}`);
           transports.set(id, transport);

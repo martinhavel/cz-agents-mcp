@@ -56,6 +56,31 @@ async function main() {
   const limiter = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX });
 
   const http = createServer(async (req, res) => {
+    // TEMPORARY DEBUG: log incoming requests (remove after Anthropic flow works)
+    if (req.url?.startsWith(MCP_PATH)) {
+      console.error(`[debug] ${req.method} ${req.url} | Origin=${req.headers.origin ?? '-'} | Accept=${req.headers.accept ?? '-'} | UA=${(req.headers['user-agent'] ?? '-').substring(0, 80)} | session=${req.headers['mcp-session-id'] ?? '-'}`);
+    }
+
+    // Permissive Accept-header rewrite for clients that send "*/*"
+    // (Anthropic Connector probe-tester uses python-httpx with default
+    // Accept: */* — MCP SDK does literal string-includes check and returns
+    // 406, which Claude.ai surfaces as "Couldn't reach"). hono/node-server
+    // (used by SDK transport) reads from req.rawHeaders, so we must patch
+    // BOTH the parsed object AND the raw array.
+    if (req.url?.startsWith(MCP_PATH)) {
+      const accept = req.headers.accept;
+      if (!accept || accept === '*/*' || accept.includes('*/*')) {
+        const fixed = 'application/json, text/event-stream';
+        req.headers.accept = fixed;
+        const rh = req.rawHeaders;
+        for (let i = 0; i + 1 < rh.length; i += 2) {
+          if (rh[i] && rh[i]!.toLowerCase() === 'accept') {
+            rh[i + 1] = fixed;
+          }
+        }
+      }
+    }
+
     if (req.url === '/health' || req.url === '/healthz') {
       const tokens = tokenStore.stats('dd');
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -159,6 +184,11 @@ async function main() {
       const server = buildDdServer(clients);
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
+        // Allow plain application/json responses for clients (e.g. Anthropic
+        // Connector tester) that don't advertise text/event-stream. Without
+        // this the SDK returns 406 Not Acceptable, which Claude.ai surfaces
+        // as "Couldn't reach the MCP server".
+        enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/dd] new session: ${id} (tier=${auth.token.tier})`);
           transports.set(id, transport);

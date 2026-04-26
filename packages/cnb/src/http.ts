@@ -16,6 +16,18 @@ async function main() {
   const limiter = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX });
 
   const http = createServer(async (req, res) => {
+    // Permissive Accept rewrite — clients (Anthropic probe) sending */* otherwise hit MCP SDK strict 406.
+    if (req.url?.startsWith(MCP_PATH)) {
+      const accept = req.headers.accept;
+      if (!accept || accept === "*/*" || accept.includes("*/*")) {
+        const fixed = "application/json, text/event-stream";
+        req.headers.accept = fixed;
+        const rh = req.rawHeaders;
+        for (let i = 0; i + 1 < rh.length; i += 2) {
+          if (rh[i] && rh[i]!.toLowerCase() === "accept") rh[i + 1] = fixed;
+        }
+      }
+    }
     if (req.url === '/health' || req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', service: 'cz-agents/cnb', version: '0.1.0' }));
@@ -59,6 +71,7 @@ async function main() {
       const server = buildCnbServer();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
+        enableJsonResponse: true,
         onsessioninitialized: (id) => { transports.set(id, transport); },
       });
       transport.onclose = () => {

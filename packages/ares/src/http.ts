@@ -29,6 +29,18 @@ async function main() {
   });
 
   const http = createServer(async (req, res) => {
+    // Permissive Accept rewrite — clients (Anthropic probe) sending */* otherwise hit MCP SDK strict 406.
+    if (req.url?.startsWith(MCP_PATH)) {
+      const accept = req.headers.accept;
+      if (!accept || accept === "*/*" || accept.includes("*/*")) {
+        const fixed = "application/json, text/event-stream";
+        req.headers.accept = fixed;
+        const rh = req.rawHeaders;
+        for (let i = 0; i + 1 < rh.length; i += 2) {
+          if (rh[i] && rh[i]!.toLowerCase() === "accept") rh[i + 1] = fixed;
+        }
+      }
+    }
     // Health check (no rate limit — used by Docker/monitoring)
     if (req.url === '/health' || req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -75,6 +87,7 @@ async function main() {
       const server = buildAresServer();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
+        enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/ares] new session: ${id}`);
           transports.set(id, transport);
