@@ -96,6 +96,28 @@ services:
       - default
       - apache
 
+  isir:
+    build:
+      context: .
+      dockerfile: packages/isir/Dockerfile
+    image: cz-agents-isir:latest
+    container_name: cz-agents-isir
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3034:3030"
+    environment:
+      - PORT=3030
+      - NODE_ENV=production
+      - ISIR_SOAP_ENABLED=1
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - default
+      - apache
+
   sanctions-refresh:
     image: cz-agents-sanctions:latest
     container_name: cz-agents-sanctions-refresh

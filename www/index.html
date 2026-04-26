@@ -292,7 +292,7 @@
         <span class="badge">MCP 1.10</span>
         <span class="badge">TypeScript</span>
         <span class="badge">MIT</span>
-        <span class="badge live">● 4 servers live</span>
+        <span class="badge live">● 5 servers live</span>
       </div>
     </header>
 
@@ -318,10 +318,10 @@
         <p>Czech company due diligence aggregator — ARES + sanctions + insolvency check + statutory chain (UBO walk) into a single risk-scored report</p>
         <div class="tools">get_dd_report · get_risk_score · get_statutory_chain</div>
       </div>
-      <div class="server soon">
-        <h3>@czagents/isir <span class="pill soon">planned</span></h3>
-        <p>Insolvency register — active proceeding checks (will plug into <code>get_dd_report</code>)</p>
-        <div class="tools">check_ico_insolvency · …</div>
+      <div class="server">
+        <h3>@czagents/isir <span class="pill beta">alpha</span></h3>
+        <p>Insolvency register (ISIR) — event-streaming SOAP client for the Czech Justice public WS. Plugs into <code>get_dd_report</code>; IČO-indexed lookup arrives in 0.2.0.</p>
+        <div class="tools">check_ico_insolvency · poll_isir_events</div>
       </div>
     </div>
 
@@ -332,6 +332,7 @@
     "ares":      { "command": "npx", "args": ["-y", "@czagents/ares"] },
     "cnb":       { "command": "npx", "args": ["-y", "@czagents/cnb"] },
     "sanctions": { "command": "npx", "args": ["-y", "@czagents/sanctions"] },
+    "isir":      { "command": "npx", "args": ["-y", "@czagents/isir"] },
     "dd":        { "command": "npx", "args": ["-y", "@czagents/dd"] }
   }
 }'>copy</button><pre class="code"><span class="k">{</span>
@@ -339,6 +340,7 @@
     <span class="s">"ares"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/ares"</span>] <span class="k">},</span>
     <span class="s">"cnb"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/cnb"</span>] <span class="k">},</span>
     <span class="s">"sanctions"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/sanctions"</span>] <span class="k">},</span>
+    <span class="s">"isir"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/isir"</span>] <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/dd"</span>] <span class="k">}</span>
   <span class="k">}</span>
 <span class="k">}</span></pre></div>
@@ -349,11 +351,13 @@
     "ares":      { "url": "https://ares.cz-agents.dev/mcp" },
     "cnb":       { "url": "https://cnb.cz-agents.dev/mcp" },
     "sanctions": { "url": "https://sanctions.cz-agents.dev/mcp" },
+    "isir":      { "url": "https://isir.cz-agents.dev/mcp" },
     "dd":        { "url": "https://dd.cz-agents.dev/mcp" }
 }}'>copy</button><pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
     <span class="s">"ares"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"cnb"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"sanctions"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://sanctions.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"isir"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://isir.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">}</span>
 <span class="k">}}</span></pre></div>
 
