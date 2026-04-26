@@ -11,6 +11,7 @@ services:
     environment:
       - PORT=3030
       - NODE_ENV=production
+      - RATE_LIMIT_MAX=600
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
@@ -32,6 +33,7 @@ services:
     environment:
       - PORT=3031
       - NODE_ENV=production
+      - RATE_LIMIT_MAX=600
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3031/health"]
       interval: 30s
@@ -57,6 +59,7 @@ services:
       - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - SANCTIONS_EU_URL=${SANCTIONS_EU_URL:-https://webgate.ec.europa.eu/fsd/fsf/public/files/xmlFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET_SANCTIONS:-}
+      - RATE_LIMIT_MAX=600
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions
       - tokens-data:/var/lib/czagents-tokens
@@ -84,6 +87,10 @@ services:
       - SANCTIONS_DB=/var/lib/czagents-sanctions/sanctions.db
       - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET_DD:-}
+      # Higher per-IP limit — Claude/Anthropic connectors fan out parallel
+      # requests (initialize + tools/list + multiple tool calls + notifications)
+      # in seconds. The 30/min default routinely hits 429 in single chat turn.
+      - RATE_LIMIT_MAX=600
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions:ro
       - tokens-data:/var/lib/czagents-tokens
@@ -109,6 +116,7 @@ services:
       - PORT=3030
       - NODE_ENV=production
       - ISIR_SOAP_ENABLED=1
+      - RATE_LIMIT_MAX=600
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
