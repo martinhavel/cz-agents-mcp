@@ -14,7 +14,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=@czagents/shared && npm run build --workspace=@czagents/ares && npm run build --workspace=@czagents/cnb && npm run build --workspace=@czagents/sanctions && npm run build --workspace=@czagents/isir && npm run build --workspace=@czagents/dd",
+    "build": "npm run build --workspace=@czagents/shared && npm run build --workspace=@czagents/ares && npm run build --workspace=@czagents/cnb && npm run build --workspace=@czagents/sanctions && npm run build --workspace=@czagents/isir && npm run build --workspace=@czagents/adis && npm run build --workspace=@czagents/dd",
     "dev:ares": "npm run dev --workspace=@czagents/ares",
     "test": "npm run test --workspaces --if-present",
     "lint": "eslint packages/*/src --ext .ts"
