@@ -351,6 +351,11 @@
         <p>Insolvenční rejstřík (ISIR) — event-streaming SOAP klient pro veřejnou WS Justice. Zapadá do <code>get_dd_report</code>; IČO-indexované hledání ve verzi 0.2.0.</p>
         <div class="tools">check_ico_insolvency · poll_isir_events</div>
       </div>
+      <div class="server">
+        <h3>@czagents/adis <span class="pill live">live</span></h3>
+        <p>Kontrola spolehlivosti plátce DPH (nespolehlivý plátce DPH) přes oficiální SOAP službu MFČR ADIS. Vrací status (ANO/NE/NENALEZEN), typ subjektu, název, adresu a zveřejněné transparentní účty (§ 96a ZDPH). Hromadná kontrola až 100 subjektů na požadavek.</p>
+        <div class="tools">check_dph_payer · check_bulk_dph_payer · list_unreliable_payers</div>
+      </div>
     </div>
 
     <h2 id="claude-desktop--cursor">Claude Desktop / Cursor</h2>
@@ -361,6 +366,7 @@
     "cnb":       { "command": "npx", "args": ["-y", "@czagents/cnb"] },
     "sanctions": { "command": "npx", "args": ["-y", "@czagents/sanctions"] },
     "isir":      { "command": "npx", "args": ["-y", "@czagents/isir"] },
+    "adis":      { "command": "npx", "args": ["-y", "@czagents/adis"] },
     "dd":        { "command": "npx", "args": ["-y", "@czagents/dd"] }
   }
 }'>kopírovat</button><pre class="code"><span class="k">{</span>
@@ -369,6 +375,7 @@
     <span class="s">"cnb"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/cnb"</span>] <span class="k">},</span>
     <span class="s">"sanctions"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/sanctions"</span>] <span class="k">},</span>
     <span class="s">"isir"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/isir"</span>] <span class="k">},</span>
+    <span class="s">"adis"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/adis"</span>] <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/dd"</span>] <span class="k">}</span>
   <span class="k">}</span>
 <span class="k">}</span></pre></div>
@@ -380,12 +387,14 @@
     "cnb":       { "url": "https://cnb.cz-agents.dev/mcp" },
     "sanctions": { "url": "https://sanctions.cz-agents.dev/mcp" },
     "isir":      { "url": "https://isir.cz-agents.dev/mcp" },
+    "adis":      { "url": "https://adis.cz-agents.dev/mcp" },
     "dd":        { "url": "https://dd.cz-agents.dev/mcp" }
 }}'>kopírovat</button><pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
     <span class="s">"ares"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"cnb"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"sanctions"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://sanctions.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"isir"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://isir.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"adis"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://adis.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">}</span>
 <span class="k">}}</span></pre></div>
 

@@ -126,6 +126,29 @@ services:
       - default
       - apache
 
+  adis:
+    build:
+      context: .
+      dockerfile: packages/adis/Dockerfile
+    image: cz-agents-adis:latest
+    container_name: cz-agents-adis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3035:3030"
+    environment:
+      - PORT=3030
+      - NODE_ENV=production
+      - ADIS_SOAP_ENABLED=1
+      - RATE_LIMIT_MAX=600
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - default
+      - apache
+
   sanctions-refresh:
     image: cz-agents-sanctions:latest
     container_name: cz-agents-sanctions-refresh
