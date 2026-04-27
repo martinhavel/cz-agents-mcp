@@ -149,8 +149,24 @@ export interface IsirLike {
   }): Promise<IsirPersonHit[]>;
 }
 
+export interface AdisPayerStatusLike {
+  dic: string;
+  ico: string | null;
+  reliability: 'ANO' | 'NE' | 'NENALEZEN';
+  subject_type?: 'PLATCE_DPH' | 'IDENTIFIKOVANA_OSOBA' | 'SKUPINA_DPH' | 'NESPOLEHLIVA_OSOBA' | 'NENALEZEN';
+  unreliable_since?: string;
+  tax_office?: string;
+  accounts: Array<{ formatted: string; predcisli?: string; cislo: string; kod_banky: string }>;
+}
+
+export interface AdisLike {
+  /** Returns null when DIČ is not in the VAT registry, or when ADIS is in stub mode. */
+  checkPayer(input: { ico?: string; dic?: string }): Promise<AdisPayerStatusLike | null>;
+}
+
 export interface DdClients {
   ares: AresLike;
   sanctions?: SanctionsLike;
   isir?: IsirLike;
+  adis?: AdisLike;
 }

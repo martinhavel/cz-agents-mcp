@@ -16,7 +16,8 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 | [`@czagents/cnb`](./packages/cnb) | ČNB — daily FX rates | ✅ live |
 | [`@czagents/sanctions`](./packages/sanctions) | EU + OFAC sanctions screening (KYC/AML) | ✅ live |
 | [`@czagents/isir`](./packages/isir) | ISIR — Czech insolvency register | ✅ live |
-| [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + statutory chain) | ✅ live |
+| [`@czagents/adis`](./packages/adis) | ADIS — unreliable VAT payer (nespolehlivý plátce DPH) + transparent accounts | ✅ live |
+| [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + ADIS + statutory chain) | ✅ live |
 
 ## Quick start
 
@@ -29,7 +30,8 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
     "cnb":       { "command": "npx", "args": ["-y", "@czagents/cnb"] },
     "sanctions": { "command": "npx", "args": ["-y", "@czagents/sanctions"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db" } },
     "isir":      { "command": "npx", "args": ["-y", "@czagents/isir"], "env": { "ISIR_SOAP_ENABLED": "1" } },
-    "dd":        { "command": "npx", "args": ["-y", "@czagents/dd"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db" } }
+    "adis":      { "command": "npx", "args": ["-y", "@czagents/adis"], "env": { "ADIS_SOAP_ENABLED": "1" } },
+    "dd":        { "command": "npx", "args": ["-y", "@czagents/dd"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db", "ADIS_SOAP_ENABLED": "1" } }
   }
 }
 ```
@@ -43,6 +45,7 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
     "cnb":       { "url": "https://cnb.cz-agents.dev/mcp" },
     "sanctions": { "url": "https://sanctions.cz-agents.dev/mcp" },
     "isir":      { "url": "https://isir.cz-agents.dev/mcp" },
+    "adis":      { "url": "https://adis.cz-agents.dev/mcp" },
     "dd":        { "url": "https://dd.cz-agents.dev/mcp" }
   }
 }
@@ -82,6 +85,12 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 - `search_person_insolvency({ ico?, rc?, dob?, firstname?, surname? })` — find a person by IČO, birth number, or name + DOB
 - `poll_isir_events({ since })` — append-only event feed for daily monitoring
 
+### `@czagents/adis` (3 tools)
+
+- `check_dph_payer({ ico OR dic })` — full reliability check via ADIS V2: status (ANO/NE/NENALEZEN), subject type, name, address, transparent bank accounts (§ 96a ZDPH), unreliable-since date
+- `check_bulk_dph_payer({ icos[] OR dics[] })` — batch up to 100 subjects (lighter response, status + accounts only)
+- `list_unreliable_payers()` — full list of currently unreliable payers (50–100 MB, intended for daily mirroring)
+
 ### `@czagents/dd` (3 tools)
 
 - `get_dd_report({ ico, depth })` — unified ARES + sanctions + ISIR report with risk score
@@ -95,7 +104,7 @@ checking new business partners before signing or paying. The kinds of prompts
 it handles well:
 
 - **KYC pre-invoice** — *"Before we send a 350 000 Kč invoice to IČO 27074358,
-  flag any insolvency, sanctions, or nominee-director red flags."*
+  flag any insolvency, sanctions, unreliable-VAT-payer status, or nominee-director red flags."*
 - **Vendor onboarding** — *"Run KYC on this prospective supplier and tell me
   if anything looks off. Use the full statutory chain."*
 - **M&A pre-due-diligence** — *"Generate a DD report on the acquisition target

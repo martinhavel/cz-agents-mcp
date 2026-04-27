@@ -7,6 +7,7 @@
  *   SANCTIONS_DB         — sanctions screening data (optional; missing → screening skipped)
  *   TOKEN_DB             — billing tokens SQLite (default ./tokens.db)
  *   STRIPE_WEBHOOK_SECRET
+ *   ADIS_SOAP_ENABLED    — set to 1 to enable live ADIS unreliable-VAT-payer lookup
  *   PORT, MCP_PATH, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS, MAX_BODY_BYTES
  */
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -24,6 +25,7 @@ import {
 import { AresClient } from '@czagents/ares';
 import { SanctionsDb, SanctionsSearch } from '@czagents/sanctions';
 import { IsirClient } from '@czagents/isir';
+import { AdisClient } from '@czagents/adis';
 import { buildDdServer } from './server.js';
 import type { DdClients } from './clients.js';
 import { DD_BILLING } from './billing.js';
@@ -44,8 +46,9 @@ async function main() {
   }
 
   const isir = new IsirClient();
+  const adis = new AdisClient();
 
-  const clients: DdClients = { ares, sanctions, isir };
+  const clients: DdClients = { ares, sanctions, isir, adis };
 
   const tokenDbPath = process.env.TOKEN_DB ?? './tokens.db';
   const tokenStore = new TokenStore(tokenDbPath);

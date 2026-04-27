@@ -1,11 +1,11 @@
 {
-  "name": "@czagents/dd",
-  "version": "0.2.0",
-  "description": "MCP server for Czech company due diligence — aggregates ARES, sanctions, ISIR, ADIS unreliable-VAT-payer, statutory chain into a single risk-scored report",
+  "name": "@czagents/adis",
+  "version": "0.1.0",
+  "description": "MCP server for ADIS — Czech VAT-payer reliability check (nespolehlivý plátce DPH) via the official MFČR SOAP service. Returns reliability status, published bank accounts, subject name + address.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "cz-agents-dd": "./dist/index.js"
+    "cz-agents-adis": "./dist/index.js"
   },
   "files": [
     "dist",
@@ -14,12 +14,11 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "due-diligence",
-    "kyc",
-    "ares",
-    "ico",
+    "adis",
+    "dph",
+    "vat",
     "czech",
-    "compliance",
+    "kyc",
     "claude"
   ],
   "license": "MIT",
@@ -28,7 +27,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/martinhavel/cz-agents-mcp.git",
-    "directory": "packages/dd"
+    "directory": "packages/adis"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -40,12 +39,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@czagents/adis": "^0.1.0",
-    "@czagents/ares": "^0.1.6",
-    "@czagents/isir": "^0.2.2",
-    "@czagents/sanctions": "^0.1.3",
     "@czagents/shared": "^0.1.7",
     "@modelcontextprotocol/sdk": "^1.10.0",
+    "fast-xml-parser": "^5.7.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -55,5 +51,5 @@
     "typescript": "^5.5.0",
     "vitest": "^4.1.4"
   },
-  "mcpName": "dev.cz-agents/dd"
+  "mcpName": "dev.cz-agents/adis"
 }

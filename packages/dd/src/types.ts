@@ -75,6 +75,13 @@ export interface DdReport {
     dic?: string;
     bank_accounts: string[];
     financial_office?: string;
+    /** ADIS reliability classification. Set when ADIS lookup succeeds.
+     *  ANO = unreliable payer (red flag), NE = reliable, NENALEZEN = not in VAT registry. */
+    reliability?: 'ANO' | 'NE' | 'NENALEZEN';
+    /** Date the subject became unreliable. Set only when reliability === 'ANO'. */
+    unreliable_since?: string;
+    /** ADIS subject classification (V2). */
+    subject_type?: 'PLATCE_DPH' | 'IDENTIFIKOVANA_OSOBA' | 'SKUPINA_DPH' | 'NESPOLEHLIVA_OSOBA' | 'NENALEZEN';
   };
 
   statutory_body: StatutoryMember[];

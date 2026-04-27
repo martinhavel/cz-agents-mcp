@@ -144,6 +144,13 @@ export async function buildReport(
     ? await safe(() => clients.isir!.checkActiveInsolvency(ico))
     : null;
 
+  // ADIS unreliable-VAT-payer check. Cheap (~1s) and runs even in basic depth
+  // because joint-liability under § 109 ZDPH is one of the more material risks
+  // the report should surface. Returns null when ADIS not wired or DIČ unknown.
+  const adisStatus = clients.adis
+    ? await safe(() => clients.adis!.checkPayer({ ico }))
+    : null;
+
   const isVirtualAddress = !basicOnly
     ? await checkVirtualAddress(clients.ares, subject)
     : undefined;
@@ -169,6 +176,13 @@ export async function buildReport(
       .map((m) => ({ name: m.name, spisova_znacka: m.personal_insolvency!.spisova_znacka })),
     statutoryGovtAddresses: govtAddrFlags,
     statutoryPriorBankruptcies: priorBankruptcyHits,
+    adisStatus: adisStatus
+      ? {
+          reliability: adisStatus.reliability,
+          unreliable_since: adisStatus.unreliable_since,
+          subject_type: adisStatus.subject_type,
+        }
+      : null,
   });
 
   return {
@@ -187,8 +201,14 @@ export async function buildReport(
     vat: {
       is_payer: !!subject?.dic,
       dic: subject?.dic,
-      bank_accounts: (bankAccounts ?? []).map((a) => `${a.cisloUctu}/${a.kodBanky}`),
+      // ADIS bank accounts are richer (predcisli + dates) than ARES — prefer ADIS when both present.
+      bank_accounts: adisStatus && adisStatus.accounts.length > 0
+        ? adisStatus.accounts.map((a) => a.formatted)
+        : (bankAccounts ?? []).map((a) => `${a.cisloUctu}/${a.kodBanky}`),
       financial_office: subject?.financniUrad,
+      reliability: adisStatus?.reliability,
+      unreliable_since: adisStatus?.unreliable_since,
+      subject_type: adisStatus?.subject_type,
     },
     statutory_body: screenedMembers,
     insolvency: insolvency

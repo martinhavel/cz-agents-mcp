@@ -33,6 +33,8 @@ export interface ScoreInputs {
   statutoryGovtAddresses?: Array<{ name: string; signal: string; matched_token?: string }>;
   /** Statutory persons matched to a (possibly insolvent) prior company by surname. */
   statutoryPriorBankruptcies?: Array<{ name: string; ico: string; company_name?: string; spisova_znacka?: string }>;
+  /** ADIS unreliable-VAT-payer status. Set when ADIS lookup succeeded. */
+  adisStatus?: { reliability: 'ANO' | 'NE' | 'NENALEZEN'; unreliable_since?: string; subject_type?: string } | null;
 }
 
 export function evaluateFlags(input: ScoreInputs): RedFlag[] {
@@ -163,6 +165,31 @@ export function evaluateFlags(input: ScoreInputs): RedFlag[] {
       weight: 5,
       description: 'Plátce DPH bez zveřejněného transparentního účtu.',
       source: 'ares',
+    });
+  }
+
+  if (input.adisStatus?.reliability === 'ANO') {
+    flags.push({
+      code: 'UNRELIABLE_VAT_PAYER',
+      severity: 'high',
+      weight: 30,
+      description:
+        `Subjekt je v MFČR registru veden jako nespolehlivý plátce DPH${
+          input.adisStatus.unreliable_since ? ` (od ${input.adisStatus.unreliable_since})` : ''
+        }. Platba na nezveřejněný účet zakládá ručení odběratele za daň dle § 109 ZDPH.`,
+      source: 'adis',
+      evidence: input.adisStatus,
+    });
+  }
+  if (input.adisStatus?.subject_type === 'NESPOLEHLIVA_OSOBA') {
+    flags.push({
+      code: 'UNRELIABLE_VAT_PERSON',
+      severity: 'high',
+      weight: 30,
+      description:
+        'Subjekt je veden jako nespolehlivá osoba dle § 106a ZDPH. Identifikovaný před vstupem do registru plátců DPH jako rizikový.',
+      source: 'adis',
+      evidence: input.adisStatus,
     });
   }
 
