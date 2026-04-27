@@ -46,7 +46,7 @@
     "@types/node": "^20.11.0",
     "@vitest/coverage-v8": "^4.1.4",
     "tsx": "^4.7.0",
-    "typescript": "^5.5.0",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.4"
   },
   "mcpName": "dev.cz-agents/ares"
