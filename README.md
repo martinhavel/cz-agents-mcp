@@ -88,6 +88,34 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 - `get_risk_score({ ico })` — fast 0–100 score + top red flags
 - `get_statutory_chain({ ico, max_depth })` — UBO / shell-company tree walk
 
+## What this is good for
+
+The aggregator (`@czagents/dd`) was built for one specific recurring chore:
+checking new business partners before signing or paying. The kinds of prompts
+it handles well:
+
+- **KYC pre-invoice** — *"Before we send a 350 000 Kč invoice to IČO 27074358,
+  flag any insolvency, sanctions, or nominee-director red flags."*
+- **Vendor onboarding** — *"Run KYC on this prospective supplier and tell me
+  if anything looks off. Use the full statutory chain."*
+- **M&A pre-due-diligence** — *"Generate a DD report on the acquisition target
+  and walk the statutory body two levels deep — flag any insolvent firms in
+  the network."*
+- **Bookkeeping triage** — *"For these 12 incoming invoices, screen each
+  issuer's IČO against EU sanctions and active insolvency. Sort by risk."*
+
+The standalone packages (`@czagents/ares`, `cnb`, `sanctions`, `isir`) are
+thinner — useful when you only need one specific data source, or when you're
+building your own custom workflow on top.
+
+## Score & validation
+
+[![Glama Score](https://glama.ai/mcp/servers/martinhavel/cz-agents-mcp/badges/score.svg)](https://glama.ai/mcp/servers/martinhavel/cz-agents-mcp)
+
+A/A/A on Glama (quality / security / license), claimed and maintained.
+Listed in the [official MCP registry](https://registry.modelcontextprotocol.io)
+under DNS-verified namespace `dev.cz-agents/*`.
+
 ## Further reading
 
 - [Building MCP servers for a country that isn't in the dataset](https://dev.to/martinhavel/building-mcp-servers-for-a-country-that-isnt-in-the-dataset-czech-gov-apis-1lo8) — design rationale, gotchas (MOD11, ARES Swagger bugs), and how this pattern adapts MCP to non-English locales.
