@@ -10,6 +10,29 @@
     "type": "git",
     "url": "https://github.com/martinhavel/cz-agents-mcp.git"
   },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "czech",
+    "ceska-republika",
+    "kyc",
+    "aml",
+    "due-diligence",
+    "compliance",
+    "ares",
+    "ico",
+    "isir",
+    "insolvency",
+    "sanctions",
+    "ofac",
+    "eu-fsf",
+    "cnb",
+    "fx-rates",
+    "vat",
+    "adis",
+    "claude",
+    "anthropic"
+  ],
   "workspaces": [
     "packages/*"
   ],
