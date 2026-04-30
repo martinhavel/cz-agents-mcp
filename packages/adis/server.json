@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/adis",
-  "description": "ADIS — Czech VAT-payer reliability (nespolehlivý plátce DPH) via official MFČR SOAP, with published bank accounts + subject name/address.",
+  "description": "ADIS — Czech VAT-payer reliability (nespolehlivý plátce DPH) via MFČR SOAP",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",

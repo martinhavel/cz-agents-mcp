@@ -2,11 +2,13 @@
 
 [![CI](https://github.com/martinhavel/cz-agents-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/martinhavel/cz-agents-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![MCP Registry](https://img.shields.io/badge/MCP_Registry-listed-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=cz-agents)
+[![Glama](https://img.shields.io/badge/glama.ai-listed-success)](https://glama.ai/mcp/servers/lgs0fwjrl8)
 
 Model Context Protocol servers for Czech government & business data.
 Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a unified due-diligence aggregator.
 
-**Landing page:** [cz-agents.dev](https://cz-agents.dev)
+**Landing page:** [cz-agents.dev](https://cz-agents.dev) · **Listed in:** [official MCP Registry](https://registry.modelcontextprotocol.io) under DNS-verified namespace `dev.cz-agents/*`
 
 ## Available servers
 
