@@ -347,14 +347,24 @@
         <div class="tools">get_dd_report · get_risk_score · get_statutory_chain</div>
       </div>
       <div class="server">
-        <h3>@czagents/isir <span class="pill beta">alpha</span></h3>
-        <p>Insolvenční rejstřík (ISIR) — event-streaming SOAP klient pro veřejnou WS Justice. Zapadá do <code>get_dd_report</code>; IČO-indexované hledání ve verzi 0.2.0.</p>
-        <div class="tools">check_ico_insolvency · poll_isir_events</div>
+        <h3>@czagents/isir <span class="pill live">live</span></h3>
+        <p>Insolvenční rejstřík (ISIR) — IČO-indexované hledání proti veřejné WS Ministerstva spravedlnosti. Odhalí aktivní řízení, spory věřitelů, paralelní exekuce; feed dražeb obsahuje plánované i potvrzené prodeje. Hostováno na <code>isir.cz-agents.dev/mcp</code>; pohání distressed real-estate vertikálu na <code>reality.cz-agents.dev</code>.</p>
+        <div class="tools">check_ico_insolvency · search_proceedings · list_auctions · poll_isir_events</div>
       </div>
       <div class="server">
         <h3>@czagents/adis <span class="pill live">live</span></h3>
         <p>Kontrola spolehlivosti plátce DPH (nespolehlivý plátce DPH) přes oficiální SOAP službu MFČR ADIS. Vrací status (ANO/NE/NENALEZEN), typ subjektu, název, adresu a zveřejněné transparentní účty (§ 96a ZDPH). Hromadná kontrola až 100 subjektů na požadavek.</p>
         <div class="tools">check_dph_payer · check_bulk_dph_payer · list_unreliable_payers</div>
+      </div>
+    </div>
+
+    <h2 id="postaveno-na-cz-agents">Postaveno na cz-agents</h2>
+    <p style="color:var(--fg-dim); font-size: 14px;">Produkční aplikace nad stejnými MCP servery — důkaz, že datová vrstva funguje od A do Z, a ukázka co znamená „AI agent pro česká data".</p>
+    <div class="servers">
+      <div class="server">
+        <h3><a class="url" href="https://reality.cz-agents.dev" target="_blank" rel="noopener">reality.cz-agents.dev</a> <span class="pill live">live</span></h3>
+        <p>Lov distressed nemovitostí. Denní crawl insolvenčních dražeb z ISIR a portaldrazeb.cz, Vision AI vytěží z PDF parcelu, katastrální území a výměru, scoring 16 komponent, cenový kontext per kraj (ČSÚ realizované ceny extrapolované Eurostat HPI Q4 2025). Mapa, mobile-first, lead pipeline.</p>
+        <div class="tools">@czagents/isir · @czagents/ares · @czagents/dd · Vision AI</div>
       </div>
     </div>
 
@@ -483,10 +493,15 @@ Bydliště na úřadu: bez záznamu (běžná ulice).
 Předchozí firmy v konkurzu (dle příjmení): bez záznamu.
 Risk score: 12/100 (low) — flag: chybí transparentní účet DPH.</pre>
 
-    <h2>Further reading</h2>
+    <h2>Pokračování</h2>
     <p style="color:var(--fg-dim); font-size: 14px; line-height: 1.7;">
       <a class="url" href="https://dev.to/martinhavel/building-mcp-servers-for-a-country-that-isnt-in-the-dataset-czech-gov-apis-1lo8" target="_blank" rel="noopener">Building MCP servers for a country that isn't in the dataset</a>
-      — design rationale, MOD11 gotcha, ARES Swagger bugs, and how this pattern adapts MCP to non-English locales.
+      — návrhové rozhodnutí, MOD11 gotcha, bugy v ARES Swaggeru a jak tenhle vzor přizpůsobit MCP mimo anglosaský kontext.
+      <br><br>
+      <strong>Listing:</strong>
+      <a class="url" href="https://registry.modelcontextprotocol.io/v0/servers?search=cz-agents" target="_blank" rel="noopener">oficiální MCP Registry</a> (DNS-ověřený namespace <code>dev.cz-agents/*</code>) ·
+      <a class="url" href="https://github.com/punkpeye/awesome-mcp-servers#finance--fintech" target="_blank" rel="noopener">awesome-mcp-servers</a> (<code>@czagents/cnb</code> mergnutý v #5407; ares, adis, isir, sanctions, dd otevřené v #5406, #5735–#5738) ·
+      <a class="url" href="https://glama.ai/mcp/servers/lgs0fwjrl8" target="_blank" rel="noopener">Glama</a>.
     </p>
 
     <footer>
