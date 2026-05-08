@@ -1,6 +1,6 @@
 {
   "name": "@czagents/dd",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "MCP server for Czech company due diligence — aggregates ARES, sanctions, ISIR, ADIS unreliable-VAT-payer, statutory chain into a single risk-scored report",
   "type": "module",
   "main": "./dist/index.js",

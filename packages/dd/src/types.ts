@@ -1,10 +1,24 @@
 /**
  * Public report shape returned by `get_dd_report`. Stable contract — clients
  * (Stripe-billed customers) build dashboards on this. Add fields, never rename.
+ *
+ * v0.2.0 — extracted nested types into named interfaces so cz-agents-webapp
+ * (and any other typed consumer) can import them without redefining.
+ * Naming convention:
+ *   - SanctionsMatch         — full match object (defined in clients.ts)
+ *   - SanctionMatchSummary   — trimmed shape exposed in get_dd_report response
  */
 
 export type RiskSeverity = 'critical' | 'high' | 'medium' | 'low';
 export type RiskLevel = 'low' | 'medium' | 'high';
+
+export type VatReliability = 'ANO' | 'NE' | 'NENALEZEN';
+export type VatSubjectType =
+  | 'PLATCE_DPH'
+  | 'IDENTIFIKOVANA_OSOBA'
+  | 'SKUPINA_DPH'
+  | 'NESPOLEHLIVA_OSOBA'
+  | 'NENALEZEN';
 
 export interface RedFlag {
   /** Stable machine code, e.g. 'INSOLVENCY_ACTIVE'. */
@@ -20,11 +34,32 @@ export interface RedFlag {
   evidence?: unknown;
 }
 
+/**
+ * Trimmed sanctions match shape exposed in get_dd_report response.
+ * Distinct from `SanctionsMatch` in clients.ts (full match with entity object).
+ */
 export interface SanctionMatchSummary {
   source: string;        // 'ofac', 'eu', ...
   list_id: string;
   confidence: number;    // 0–100
   matched_on: string;    // 'primary_name' | 'alias' | 'ico' | 'id'
+}
+
+export interface PersonalInsolvency {
+  spisova_znacka: string;
+  phase?: string;
+  url?: string;
+}
+
+export interface RegisteredAtGovtOffice {
+  signal: 'marker' | 'known_address';
+  matched_token?: string;
+}
+
+export interface PriorBankruptCompany {
+  ico: string;
+  name?: string;
+  spisova_znacka?: string;
 }
 
 export interface StatutoryMember {
@@ -37,22 +72,53 @@ export interface StatutoryMember {
   /** Sub-IČO if statutory is itself a legal entity. */
   legal_entity_ico?: string;
   /** Set if this person has an active personal insolvency proceeding in ISIR. */
-  personal_insolvency?: {
-    spisova_znacka: string;
-    phase?: string;
-    url?: string;
-  };
+  personal_insolvency?: PersonalInsolvency;
   /** Set if this person's permanent residence is at a municipal office (úřad bydliště). */
-  registered_at_govt_office?: {
-    signal: 'marker' | 'known_address';
-    matched_token?: string;
-  };
+  registered_at_govt_office?: RegisteredAtGovtOffice;
   /** Other Czech companies sharing surname that have or had insolvency. */
-  prior_bankrupt_companies?: Array<{
-    ico: string;
-    name?: string;
-    spisova_znacka?: string;
-  }>;
+  prior_bankrupt_companies?: PriorBankruptCompany[];
+}
+
+export interface DdCompany {
+  name?: string;
+  legal_form?: string;
+  address?: string;
+  registered_on?: string;
+  dissolved_on?: string;
+  nace_codes?: string[];
+  found: boolean;
+}
+
+export interface DdVat {
+  is_payer: boolean;
+  dic?: string;
+  bank_accounts: string[];
+  financial_office?: string;
+  /** ADIS reliability classification. Set when ADIS lookup succeeds.
+   *  ANO = unreliable payer (red flag), NE = reliable, NENALEZEN = not in VAT registry. */
+  reliability?: VatReliability;
+  /** Date the subject became unreliable. Set only when reliability === 'ANO'. */
+  unreliable_since?: string;
+  /** ADIS subject classification (V2). */
+  subject_type?: VatSubjectType;
+}
+
+export interface DdInsolvency {
+  has_active_proceeding: boolean;
+  spisova_znacka?: string;
+  started_on?: string;
+  note?: string;
+}
+
+export interface DdSanctions {
+  company_match?: SanctionMatchSummary;
+  /** True if any statutory member matched a list (details on each member). */
+  any_statutory_match: boolean;
+}
+
+export interface DdRiskScore {
+  value: number;
+  level: RiskLevel;
 }
 
 export interface DdReport {
@@ -60,47 +126,13 @@ export interface DdReport {
   retrieved_at: string;
   basic_only: boolean;            // true if depth='basic' (skipped ISIR / chain)
 
-  company: {
-    name?: string;
-    legal_form?: string;
-    address?: string;
-    registered_on?: string;
-    dissolved_on?: string;
-    nace_codes?: string[];
-    found: boolean;
-  };
-
-  vat: {
-    is_payer: boolean;
-    dic?: string;
-    bank_accounts: string[];
-    financial_office?: string;
-    /** ADIS reliability classification. Set when ADIS lookup succeeds.
-     *  ANO = unreliable payer (red flag), NE = reliable, NENALEZEN = not in VAT registry. */
-    reliability?: 'ANO' | 'NE' | 'NENALEZEN';
-    /** Date the subject became unreliable. Set only when reliability === 'ANO'. */
-    unreliable_since?: string;
-    /** ADIS subject classification (V2). */
-    subject_type?: 'PLATCE_DPH' | 'IDENTIFIKOVANA_OSOBA' | 'SKUPINA_DPH' | 'NESPOLEHLIVA_OSOBA' | 'NENALEZEN';
-  };
-
+  company: DdCompany;
+  vat: DdVat;
   statutory_body: StatutoryMember[];
-
-  insolvency?: {
-    has_active_proceeding: boolean;
-    spisova_znacka?: string;
-    started_on?: string;
-    note?: string;
-  };
-
-  sanctions: {
-    company_match?: SanctionMatchSummary;
-    /** True if any statutory member matched a list (details on each member). */
-    any_statutory_match: boolean;
-  };
-
+  insolvency?: DdInsolvency;
+  sanctions: DdSanctions;
   red_flags: RedFlag[];
-  risk_score: { value: number; level: RiskLevel };
+  risk_score: DdRiskScore;
 }
 
 export interface ChainNode {
