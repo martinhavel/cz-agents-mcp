@@ -3,9 +3,43 @@ import { z } from 'zod';
 import { validateIcoInput } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildChain } from './chain.js';
+import { detectNomineeDirector } from './patterns/nominee-director.js';
+import { buildTimeline } from './patterns/risk-timeline.js';
 import type { DdClients } from './clients.js';
 
-export function buildDdServer(clients: DdClients): McpServer {
+/**
+ * Tier kind — controls which tools are available to the caller.
+ *   - 'free'        : get_dd_report (basic), get_risk_score (rate-limited)
+ *   - 'compliance'  : + nominee, timeline patterns (Pro Compliance €99/mo)
+ *   - 'agency'      : + statutory_chain, bulk_lookup, watchlist (Agency €199/mo)
+ *
+ * 'enterprise' = treated as 'agency' for tool discovery.
+ */
+export type DdTier = 'free' | 'compliance' | 'agency' | 'enterprise';
+
+/** Tool gating — returns 403 JSON-RPC error when caller lacks tier. */
+function requireTier(currentTier: DdTier, required: DdTier, toolName: string) {
+  const order: DdTier[] = ['free', 'compliance', 'agency', 'enterprise'];
+  if (order.indexOf(currentTier) >= order.indexOf(required)) return null;
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          error: 'tier_required',
+          tool: toolName,
+          tier_needed: required,
+          current_tier: currentTier,
+          message: `Tool '${toolName}' requires '${required}' tier or higher. Current: '${currentTier}'. Upgrade at https://app.cz-agents.dev/billing`,
+          upgrade_url: 'https://cz-agents.dev/pricing',
+        }, null, 2),
+      },
+    ],
+    isError: true,
+  };
+}
+
+export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/dd',
@@ -68,9 +102,46 @@ export function buildDdServer(clients: DdClients): McpServer {
     },
     { title: 'Get Statutory Chain (UBO Walk)', readOnlyHint: true, openWorldHint: true },
     async ({ ico, max_depth }) => {
+      const gate = requireTier(tier, 'agency', 'get_statutory_chain');
+      if (gate) return gate;
       const clean = validateIcoInput(ico);
       const result = await buildChain(clean, clients.ares, { maxDepth: max_depth });
       return wrap(JSON.stringify(result, null, 2));
+    },
+  );
+
+  // 2026-05-08 — Pro Compliance tier exclusive (= compliance + agency).
+  server.tool(
+    'detect_nominee_director',
+    'Detect "white horse" / nominee director patterns — 8 independent indicators including residence at municipal office, multi-board membership, personal insolvency, prior bankrupt companies, recent appointment, shared flagged address, and HQ matching residence. Returns indicator-by-indicator breakdown with descriptions for compliance audit. Pro Compliance tier or higher.',
+    {
+      ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
+    },
+    { title: 'Detect Nominee Directors (Bílí koně)', readOnlyHint: true, openWorldHint: true },
+    async ({ ico }) => {
+      const gate = requireTier(tier, 'compliance', 'detect_nominee_director');
+      if (gate) return gate;
+      const clean = validateIcoInput(ico);
+      const report = await buildReport(clean, clients, { depth: 'full' });
+      const findings = detectNomineeDirector(report);
+      return wrap(JSON.stringify(findings, null, 2));
+    },
+  );
+
+  server.tool(
+    'get_risk_timeline',
+    'Build a chronologically sorted lifecycle timeline for a Czech company — events include company formation, statutory member appointments, insolvency proceedings, sanctions matches, VAT reliability flips, etc. For audit narrative and "story so far" reports. Pro Compliance tier or higher.',
+    {
+      ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
+    },
+    { title: 'Get Risk Timeline (Časová osa rizika)', readOnlyHint: true, openWorldHint: true },
+    async ({ ico }) => {
+      const gate = requireTier(tier, 'compliance', 'get_risk_timeline');
+      if (gate) return gate;
+      const clean = validateIcoInput(ico);
+      const report = await buildReport(clean, clients, { depth: 'full' });
+      const events = buildTimeline(report);
+      return wrap(JSON.stringify({ ico: clean, events }, null, 2));
     },
   );
 

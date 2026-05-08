@@ -179,7 +179,16 @@ async function main() {
       transport = transports.get(sessionId)!;
     } else {
       const newSessionId = randomUUID();
-      const server = buildDdServer(clients);
+      // Map token tier → DD server tier kind. 'pro' (API Compliance €99) and
+      // 'agency' (Agency €199) both unlock pattern detectors; 'agency' adds
+      // statutory_chain. Free / unknown tiers see only basic tools.
+      const tokenTier = auth.token.tier as string;
+      const ddTier =
+        tokenTier === 'agency' || tokenTier === 're_agency' ? 'agency' as const :
+        tokenTier === 'pro' || tokenTier === 're_pro' ? 'compliance' as const :
+        tokenTier === 'enterprise' ? 'enterprise' as const :
+        'free' as const;
+      const server = buildDdServer(clients, ddTier);
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         // Allow plain application/json responses for clients (e.g. Anthropic
