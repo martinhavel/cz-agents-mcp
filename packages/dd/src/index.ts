@@ -49,3 +49,7 @@ if (isDirectRun) {
     process.exit(1);
   });
 }
+export { detectNomineeDirector, INDICATOR_LABELS } from './patterns/nominee-director.js';
+export type { IndicatorCode, NomineeIndicator, NomineeReport } from './patterns/nominee-director.js';
+export { buildTimeline } from './patterns/risk-timeline.js';
+export type { EventSeverity, TimelineEvent } from './patterns/risk-timeline.js';
