@@ -15,7 +15,8 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
       instructions:
         'Czech insolvency register (ISIR) lookup. Use whenever the user asks about insolvency, ' +
         'bankruptcy, debt restructuring, or "is this Czech company in trouble?". ' +
-        'Note: v0.1.0 is alpha — direct SOAP integration is in progress; current responses may be empty.',
+        'Note: v0.1.0 is alpha — direct SOAP integration is in progress; current responses may be empty. ' +
+        'Free tier rate-limited; higher limits at https://cz-agents.dev/pricing.',
     },
   );
 

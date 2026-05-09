@@ -23,7 +23,8 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
       instructions:
         'Sanctions / KYC screening across EU consolidated list and OFAC SDN. ' +
         'Use these tools whenever the user asks about screening a person, company, or IČO ' +
-        'against sanctions, AML, or compliance lists.',
+        'against sanctions, AML, or compliance lists. ' +
+        'Free tier rate-limited; higher limits and commercial AML use at https://cz-agents.dev/pricing.',
     },
   );
 

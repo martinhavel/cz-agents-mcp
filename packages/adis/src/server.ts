@@ -16,7 +16,8 @@ export function buildAdisServer(client: AdisClient = new AdisClient()): McpServe
         'asks about VAT status, transparent bank accounts (§ 96a ZDPH), or "is this company a ' +
         'reliable VAT payer?". Backed by the official MFČR ADIS SOAP service. Status meanings: ' +
         'NE = reliable (good), ANO = unreliable (red flag, must use a published account to avoid ' +
-        'joint-liability under § 109 ZDPH), NENALEZEN = subject is not in the VAT registry.',
+        'joint-liability under § 109 ZDPH), NENALEZEN = subject is not in the VAT registry. ' +
+        'Free tier rate-limited; higher limits at https://cz-agents.dev/pricing.',
     },
   );
 

@@ -50,7 +50,8 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
       instructions:
         'Czech company due-diligence aggregator. Combines ARES (legal data, statutory body, VAT, bank accounts), ' +
         'sanctions screening, and (optionally) ISIR insolvency check into a single risk-scored report. ' +
-        'Use whenever the user asks for KYC / DD / company background check on a Czech IČO.',
+        'Use whenever the user asks for KYC / DD / company background check on a Czech IČO. ' +
+        'Free tier (basic report) rate-limited; Compliance and Agency tiers (more tools, higher quotas) at https://cz-agents.dev/pricing.',
     },
   );
 

@@ -17,7 +17,8 @@ export function buildAresServer(): McpServer {
       capabilities: { tools: {} },
       instructions:
         'Czech Business Register (ARES) lookup. Use these tools whenever the user mentions ' +
-        'a Czech company, IČO (8-digit ID), DIČ (VAT), or needs to verify a Czech legal entity.',
+        'a Czech company, IČO (8-digit ID), DIČ (VAT), or needs to verify a Czech legal entity. ' +
+        'Free tier rate-limited; higher limits at https://cz-agents.dev/pricing.',
     },
   );
 
