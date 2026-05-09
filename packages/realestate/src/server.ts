@@ -17,6 +17,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { getDistrictAggregate } from './tools/get_district_aggregate.js';
+import { searchDistressProperties } from './tools/search_distress_properties.js';
+import { getPropertyDetail } from './tools/get_property_detail.js';
 
 export type RealEstateTier = 'free' | 're_pro' | 're_agency';
 
@@ -54,7 +56,8 @@ export function buildRealEstateServer(tier: RealEstateTier = 'free'): McpServer 
     {
       capabilities: { tools: {} },
       instructions:
-        'Czech distress real estate intelligence — aggregates insolvency sales (ISIR), public auctions (portál dražeb), and market trends. Use whenever the user asks about distressed property opportunities, foreclosure auctions, or insolvency-related sales in Czech Republic.',
+        'Czech distress real estate intelligence — aggregates insolvency sales (ISIR), public auctions (portál dražeb), and market trends. Use whenever the user asks about distressed property opportunities, foreclosure auctions, or insolvency-related sales in Czech Republic. ' +
+        'Free tier returns aggregate stats only; full property details (Reality Profesional 1990 Kč/měs) and agency tools (Reality Business 5990 Kč/měs) at https://cz-agents.dev/pricing.',
     },
   );
 
@@ -91,12 +94,18 @@ export function buildRealEstateServer(tier: RealEstateTier = 'free'): McpServer 
         .describe('Distress category filter.'),
     },
     { title: 'Search Distress Properties', readOnlyHint: true },
-    async () => {
-      // TODO Sprint 9 — full implementation
-      return wrap(JSON.stringify({
-        error: 'not_implemented_yet',
-        message: 'search_distress_properties is in active development (target: 2026-06). Use get_district_aggregate for okres-level stats now.',
-      }, null, 2));
+    async (args) => {
+      const result = searchDistressProperties(
+        {
+          okres: args.okres,
+          property_type: args.property_type,
+          max_price_kc: args.max_price_kc,
+          min_price_kc: args.min_price_kc,
+          category: args.category,
+        },
+        tier,
+      );
+      return wrap(JSON.stringify(result, null, 2));
     },
   );
 
@@ -110,12 +119,8 @@ export function buildRealEstateServer(tier: RealEstateTier = 'free'): McpServer 
     async ({ property_id }) => {
       const gate = requireTier(tier, 're_pro', 'get_property_detail');
       if (gate) return gate;
-      // TODO Sprint 9
-      return wrap(JSON.stringify({
-        error: 'not_implemented_yet',
-        property_id,
-        message: 'get_property_detail full implementation in development.',
-      }, null, 2));
+      const result = getPropertyDetail(property_id, tier as 're_pro' | 're_agency');
+      return wrap(JSON.stringify(result, null, 2));
     },
   );
 

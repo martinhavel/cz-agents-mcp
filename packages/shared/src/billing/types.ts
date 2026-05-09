@@ -5,8 +5,8 @@
  * has two rows but one Stripe customer.
  */
 
-export type TierKind = 'free' | 'starter' | 'pro' | 'agency' | 'pay-per-report';
-export type ServiceKind = 'sanctions' | 'dd';
+export type TierKind = 'free' | 'starter' | 'pro' | 'agency' | 'pay-per-report' | 're_pro' | 're_agency';
+export type ServiceKind = 'sanctions' | 'dd' | 'realestate';
 
 export interface Tier {
   kind: TierKind;

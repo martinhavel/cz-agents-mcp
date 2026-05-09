@@ -30,12 +30,9 @@ const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
 async function main() {
   const tokenDbPath = process.env.TOKEN_DB ?? './tokens.db';
   const tokenStore = new TokenStore(tokenDbPath);
-  // service='dd' is reused as the umbrella for now — Reality tokens minted
-  // by webapp use service='realestate' (separate row), but the TokenStore
-  // itself is service-scoped per createQuotaGuard config.
   const quota = createQuotaGuard({
     store: tokenStore,
-    service: 'dd' as const, // TODO: extend ServiceKind to include 'realestate'
+    service: 'realestate' as const,
     allowAnonymous: true,
   });
 
