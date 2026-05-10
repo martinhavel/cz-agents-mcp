@@ -1,7 +1,7 @@
 {
   "name": "@czagents/realestate",
-  "version": "0.1.0",
-  "description": "MCP server for Czech distress real estate — aggregates insolvency sales (ISIR), public auctions (portál dražeb), and market context (sreality trends + okres aggregates)",
+  "version": "0.2.0",
+  "description": "BREAKING(0.2.0): Paid tools moved to hosted realestate-pro.cz-agents.dev. Free tier package — district aggregates + market trends only. See https://cz-agents.dev/pricing.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

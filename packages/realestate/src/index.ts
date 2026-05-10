@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url';
 import { buildRealEstateServer } from './server.js';
 
 export { buildRealEstateServer } from './server.js';
-export type * from './types.js';
+export type { RealEstateTier } from './server.js';
+export type { DistrictAggregate, MarketTrend } from './types.js';
 
 async function main() {
   const server = buildRealEstateServer('free');

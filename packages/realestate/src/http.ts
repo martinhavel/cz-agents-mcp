@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 /**
- * Streamable HTTP transport for realestate MCP. Listens on PORT (default 3036)
- * at /mcp. Bearer token quota enforcement via createQuotaGuard from
- * @czagents/shared.
+ * Streamable HTTP transport for realestate MCP (free tier only, v0.2.0+).
+ * Listens on PORT (default 3036) at /mcp. IP-rate-limited, no auth required.
  *
- * Tier gating: token tier maps to RealEstateTier:
- *   'pro'/'re_pro'    → 're_pro'
- *   'agency'/'re_agency' → 're_agency'
- *   * (incl. anonymous) → 'free'
+ * Paid tools (search_distress_properties, get_property_detail) are served by
+ * the private realestate-pro container at realestate-pro.cz-agents.dev.
+ * All requests here are handled as 'free' tier.
  */
 
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -19,7 +17,7 @@ import {
   TokenStore,
   createQuotaGuard,
 } from '@czagents/shared';
-import { buildRealEstateServer, type RealEstateTier } from './server.js';
+import { buildRealEstateServer } from './server.js';
 
 const PORT = Number(process.env.PORT ?? 3036);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
@@ -61,7 +59,7 @@ async function main() {
       res.end(JSON.stringify({
         status: 'ok',
         service: 'cz-agents/realestate',
-        version: '0.1.0',
+        version: '0.2.0',
         db_path: process.env.REALESTATE_DB_PATH ?? '/data/webapp.db',
       }));
       return;
@@ -86,17 +84,13 @@ async function main() {
       transport = transports.get(sessionId)!;
     } else {
       const newSessionId = randomUUID();
-      const tokenTier = auth.token.tier as string;
-      const reTier: RealEstateTier =
-        tokenTier === 'agency' || tokenTier === 're_agency' ? 're_agency' :
-        tokenTier === 'pro' || tokenTier === 're_pro' ? 're_pro' :
-        'free';
-      const server = buildRealEstateServer(reTier);
+      // Always free tier — paid tools are at realestate-pro.cz-agents.dev
+      const server = buildRealEstateServer('free');
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
-          console.error(`[cz-agents/realestate] new session: ${id} (tier=${reTier})`);
+          console.error(`[cz-agents/realestate] new session: ${id} (tier=free)`);
           transports.set(id, transport);
         },
       });

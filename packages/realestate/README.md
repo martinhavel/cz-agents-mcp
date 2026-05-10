@@ -1,6 +1,9 @@
 # @czagents/realestate
 
-Czech distress real estate MCP server — aggregates insolvency sales (ISIR), public auctions (portál dražeb), and market context (sreality price trends + okres-level aggregates).
+**Free tier package only.** Czech distress real estate MCP server — district-level aggregate statistics and market trends. No PII exposed.
+
+**Paid features** (full property search, owner data, per-property details) are at the hosted endpoint:
+**[realestate-pro.cz-agents.dev](https://realestate-pro.cz-agents.dev/mcp)** — see [https://cz-agents.dev/pricing.html](https://cz-agents.dev/pricing.html).
 
 ## Install
 
@@ -21,33 +24,32 @@ npm install -g @czagents/realestate
 }
 ```
 
-## Tools
+## Tools (free tier)
 
 - `get_district_aggregate` — distress real-estate statistics for a Czech okres (district): counts by category (insolvency / auction) and average market data. Counts under 5 are suppressed (k-anonymity gate) so individual debtors cannot be identified in low-activity districts. Free tier — no PII exposed.
-- `search_distress_properties` — search distress properties (insolvency sales + public auctions) by okres, type, price, date. Free tier returns 1-3 teasers + a total count; paid tier returns full details.
-- `get_property_detail` *(re_pro tier+)* — full details of a specific distress property: address, owner, RUIAN parcel, auction house, expert-appraisal link, AI risk score.
 
-Example prompts:
+## Paid tools (hosted realestate-pro only)
 
-> How many distress properties are currently for sale in okres Mělník?
+The following tools are **not** included in this package. They are available exclusively through the hosted paid endpoint at `https://realestate-pro.cz-agents.dev/mcp`:
 
-> Show me upcoming insolvency sales in the Liberec region under 3 000 000 Kč.
+- `search_distress_properties` — full property search with addresses and owner names (Reality Profesional / Agency tier)
+- `get_property_detail` — per-property full details including RUIAN parcel, appraisal link, AI risk score (Reality Profesional tier+)
+
+See [cz-agents.dev/pricing.html](https://cz-agents.dev/pricing.html) for subscription details.
 
 ## Tiers
 
 | Tier | Price | What you get |
 |---|---|---|
-| **Free** | 0 Kč | Aggregates with k≥5 suppression, teaser search results, no PII. |
-| **Reality Profesional (`re_pro`)** | 1 990 Kč/měs | Full property details, owner names, addresses, RUIAN parcel, appraisal links. |
-| **Reality Agency (`re_agency`)** | 5 990 Kč/měs | Multi-seat, REST API + webhooks, higher rate limits, batch search. |
-
-Tier details: https://cz-agents.dev/pricing
+| **Free** (this package) | 0 Kč | District aggregates with k≥5 suppression, no PII. |
+| **Reality Profesional** | 1 990 Kč/měs | Full property search + details, owner names, addresses, RUIAN parcel, appraisal links. Via hosted endpoint. |
+| **Reality Agency** | 5 990 Kč/měs | Multi-seat, REST API + webhooks, higher rate limits, batch search. Via hosted endpoint. |
 
 ## GDPR / opt-out
 
-Owners listed in distress sales are processed under GDPR Art. 6(1)(f) (legitimate interest, public-register data). The server honours an opt-out registry: subjects who have requested removal are filtered out of `search_distress_properties` and `get_property_detail` responses. The aggregate tool is unaffected because it never exposes PII.
+Owners listed in distress sales are processed under GDPR Art. 6(1)(f) (legitimate interest, public-register data). The hosted server honours an opt-out registry: subjects who have requested removal are filtered out of all responses.
 
-## Self-host
+## Self-host (free tier only)
 
 Source: https://github.com/martinhavel/cz-agents-mcp
 
@@ -59,7 +61,13 @@ npm run build
 node packages/realestate/dist/index.js
 ```
 
-Self-hosting requires read access to a `cz-agents-webapp`-compatible SQLite database with `RealEstateLead`, `RealEstateExtract`, and `OptOutEntry` tables populated by the daily crawlers in the upstream project.
+Self-hosting requires read access to a `cz-agents-webapp`-compatible SQLite database with `RealEstateLead` and `OptOutEntry` tables populated by the daily crawlers in the upstream project. The free-tier aggregate tools are the only tools available in this open-source package.
+
+## BREAKING CHANGES
+
+### 0.2.0
+
+`search_distress_properties` and `get_property_detail` have been **removed** from this package. They are now available exclusively via the hosted paid endpoint `realestate-pro.cz-agents.dev`. Free tier aggregate tools (`get_district_aggregate`) are unaffected.
 
 ## License
 
