@@ -20,6 +20,13 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 | [`@czagents/isir`](./packages/isir) | ISIR — Czech insolvency register | ✅ live |
 | [`@czagents/adis`](./packages/adis) | ADIS — unreliable VAT payer (nespolehlivý plátce DPH) + transparent accounts | ✅ live |
 | [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + ADIS + statutory chain) | ✅ live |
+| [`@czagents/realestate`](./packages/realestate) | Czech distress real estate intelligence (ISIR sales + portál dražeb) | ✅ live (v0.1) |
+
+### Premium tier — closed source
+
+| Server | What it adds | Where |
+|---|---|---|
+| `dev.cz-agents/ddplus` | 8-indicator nominee director detection (cross-DB), phoenix recidiva, enriched risk timeline with AI narrative, recursive linked-entities risk analysis (depth 1-3), shell-firm address crowding with provider detection, daily watchlist monitoring with email digest | Hosted-only at `ddplus.cz-agents.dev/mcp` — see [pricing](https://cz-agents.dev/pricing.html) |
 
 ## Quick start
 
