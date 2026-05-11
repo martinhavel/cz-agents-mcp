@@ -40,7 +40,7 @@
   "dependencies": {
     "@czagents/shared": "^0.1.8",
     "@modelcontextprotocol/sdk": "^1.10.0",
-    "fast-xml-parser": "^5.7.2",
+    "fast-xml-parser": "^5.7.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {
