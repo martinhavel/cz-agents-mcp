@@ -8,6 +8,11 @@
 Model Context Protocol servers for Czech government & business data.
 Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a unified due-diligence aggregator.
 
+> **Want a hosted, production-ready version?**
+> [cz-agents.dev](https://cz-agents.dev) — managed API with a 14-day free trial (no credit card).
+> Adds higher quotas, nominee detection, risk timeline, address crowding, watchlist monitoring, and a web compliance dashboard.
+> Your self-hosted config keeps working after upgrade — same endpoints, same token format.
+
 **Landing page:** [cz-agents.dev](https://cz-agents.dev) · **Listed in:** [official MCP Registry](https://registry.modelcontextprotocol.io) under DNS-verified namespace `dev.cz-agents/*`
 
 ## Available servers
