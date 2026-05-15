@@ -90,6 +90,14 @@ export class AresClient {
     ttlMs: 60 * 60 * 1000,
     maxSize: 2000,
   });
+  private readonly vrCache = new TtlCache<string, AresVrRecord | null>({
+    ttlMs: 60 * 60 * 1000, // 1 hour
+    maxSize: 5000,
+  });
+  private readonly historyCache = new TtlCache<string, unknown>({
+    ttlMs: 24 * 60 * 60 * 1000, // 24 hours — history is immutable
+    maxSize: 2000,
+  });
 
   constructor() {
     this.http = new HttpClient({
@@ -163,12 +171,14 @@ export class AresClient {
 
   /** Historical records for subject (previous names, sídlo changes). */
   async getHistory(ico: string): Promise<unknown> {
-    try {
-      return await this.http.getJson(`/${ico}/historie`);
-    } catch (e: any) {
-      if (e?.status === 404) return null;
-      throw e;
-    }
+    return this.historyCache.memoize(ico, async () => {
+      try {
+        return await this.http.getJson(`/${ico}/historie`);
+      } catch (e: any) {
+        if (e?.status === 404) return null;
+        throw e;
+      }
+    });
   }
 
   /**
@@ -176,15 +186,17 @@ export class AresClient {
    * Filters out historical entries (datumVymazu != null) by default.
    */
   async getVrRecord(ico: string): Promise<AresVrRecord | null> {
-    try {
-      // VR is sibling endpoint, use absolute URL to escape base path
-      const data = await this.http.getJson<{ zaznamy: AresVrRecord[] }>(
-        `${ARES_VR_BASE}/${ico}`,
-      );
-      return data.zaznamy?.[0] ?? null;
-    } catch (e: any) {
-      if (e?.status === 404) return null;
-      throw e;
-    }
+    return this.vrCache.memoize(ico, async () => {
+      try {
+        // VR is sibling endpoint, use absolute URL to escape base path
+        const data = await this.http.getJson<{ zaznamy: AresVrRecord[] }>(
+          `${ARES_VR_BASE}/${ico}`,
+        );
+        return data.zaznamy?.[0] ?? null;
+      } catch (e: any) {
+        if (e?.status === 404) return null;
+        throw e;
+      }
+    });
   }
 }
