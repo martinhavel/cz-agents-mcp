@@ -76,35 +76,35 @@
       <h3>Company Search</h3>
       <pre><code>curl "https://ares.cz-agents.dev/v1/companies?q=Acme"</code></pre>
       <pre><code>{
-  "data": { "items": [{ "ico": "27074358", "name": "Acme Imports s.r.o." }] },
+  "data": { "items": [{ "ico": "12345678", "name": "Acme Imports s.r.o." }] },
   "meta": { "fetched_at": "2026-06-01T10:00:00.000Z", "source": "ares" }
 }</code></pre>
 
       <h3>Company By IČO</h3>
-      <pre><code>curl https://ares.cz-agents.dev/v1/companies/27074358</code></pre>
+      <pre><code>curl https://ares.cz-agents.dev/v1/companies/12345678</code></pre>
       <pre><code>{
-  "data": { "ico": "27074358", "name": "Acme Imports s.r.o.", "status": "active" },
+  "data": { "ico": "12345678", "name": "Acme Imports s.r.o.", "status": "active" },
   "meta": { "fetched_at": "2026-06-01T10:00:00.000Z", "source": "ares" }
 }</code></pre>
 
       <h3>Bank Accounts</h3>
-      <pre><code>curl https://ares.cz-agents.dev/v1/companies/27074358/bank-accounts</code></pre>
+      <pre><code>curl https://ares.cz-agents.dev/v1/companies/12345678/bank-accounts</code></pre>
       <pre><code>{
-  "data": { "ico": "27074358", "accounts": [] },
+  "data": { "ico": "12345678", "accounts": [] },
   "meta": { "fetched_at": "2026-06-01T10:00:00.000Z", "source": "ares" }
 }</code></pre>
 
       <h3>Statutaries</h3>
-      <pre><code>curl https://ares.cz-agents.dev/v1/companies/27074358/statutaries</code></pre>
+      <pre><code>curl https://ares.cz-agents.dev/v1/companies/12345678/statutaries</code></pre>
       <pre><code>{
-  "data": { "ico": "27074358", "members": [{ "name": "Novák Consulting s.r.o.", "role": "member" }] },
+  "data": { "ico": "12345678", "members": [{ "name": "Novák Consulting s.r.o.", "role": "member" }] },
   "meta": { "fetched_at": "2026-06-01T10:00:00.000Z", "source": "ares" }
 }</code></pre>
 
       <h3>Sanctions Check</h3>
-      <pre><code>curl "https://sanctions.cz-agents.dev/v1/sanctions/check?ico=27074358"</code></pre>
+      <pre><code>curl "https://sanctions.cz-agents.dev/v1/sanctions/check?ico=12345678"</code></pre>
       <pre><code>{
-  "data": { "ico": "27074358", "name": "Acme Imports s.r.o.", "matches": [] },
+  "data": { "ico": "12345678", "name": "Acme Imports s.r.o.", "matches": [] },
   "meta": { "fetched_at": "2026-06-01T10:00:00.000Z", "source": "sanctions" }
 }</code></pre>
 
@@ -116,16 +116,16 @@
 }</code></pre>
 
       <h3>DD Report</h3>
-      <pre><code>curl -H "Authorization: Bearer czat_..." https://dd.cz-agents.dev/v1/dd/27074358</code></pre>
+      <pre><code>curl -H "Authorization: Bearer czat_..." https://dd.cz-agents.dev/v1/dd/12345678</code></pre>
       <pre><code>{
-  "data": { "ico": "27074358", "company": { "name": "Acme Imports s.r.o." }, "risk_score": { "value": 18, "level": "low" }, "red_flags": [] },
+  "data": { "ico": "12345678", "company": { "name": "Acme Imports s.r.o." }, "risk_score": { "value": 18, "level": "low" }, "red_flags": [] },
   "meta": { "fetched_at": "2026-06-01T10:00:00.000Z", "source": "dd" }
 }</code></pre>
 
       <h3>DD Risk</h3>
-      <pre><code>curl https://dd.cz-agents.dev/v1/dd/27074358/risk</code></pre>
+      <pre><code>curl https://dd.cz-agents.dev/v1/dd/12345678/risk</code></pre>
       <pre><code>{
-  "data": { "ico": "27074358", "company_name": "Acme Imports s.r.o.", "value": 18, "level": "low", "top_flags": [] },
+  "data": { "ico": "12345678", "company_name": "Acme Imports s.r.o.", "value": 18, "level": "low", "top_flags": [] },
   "meta": { "fetched_at": "2026-06-01T10:00:00.000Z", "source": "dd" }
 }</code></pre>
 

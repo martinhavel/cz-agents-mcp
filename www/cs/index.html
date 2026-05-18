@@ -479,20 +479,20 @@
     <h2 id="rest-api">REST API</h2>
     <p style="color:var(--fg-dim); font-size: 14px;">Stejná data jako MCP, ale plain GET requesty. Free endpointy nepotřebují auth — stačí curl. Placené volání přidávají <code>Authorization: Bearer czat_...</code>. <a class="url" href="/cs/docs/api.html">→ Kompletní REST API reference</a></p>
     <div class="snippet"><button class="copy" type="button" data-copy='# vyhledání firmy (zdarma)
-curl https://ares.cz-agents.dev/v1/companies/27074358
+curl https://ares.cz-agents.dev/v1/companies/12345678
 
 # sankční kontrola (zdarma)
-curl "https://sanctions.cz-agents.dev/v1/sanctions/check?ico=27074358"
+curl "https://sanctions.cz-agents.dev/v1/sanctions/check?ico=12345678"
 
 # full DD report (placené)
-curl -H "Authorization: Bearer czat_..." https://dd.cz-agents.dev/v1/dd/27074358'>kopírovat</button><pre class="code"><span class="k"># vyhledání firmy (zdarma)</span>
-curl https://ares.cz-agents.dev/v1/companies/<span class="s">27074358</span>
+curl -H "Authorization: Bearer czat_..." https://dd.cz-agents.dev/v1/dd/12345678'>kopírovat</button><pre class="code"><span class="k"># vyhledání firmy (zdarma)</span>
+curl https://ares.cz-agents.dev/v1/companies/<span class="s">12345678</span>
 
 <span class="k"># sankční kontrola (zdarma)</span>
-curl <span class="s">"https://sanctions.cz-agents.dev/v1/sanctions/check?ico=27074358"</span>
+curl <span class="s">"https://sanctions.cz-agents.dev/v1/sanctions/check?ico=12345678"</span>
 
 <span class="k"># full DD report (placené)</span>
-curl -H <span class="s">"Authorization: Bearer czat_..."</span> https://dd.cz-agents.dev/v1/dd/<span class="s">27074358</span></pre></div>
+curl -H <span class="s">"Authorization: Bearer czat_..."</span> https://dd.cz-agents.dev/v1/dd/<span class="s">12345678</span></pre></div>
     <p style="color:var(--fg-dim); font-size: 13px; margin-top: 6px;">Response envelope: <code>{"data": {...}, "meta": {"fetched_at": "...", "source": "ares"}}</code> — viz <a class="url" href="/cs/docs/api.html">všechny endpointy</a>.</p>
 
     <h2>Datové principy</h2>
