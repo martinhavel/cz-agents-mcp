@@ -385,8 +385,9 @@
         <h1>cz-agents<span class="tld">.dev</span></h1>
       </div>
       <p class="tagline">
-        Czech company data for AI agents and scripts.<br>
+        Czech &amp; EU company data for AI agents and scripts.<br>
         <span class="hl">MCP servers</span> + <span class="hl">REST API</span> — ARES, sanctions (EU+OFAC), ISIR insolvency, KYC due-diligence with nominee detection, phoenix check, and risk scoring.
+        EU registries: GB · SK · PL · NL · DE · FR (GLEIF, Companies House, KRS, RPO, SIRENE).
         <span style="color:var(--fg-dim)">Open-source MIT · self-hostable · hosted paid tier.</span>
       </p>
       <a href="/pricing.html" class="hero-cta">View pricing →</a>
@@ -397,7 +398,7 @@
         <a href="/docs/api.html" class="badge" style="text-decoration:none; color:var(--accent); border-color:var(--accent-dim)">REST API</a>
         <span class="badge">TypeScript</span>
         <span class="badge">MIT</span>
-        <span class="badge live">● 7 servers live</span>
+        <span class="badge live">● 8 servers live</span>
       </div>
     </header>
 
@@ -420,8 +421,8 @@
       </div>
       <div class="server">
         <h3>@czagents/dd <span class="pill live">live</span></h3>
-        <p>Czech company due diligence aggregator — ARES + sanctions + ISIR insolvency + ADIS + statutory chain. Basic 3-indicator nominee detection, phoenix detection, address crowding, risk timeline. Single risk-scored report with explainable red flags.</p>
-        <div class="tools">get_dd_report · get_risk_score · get_statutory_chain · detect_nominee_director · detect_phoenix · get_risk_timeline · detect_address_crowding</div>
+        <p>Czech company due diligence aggregator — ARES + sanctions + ISIR insolvency + ADIS + statutory chain. Basic 3-indicator nominee detection, phoenix detection, address crowding, risk timeline. Single risk-scored report with explainable red flags. Compliance: EU parent lookup via ARES→GLEIF matching with confidence scoring, EU DD report (GLEIF + sanctions) for international entities.</p>
+        <div class="tools">get_dd_report · get_risk_score · get_statutory_chain · detect_nominee_director · detect_phoenix · get_risk_timeline · detect_address_crowding · get_eu_parent · get_eu_dd_report</div>
       </div>
       <div class="server">
         <h3>@czagents/isir <span class="pill live">live</span></h3>
@@ -437,6 +438,11 @@
         <h3>@czagents/realestate <span class="pill live">live</span></h3>
         <p>Czech distress real-estate intelligence — anonymized district-level aggregates (insolvency sales ISIR + public auctions portál dražeb) with k≥5 anonymity. Free tier only. Property details, owner data, and bulk search live in the hosted paid <code>realestate-pro</code> endpoint (see Premium tier below).</p>
         <div class="tools">get_district_aggregate</div>
+      </div>
+      <div class="server">
+        <h3>@czagents/eu-registry <span class="pill live">live</span></h3>
+        <p>EU business registry lookup — company search and detail across 5 countries via free public APIs. GB (Companies House), SK (RPO), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI). FR (SIRENE) on Compliance tier. Not on npm — use via hosted endpoint <code>eu-registry.cz-agents.dev/mcp</code> or self-host from the GitHub monorepo.</p>
+        <div class="tools">search_company · get_company</div>
       </div>
     </div>
 
@@ -493,19 +499,21 @@
     <h2>Remote HTTP (no npm)</h2>
     <p style="color:var(--fg-dim); font-size: 14px;">Free tier requires no token. Paid tiers add <code>"headers": { "Authorization": "Bearer czat_..." }</code>.</p>
     <div class="snippet"><button class="copy" type="button" data-copy='{ "mcpServers": {
-    "ares":      { "url": "https://ares.cz-agents.dev/mcp" },
-    "cnb":       { "url": "https://cnb.cz-agents.dev/mcp" },
-    "sanctions": { "url": "https://sanctions.cz-agents.dev/mcp" },
-    "isir":      { "url": "https://isir.cz-agents.dev/mcp" },
-    "adis":      { "url": "https://adis.cz-agents.dev/mcp" },
-    "dd":        { "url": "https://dd.cz-agents.dev/mcp" }
+    "ares":         { "url": "https://ares.cz-agents.dev/mcp" },
+    "cnb":          { "url": "https://cnb.cz-agents.dev/mcp" },
+    "sanctions":    { "url": "https://sanctions.cz-agents.dev/mcp" },
+    "isir":         { "url": "https://isir.cz-agents.dev/mcp" },
+    "adis":         { "url": "https://adis.cz-agents.dev/mcp" },
+    "dd":           { "url": "https://dd.cz-agents.dev/mcp" },
+    "eu-registry":  { "url": "https://eu-registry.cz-agents.dev/mcp" }
 }}'>copy</button><pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
-    <span class="s">"ares"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
-    <span class="s">"cnb"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">},</span>
-    <span class="s">"sanctions"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://sanctions.cz-agents.dev/mcp"</span> <span class="k">},</span>
-    <span class="s">"isir"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://isir.cz-agents.dev/mcp"</span> <span class="k">},</span>
-    <span class="s">"adis"</span><span class="k">:</span>      <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://adis.cz-agents.dev/mcp"</span> <span class="k">},</span>
-    <span class="s">"dd"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">}</span>
+    <span class="s">"ares"</span><span class="k">:</span>         <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"cnb"</span><span class="k">:</span>          <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"sanctions"</span><span class="k">:</span>    <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://sanctions.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"isir"</span><span class="k">:</span>         <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://isir.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"adis"</span><span class="k">:</span>         <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://adis.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"dd"</span><span class="k">:</span>           <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"eu-registry"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://eu-registry.cz-agents.dev/mcp"</span> <span class="k">}</span>
 <span class="k">}}</span></pre></div>
 
     <h2 id="rest-api">REST API</h2>
