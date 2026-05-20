@@ -2,6 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { logToolCall } from '@czagents/shared';
 import { UkCompaniesHouseAdapter } from './adapters/uk-companies-house.js';
+import { SkOrsrAdapter } from './adapters/sk-orsr.js';
+import { PlKrsAdapter } from './adapters/pl-krs.js';
 import { getTierFromEnv, isCountryEnabled, type Tier } from './tier.js';
 import type { Company, RegistryAdapter } from './types.js';
 
@@ -26,7 +28,11 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     },
   );
 
-  const adapters = options.adapters ?? { gb: new UkCompaniesHouseAdapter() };
+  const adapters = options.adapters ?? {
+    gb: new UkCompaniesHouseAdapter(),
+    sk: new SkOrsrAdapter(),
+    pl: new PlKrsAdapter(),
+  };
   const tier = options.tier ?? getTierFromEnv();
 
   server.tool(
