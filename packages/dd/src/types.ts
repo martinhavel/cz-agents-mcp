@@ -67,6 +67,8 @@ export interface StatutoryMember {
   role: string;
   since?: string;
   is_person: boolean;
+  /** Date of birth from ARES VR — available for s.r.o. members, usually absent for a.s. */
+  datumNarozeni?: string;
   /** Set if the person/entity matches a sanctions list (≥ 85 confidence). */
   sanctions_match?: SanctionMatchSummary;
   /** Sub-IČO if statutory is itself a legal entity. */

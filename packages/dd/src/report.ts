@@ -323,6 +323,7 @@ async function screenStatutory(
       role: m.role,
       since: m.since,
       is_person: m.is_person,
+      datumNarozeni: m.dob,
       legal_entity_ico: m.legal_entity_ico,
     }));
   }
@@ -340,6 +341,7 @@ async function screenStatutory(
       role: m.role,
       since: m.since,
       is_person: m.is_person,
+      datumNarozeni: m.dob,
       legal_entity_ico: m.legal_entity_ico,
       sanctions_match: top ? toSummary(top) : undefined,
     };

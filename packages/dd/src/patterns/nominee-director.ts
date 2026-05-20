@@ -108,9 +108,7 @@ function detectAgeOutlier(members: StatutoryMember[]): NomineeIndicator {
   const hits: string[] = [];
 
   for (const p of persons) {
-    // DOB is not directly on StatutoryMember — try evidence field from ARES raw payload
-    const evidence = p as unknown as { datumNarozeni?: string };
-    const dob = evidence.datumNarozeni;
+    const dob = p.datumNarozeni;
     if (!dob) continue;
     const dobDate = new Date(dob);
     if (Number.isNaN(dobDate.getTime())) continue;
@@ -123,9 +121,7 @@ function detectAgeOutlier(members: StatutoryMember[]): NomineeIndicator {
   }
 
   // If no DOB data present at all — mark unavailable
-  const hasDobData = persons.some(
-    (p) => (p as unknown as { datumNarozeni?: string }).datumNarozeni,
-  );
+  const hasDobData = persons.some((p) => p.datumNarozeni);
   if (!hasDobData) {
     return {
       code: 'AGE_OUTLIER',
