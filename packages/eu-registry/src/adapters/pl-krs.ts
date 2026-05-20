@@ -3,49 +3,14 @@ import type { Company, CompanySearchResult, CompanyStatus, RegistryAdapter } fro
 const API_BASE = 'https://api-krs.ms.gov.pl';
 const REQUEST_TIMEOUT_MS = 10_000;
 
-interface PlKrsSearchItem {
-  numerKRS?: string;
-  nazwa?: string;
-  statusPodmiotu?: string;
-  adres?: unknown;
-  dataRejestracjiWKRS?: string;
-}
-
-interface PlKrsSearchResponse {
-  odpisy?: PlKrsSearchItem[];
-  liczbaOdpisow?: number;
-}
 
 export class PlKrsAdapter implements RegistryAdapter {
   constructor(private readonly fetchImpl: typeof fetch = globalThis.fetch) {}
 
-  async searchByName(name: string, limit = 10): Promise<CompanySearchResult> {
-    const url = new URL('/api/krs/WyszukiwanieKRS/podmiot', API_BASE);
-    url.searchParams.set('nazwaForPodmiotu', name);
-    url.searchParams.set('rejestry', 'P,S');
-    url.searchParams.set('strona', '1');
-    url.searchParams.set('rekordyNaStronie', String(limit));
-
-    try {
-      const response = await this.fetchImpl(url, requestInit());
-      if (!response.ok) {
-        warn(`KRS search failed: ${response.status} ${response.statusText}`);
-        return { companies: [], total_results: 0 };
-      }
-
-      const payload = (await response.json()) as PlKrsSearchResponse;
-      const companies = (payload.odpisy ?? [])
-        .map(mapSearchItem)
-        .filter((company): company is Company => company !== null);
-
-      return {
-        companies,
-        total_results: payload.liczbaOdpisow ?? companies.length,
-      };
-    } catch (error) {
-      warn('KRS search failed', error);
-      return { companies: [], total_results: 0 };
-    }
+  // KRS name-search endpoint (WyszukiwanieKRS) was retired post-2024 eKRS migration.
+  // Only lookup-by-KRS-number is available via the free official API.
+  async searchByName(_name: string, _limit = 10): Promise<CompanySearchResult> {
+    return { companies: [], total_results: 0 };
   }
 
   async getById(id: string): Promise<Company | null> {
@@ -61,7 +26,7 @@ async function fetchKrsRecord(
   id: string,
   rejestr: 'P' | 'S',
 ): Promise<Record<string, unknown> | null> {
-  const url = new URL(`/api/krs/OdpisAktualny/podmiot/${encodeURIComponent(id)}`, API_BASE);
+  const url = new URL(`/api/krs/OdpisAktualny/${encodeURIComponent(id)}`, API_BASE);
   url.searchParams.set('rejestr', rejestr);
   url.searchParams.set('format', 'json');
 
@@ -82,18 +47,6 @@ async function fetchKrsRecord(
   }
 }
 
-function mapSearchItem(item: PlKrsSearchItem): Company | null {
-  if (!item.numerKRS || !item.nazwa) return null;
-  return {
-    id: item.numerKRS,
-    country: 'pl',
-    name: item.nazwa,
-    status: mapStatus(item.statusPodmiotu),
-    address: formatAddress(item.adres),
-    registered_on: item.dataRejestracjiWKRS,
-    source_url: sourceUrl(item.numerKRS),
-  };
-}
 
 function mapRecord(record: Record<string, unknown>, fallbackId: string): Company | null {
   const id = firstString(record, ['numerKRS', 'nrKRS']) ?? fallbackId;
