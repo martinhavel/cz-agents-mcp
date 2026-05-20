@@ -1,7 +1,7 @@
 {
   "name": "@czagents/eu-registry",
   "version": "0.1.0",
-  "description": "MCP server for EU business registries — UK Companies House, SK ORSR, PL KRS, DE (via OpenCorporates)",
+  "description": "MCP server for EU business registries — GB (Companies House), SK (ORSR), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI), FR (SIRENE)",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -27,5 +27,11 @@
     "typescript": "^5.5.0",
     "vitest": "^4.1.4"
   },
-  "mcpName": "dev.cz-agents/eu-registry"
+  "mcpName": "dev.cz-agents/eu-registry",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -205,7 +205,7 @@ services:
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
       - CH_API_KEY=${CH_API_KEY:-}
-      - EU_REGISTRY_TIER=${EU_REGISTRY_TIER:-free}
+
       - GLEIF_CACHE_PATH=/var/lib/czagents-gleif-cache/cache.db
       - GLEIF_CACHE_TTL_DAYS=7
     volumes:

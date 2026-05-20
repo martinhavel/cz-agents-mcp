@@ -7,14 +7,12 @@ import { PlKrsAdapter } from './adapters/pl-krs.js';
 import { FrSireneAdapter } from './adapters/fr-sirene.js';
 import { GleifAdapter, DeGleifAdapter } from './adapters/de-gleif.js';
 import { GleifCache } from './gleif-cache.js';
-import { getTierFromEnv, isCountryEnabled, type Tier } from './tier.js';
 import type { Company, RegistryAdapter } from './types.js';
 
 export type RegistryAdapters = Record<string, RegistryAdapter>;
 
 export interface EuRegistryServerOptions {
   adapters?: RegistryAdapters;
-  tier?: Tier;
 }
 
 export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): McpServer {
@@ -26,7 +24,8 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     {
       capabilities: { tools: {} },
       instructions:
-        'Non-Czech business registry lookup. Use for companies outside the Czech Republic, starting with UK Companies House. ' +
+        'Non-Czech business registry lookup. Use for companies outside the Czech Republic. ' +
+        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI), FR (SIRENE). ' +
         'This server does not handle Czech registry lookups.',
     },
   );
@@ -40,11 +39,10 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     de: new DeGleifAdapter(globalThis.fetch, gleifCache),
     fr: new FrSireneAdapter(),
   };
-  const tier = options.tier ?? getTierFromEnv();
 
   server.tool(
     'search_company',
-    'Search non-Czech business registries by company name. Free tier: GB (Companies House), SK (RPO), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI). Compliance tier: FR (SIRENE).',
+    'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI), FR (SIRENE).',
     {
       name: z.string().min(1).describe('Company name or partial company name.'),
       country: z.string().length(2).describe('ISO 3166-1 alpha-2 country code, e.g. "gb".').optional(),
@@ -58,7 +56,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
 
       const selected = Object.entries(adapters).filter(([adapterCountry]) => {
         if (normalizedCountry && adapterCountry !== normalizedCountry) return false;
-        return isCountryEnabled(adapterCountry, tier);
+        return true;
       });
 
       const results = await Promise.all(
@@ -85,7 +83,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       const normalizedCountry = country.toLowerCase();
       logToolCall('eu-registry', 'get_company', { id, country: normalizedCountry });
 
-      const company = await getCompany(adapters, id, normalizedCountry, tier);
+      const company = await getCompany(adapters, id, normalizedCountry);
       if (!company) {
         return {
           content: [
@@ -110,9 +108,7 @@ async function getCompany(
   adapters: RegistryAdapters,
   id: string,
   country: string,
-  tier: Tier,
 ): Promise<Company | null> {
-  if (!isCountryEnabled(country, tier)) return null;
   const adapter = adapters[country];
   if (!adapter) return null;
   return adapter.getById(id);

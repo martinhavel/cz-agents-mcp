@@ -5,7 +5,6 @@ import { buildEuRegistryServer } from './server.js';
 
 export { UkCompaniesHouseAdapter } from './adapters/uk-companies-house.js';
 export { buildEuRegistryServer } from './server.js';
-export { COUNTRY_TIERS, getTierFromEnv, isCountryEnabled } from './tier.js';
 export type { Company, CompanySearchResult, CompanyStatus, RegistryAdapter } from './types.js';
 
 async function main() {

@@ -5,7 +5,7 @@ import { buildEuRegistryServer } from '../server.js';
 import type { RegistryAdapter } from '../types.js';
 
 async function connectTestClient(adapter: RegistryAdapter) {
-  const server = buildEuRegistryServer({ adapters: { gb: adapter }, tier: 'free' });
+  const server = buildEuRegistryServer({ adapters: { gb: adapter } });
   const client = new Client({ name: 'test-client', version: '0.1.0' });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
