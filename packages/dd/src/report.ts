@@ -149,7 +149,9 @@ export async function buildReport(
   // the report should surface. Returns null when ADIS not wired or DIČ unknown.
   // Use ARES-supplied DIČ when available — natural persons have DIČ ≠ CZ+IČO
   // (birth-number based), so looking up by IČO alone returns NENALEZEN.
-  const adisDic = subject?.dic ?? undefined;
+  // VAT-group members (§ 5a ZDPH): ARES returns dicSkDph for the group's DIČ.
+  // ADIS only knows the group DIČ, not the member's own DIČ — use dicSkDph when present.
+  const adisDic = subject?.dicSkDph ?? subject?.dic ?? undefined;
   const adisStatus = clients.adis
     ? await safe(() => clients.adis!.checkPayer(adisDic ? { dic: adisDic } : { ico }))
     : null;
@@ -204,6 +206,7 @@ export async function buildReport(
     vat: {
       is_payer: !!subject?.dic,
       dic: subject?.dic,
+      dic_sk_dph: subject?.dicSkDph,
       // ADIS bank accounts are richer (predcisli + dates) than ARES — prefer ADIS when both present.
       bank_accounts: adisStatus && adisStatus.accounts.length > 0
         ? adisStatus.accounts.map((a) => a.formatted)

@@ -15,6 +15,9 @@ export interface AresSubject {
   ico: string;
   obchodniJmeno?: string;
   dic?: string;
+  /** VAT-group DIČ (skupinové DIČ pro DPH). Present when the subject is a member
+   *  of a Czech VAT group (§ 5a ZDPH). ADIS must be called with this DIČ, not `dic`. */
+  dicSkDph?: string;
   sidlo?: {
     kodStatu?: string;
     nazevStatu?: string;

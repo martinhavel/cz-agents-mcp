@@ -92,6 +92,9 @@ export interface DdCompany {
 export interface DdVat {
   is_payer: boolean;
   dic?: string;
+  /** Set when the subject is a member of a Czech VAT group (§ 5a ZDPH).
+   *  ADIS reliability is reported under this group DIČ, not under `dic`. */
+  dic_sk_dph?: string;
   bank_accounts: string[];
   financial_office?: string;
   /** ADIS reliability classification. Set when ADIS lookup succeeds.

@@ -1,6 +1,6 @@
 {
   "name": "@czagents/shared",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Shared utilities for cz-agents MCP servers — IČO/DIČ validation, HTTP helpers, rate limiter, billing primitives",
   "type": "module",
   "main": "./dist/index.js",

@@ -60,6 +60,8 @@ export interface AresSubjectLike {
   ico: string;
   obchodniJmeno?: string;
   dic?: string;
+  /** VAT-group DIČ (§ 5a ZDPH). When present, use this for ADIS lookups instead of `dic`. */
+  dicSkDph?: string;
   sidlo?: {
     textovaAdresa?: string;
     nazevObce?: string;
