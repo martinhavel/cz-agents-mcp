@@ -26,6 +26,7 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 | [`@czagents/adis`](./packages/adis) | ADIS — unreliable VAT payer (nespolehlivý plátce DPH) + transparent accounts | ✅ live |
 | [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + ADIS + statutory chain) | ✅ live |
 | [`@czagents/realestate`](./packages/realestate) | Czech distress real estate intelligence (ISIR sales + portál dražeb) | ✅ live (v0.1) |
+| [`@czagents/eu-registry`](./packages/eu-registry) | EU business registries — GB (Companies House), SK, PL, NL, DE, FR via GLEIF/LEI | ✅ live |
 
 ### Premium tier — closed source
 
@@ -45,7 +46,8 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
     "sanctions": { "command": "npx", "args": ["-y", "@czagents/sanctions"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db" } },
     "isir":      { "command": "npx", "args": ["-y", "@czagents/isir"], "env": { "ISIR_SOAP_ENABLED": "1" } },
     "adis":      { "command": "npx", "args": ["-y", "@czagents/adis"], "env": { "ADIS_SOAP_ENABLED": "1" } },
-    "dd":        { "command": "npx", "args": ["-y", "@czagents/dd"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db", "ADIS_SOAP_ENABLED": "1" } }
+    "dd":          { "command": "npx", "args": ["-y", "@czagents/dd"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db", "ADIS_SOAP_ENABLED": "1" } },
+    "eu-registry": { "command": "npx", "args": ["-y", "@czagents/eu-registry"] }
   }
 }
 ```
@@ -55,12 +57,13 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 ```json
 {
   "mcpServers": {
-    "ares":      { "url": "https://ares.cz-agents.dev/mcp" },
-    "cnb":       { "url": "https://cnb.cz-agents.dev/mcp" },
-    "sanctions": { "url": "https://sanctions.cz-agents.dev/mcp" },
-    "isir":      { "url": "https://isir.cz-agents.dev/mcp" },
-    "adis":      { "url": "https://adis.cz-agents.dev/mcp" },
-    "dd":        { "url": "https://dd.cz-agents.dev/mcp" }
+    "ares":        { "url": "https://ares.cz-agents.dev/mcp" },
+    "cnb":         { "url": "https://cnb.cz-agents.dev/mcp" },
+    "sanctions":   { "url": "https://sanctions.cz-agents.dev/mcp" },
+    "isir":        { "url": "https://isir.cz-agents.dev/mcp" },
+    "adis":        { "url": "https://adis.cz-agents.dev/mcp" },
+    "dd":          { "url": "https://dd.cz-agents.dev/mcp" },
+    "eu-registry": { "url": "https://eu-registry.cz-agents.dev/mcp" }
   }
 }
 ```
@@ -110,6 +113,12 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 - `get_dd_report({ ico, depth })` — unified ARES + sanctions + ISIR report with risk score
 - `get_risk_score({ ico })` — fast 0–100 score + top red flags
 - `get_statutory_chain({ ico, max_depth })` — UBO / shell-company tree walk
+
+### `@czagents/eu-registry` (3 tools)
+
+- `get_eu_company({ country, id })` — company record from GB (Companies House), SK (ORSR), PL (KRS), NL/DE/FR (GLEIF/LEI), SIRENE
+- `get_eu_parent({ ico })` — find EU parent/group via ARES → GLEIF LEI matching with confidence scoring
+- `get_eu_dd_report({ country, id })` — EU DD report: company facts + EU + OFAC sanctions check
 
 ## What this is good for
 
