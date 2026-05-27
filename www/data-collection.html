@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Data Collection Statement — cz-agents</title>
+<meta name="robots" content="index,follow">
+<meta name="description" content="How cz-agents collects and processes data from Czech and EU public registries.">
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+         max-width: 760px; margin: 60px auto; padding: 0 20px; color: #1f2937; line-height: 1.7; }
+  h1 { font-size: 28px; margin-bottom: 6px; }
+  h2 { font-size: 20px; margin-top: 32px; margin-bottom: 8px; }
+  h3 { font-size: 16px; margin-top: 24px; margin-bottom: 6px; color: #374151; }
+  .updated { color: #6b7280; font-size: 13px; margin-bottom: 24px; }
+  p, li { font-size: 15px; }
+  code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  a { color: #2563eb; }
+  ul { margin: 8px 0 16px 24px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+  .tab { cursor: pointer; padding: 8px 20px; border-radius: 6px 6px 0 0; font-size: 14px; font-weight: 600; border: 1px solid #e5e7eb; border-bottom: none; background: #f9fafb; color: #6b7280; }
+  .tab.active { background: #fff; color: #1f2937; border-bottom: 1px solid #fff; margin-bottom: -1px; }
+  .lang { display: none; border: 1px solid #e5e7eb; border-radius: 0 8px 8px 8px; padding: 28px 28px 16px; }
+  .lang.active { display: block; }
+  .contact-box { background: #f9fafb; border-left: 3px solid #2563eb; padding: 16px 20px; margin: 24px 0; border-radius: 4px; }
+</style>
+  <!-- Privacy-friendly analytics (self-hosted Umami) -->
+  <script async defer src="https://analytics.mhai.app/script.js" data-website-id="5a96aa8b-7575-4667-8ac6-267287849cf3"></script>
+</head>
+<body>
+<div class="tabs"><div class="tab active" id="tab-en" onclick="switchLang('en')">English</div><div class="tab" id="tab-cs" onclick="switchLang('cs')">Čeština</div></div>
+
+<div class="lang active" id="lang-en">
+<h1>Data Collection Statement</h1>
+<p class="updated">Last updated: 2026-05-27 · <a href="/">cz-agents.dev</a></p>
+
+<p>
+  cz-agents (<em>the service</em>) provides due diligence and compliance reporting for Czech legal entities.
+  This page explains where the underlying data comes from, how we collect it, and the principles we follow.
+</p>
+
+<h2>Data sources</h2>
+
+<p>All data processed by cz-agents is sourced from publicly accessible Czech and EU government registries:</p>
+
+<ul>
+  <li><strong>Obchodní rejstřík (Czech Commercial Register)</strong> — company registration, statutory bodies, share capital, NACE codes</li>
+  <li><strong>Sbírka listin (Collection of Documents)</strong> — annual financial statements published under § 21a of the Czech Accounting Act</li>
+  <li><strong>ARES (Administrative Register of Economic Entities)</strong> — Ministry of Finance public registry</li>
+  <li><strong>Evidence skutečných majitelů (UBO Register)</strong> — beneficial ownership data</li>
+  <li><strong>ISIR (Insolvency Register)</strong> — insolvency proceedings</li>
+  <li><strong>EU Financial Sanctions Files, OFAC SDN</strong> — sanctions screening</li>
+  <li><strong>ESEF iXBRL filings</strong> — structured financial reports from companies listed on Prague Stock Exchange</li>
+  <li><strong>Czech National Bank, Ministry of Finance datasets</strong> — supervisory and macroeconomic context</li>
+</ul>
+
+<p>
+  We do not collect data from private databases, leaked sources, or social media.
+  We do not aggregate personal data beyond what is already published as a statutory transparency
+  requirement (e.g., names of company directors as registered in the Commercial Register).
+</p>
+
+<h2>How we collect</h2>
+
+<p>
+  Where source systems provide structured APIs or bulk feeds (ARES, GLEIF, ESEF iXBRL, BRIS),
+  we use them as the preferred access method. Where the only available format is a public-facing
+  web page, we retrieve documents through standard HTTP requests with the following principles:
+</p>
+
+<ul>
+  <li><strong>Source-friendly access patterns</strong> — we respect the operational capacity of source systems and minimize impact</li>
+  <li><strong>Preference for low-traffic windows</strong> — to avoid contention with regular users</li>
+  <li><strong>No circumvention</strong> — we do not bypass captchas, CDN bot mitigations, or technical access controls</li>
+  <li><strong>Standard infrastructure</strong> — requests originate from named datacenter IP addresses we own and manage</li>
+  <li><strong>Audit trail</strong> — every external fetch is logged internally for review</li>
+</ul>
+
+<p>
+  If a source operator at any point requests that we adjust our access pattern or stop entirely,
+  we comply immediately. There is no commercial pressure from our customer-facing service that
+  would push us to ignore such a request.
+</p>
+
+<h2>What we do not do</h2>
+
+<ul>
+  <li>We do not solve captchas or bypass anti-bot systems</li>
+  <li>We do not use residential proxy pools or other evasion infrastructure</li>
+  <li>We do not aggregate data from sources whose terms of use prohibit it where such prohibition is clear and substantive</li>
+  <li>We do not resell raw datasets — our service provides analytical reports built on top of public data</li>
+  <li>We do not enrich public-registry data with non-public personal data (private addresses, contact details, family information)</li>
+</ul>
+
+<h2>Legal basis</h2>
+
+<p>
+  Personal data of statutory bodies (company directors, board members) processed by the service
+  falls under <strong>GDPR Art. 6(1)(f)</strong> — legitimate interest, balanced against the limited
+  privacy expectations of data subjects whose information has been published under a statutory
+  transparency obligation.
+</p>
+
+<p>
+  Where applicable, the Art. 14(5)(c) exemption from individual notification obligations applies,
+  because the data is sourced from public registries whose disclosure is "expressly laid down by
+  Union or Member State law."
+</p>
+
+<p>
+  For the full GDPR data subject rights and operational privacy policy, see
+  our <a href="/privacy">Privacy Policy</a>.
+</p>
+
+<h2>Contact</h2>
+
+<div class="contact-box">
+  <p style="margin: 0;">
+    Questions about data sources, collection practices, or opt-out requests:
+    <br>
+    <strong><a href="mailto:privacy@cz-agents.dev">privacy@cz-agents.dev</a></strong>
+  </p>
+  <p style="margin: 8px 0 0; font-size: 13px; color: #6b7280;">
+    Source operators requesting adjustment or pause of access: please use the same address;
+    we will respond within 2 business days and act according to the request.
+  </p>
+</div>
+
+</div>
+
+<div class="lang" id="lang-cs">
+<h1>Prohlášení o sběru dat</h1>
+<p class="updated">Aktualizováno: 2026-05-27 · <a href="/">cz-agents.dev</a></p>
+
+<p>
+  cz-agents (<em>služba</em>) poskytuje due diligence a compliance reporting pro české právnické osoby.
+  Tato stránka vysvětluje, odkud data pocházejí, jak je sbíráme a jakými principy se řídíme.
+</p>
+
+<h2>Zdroje dat</h2>
+
+<p>Veškerá data zpracovávaná službou pocházejí z veřejně přístupných českých a evropských státních registrů:</p>
+
+<ul>
+  <li><strong>Obchodní rejstřík</strong> — registrace firem, statutární orgány, základní kapitál, NACE kódy</li>
+  <li><strong>Sbírka listin</strong> — účetní závěrky zveřejňované dle § 21a zákona o účetnictví</li>
+  <li><strong>ARES (Administrativní registr ekonomických subjektů)</strong> — veřejný registr Ministerstva financí</li>
+  <li><strong>Evidence skutečných majitelů</strong> — registr beneficiálních vlastníků</li>
+  <li><strong>ISIR (Insolvenční rejstřík)</strong></li>
+  <li><strong>EU Financial Sanctions Files, OFAC SDN</strong> — sankční seznamy</li>
+  <li><strong>ESEF iXBRL výkazy</strong> — strukturované finanční výkazy firem kotovaných na BCPP</li>
+  <li><strong>ČNB, MFČR datové sady</strong> — dohledový a makroekonomický kontext</li>
+</ul>
+
+<p>
+  Nesbíráme data z privátních databází, uniklých zdrojů nebo sociálních sítí.
+  Neagregujeme osobní údaje nad rámec toho, co je již zveřejněno jako zákonný transparency
+  požadavek (např. jména jednatelů firem zapsaná v Obchodním rejstříku).
+</p>
+
+<h2>Jak data získáváme</h2>
+
+<p>
+  Pokud zdrojový systém poskytuje strukturované API nebo bulk feed (ARES, GLEIF, ESEF iXBRL, BRIS),
+  preferujeme tento způsob přístupu. Pokud je jediný dostupný formát veřejně přístupná webová
+  stránka, získáváme dokumenty standardními HTTP requesty s následujícími principy:
+</p>
+
+<ul>
+  <li><strong>Ohleduplné přístupové vzorce</strong> — respektujeme provozní kapacitu zdrojových systémů a minimalizujeme dopad</li>
+  <li><strong>Preference mimo-špičkových hodin</strong> — vyhneme se konkurenci s běžnými uživateli</li>
+  <li><strong>Žádné obcházení ochran</strong> — neobcházíme captcha, anti-bot systémy CDN ani technické access controls</li>
+  <li><strong>Standardní infrastruktura</strong> — requesty pocházejí z pojmenovaných datacenter IP adres, které vlastníme a spravujeme</li>
+  <li><strong>Audit trail</strong> — každý externí fetch je interně logován pro review</li>
+</ul>
+
+<p>
+  Pokud provozovatel zdroje kdykoli požádá o úpravu našeho přístupového vzorce nebo úplné zastavení,
+  okamžitě vyhovíme. Náš komerční model neobsahuje žádný tlak, který by nás nutil takový požadavek
+  ignorovat.
+</p>
+
+<h2>Co neděláme</h2>
+
+<ul>
+  <li>Neřešíme captcha ani neobcházíme anti-bot systémy</li>
+  <li>Nepoužíváme rezidenční proxy poolu ani jinou evasion infrastrukturu</li>
+  <li>Neagregujeme data ze zdrojů, jejichž podmínky to jasně a podstatně zakazují</li>
+  <li>Nepřeprodáváme raw datasety — naše služba poskytuje analytické reporty postavené nad veřejnými daty</li>
+  <li>Neobohacujeme data z veřejných registrů o ne-veřejné osobní údaje (soukromé adresy, kontaktní údaje, rodinné informace)</li>
+</ul>
+
+<h2>Právní základ</h2>
+
+<p>
+  Osobní údaje statutárních orgánů (jednatelé, členové představenstev) zpracovávané službou spadají pod
+  <strong>GDPR čl. 6 odst. 1 písm. (f)</strong> — oprávněný zájem, vyvážený proti omezeným očekáváním
+  soukromí subjektů údajů, jejichž informace byly zveřejněny v rámci zákonné transparency povinnosti.
+</p>
+
+<p>
+  Kde aplikovatelné, uplatňujeme výjimku z individuální informační povinnosti dle čl. 14 odst. 5 písm. (c),
+  protože data pocházejí z veřejných registrů, jejichž zveřejnění je "výslovně stanoveno právem Unie
+  nebo členského státu."
+</p>
+
+<p>
+  Plné GDPR rights subjektů údajů a provozní pravidla najdete v naší <a href="/privacy">Privacy Policy</a>.
+</p>
+
+<h2>Kontakt</h2>
+
+<div class="contact-box">
+  <p style="margin: 0;">
+    Otázky ke zdrojům dat, sběru, nebo žádosti o opt-out:
+    <br>
+    <strong><a href="mailto:privacy@cz-agents.dev">privacy@cz-agents.dev</a></strong>
+  </p>
+  <p style="margin: 8px 0 0; font-size: 13px; color: #6b7280;">
+    Provozovatelé zdrojových systémů žádající o úpravu nebo zastavení přístupu: použijte stejnou
+    adresu; odpovíme do 2 pracovních dní a budeme jednat dle požadavku.
+  </p>
+</div>
+
+</div>
+
+<script>
+function switchLang(lang) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.lang').forEach(l => l.classList.remove('active'));
+  document.getElementById('tab-' + lang).classList.add('active');
+  document.getElementById('lang-' + lang).classList.add('active');
+}
+// Honor URL hash like #cs
+if (window.location.hash === '#cs') switchLang('cs');
+</script>
+
+</body>
+</html>

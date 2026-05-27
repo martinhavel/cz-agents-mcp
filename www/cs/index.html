@@ -435,6 +435,12 @@
             var r = await fetch(SANDBOX_URL + ico, { headers: headers });
             var json = await r.json();
             if (r.ok && json._sandbox) {
+              if (window.umami) {
+                window.umami.track('sandbox_call_made', {
+                  ico_changed: document.getElementById('sandbox-ico').value.trim() !== '60193531',
+                  call_number: callsMade + 1,
+                });
+              }
               sandboxToken = json._sandbox.token;
               callsMade++;
               var remaining = json._sandbox.remaining;
@@ -465,6 +471,12 @@
             btn.textContent = 'Načíst data firmy →';
           }
         });
+        const ctaLink = document.getElementById('sandbox-cta').querySelector('a');
+        if (ctaLink) {
+          ctaLink.addEventListener('click', function() {
+            if (window.umami) window.umami.track('sandbox_cta_click', { call_number: callsMade });
+          });
+        }
       })();
       </script>
     </section>
@@ -712,6 +724,7 @@ Risk score: 12/100 (low) — flag: chybí transparentní účet DPH.</pre>
         <a href="/cs/pricing.html">Ceník</a> ·
         <a href="/cs/onboard.html">Onboarding</a> ·
         <a href="/dpa.html">SZOU/DPA</a> ·
+        <a href="/data-collection.html#cs">Zdroje dat</a> ·
         <a href="/privacy.html">Soukromí</a> ·
         <a href="/terms.html">Podmínky</a>
       </div>
