@@ -129,6 +129,9 @@ export function getMetrics(): string {
   return `${lines.join('\n')}\n`;
 }
 
+const MAX_ICO_COUNTER_ENTRIES = 50_000;
+const MAX_SEARCH_COUNTER_ENTRIES = 5_000;
+
 export function cleanup(): void {
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - 2);
@@ -136,6 +139,20 @@ export function cleanup(): void {
 
   for (const date of seen.keys()) {
     if (date < cutoffDate) seen.delete(date);
+  }
+
+  if (icoCounter.size > MAX_ICO_COUNTER_ENTRIES) {
+    const sorted = [...icoCounter.entries()].sort((a, b) => a[1] - b[1]);
+    for (const [ico] of sorted.slice(0, icoCounter.size - MAX_ICO_COUNTER_ENTRIES)) {
+      icoCounter.delete(ico);
+    }
+  }
+
+  if (searchCounter.size > MAX_SEARCH_COUNTER_ENTRIES) {
+    const sorted = [...searchCounter.entries()].sort((a, b) => a[1] - b[1]);
+    for (const [key] of sorted.slice(0, searchCounter.size - MAX_SEARCH_COUNTER_ENTRIES)) {
+      searchCounter.delete(key);
+    }
   }
 }
 
