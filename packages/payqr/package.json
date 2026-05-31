@@ -1,0 +1,61 @@
+{
+  "name": "@czagents/payqr",
+  "version": "0.1.0",
+  "description": "MCP server for European payment QR codes, text, Wi-Fi, vCard, and QR decoding",
+  "private": true,
+  "comment_private": "Phase A — controlled launch gate: keep private until launch-ready, then remove this flag + npm publish (that publish IS the launch moment; Glama auto-discovers npm-published servers). See decisions.md 2026-05-31.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "cz-agents-payqr": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "qr-code",
+    "payment",
+    "spayd",
+    "epc",
+    "girocode",
+    "sepa"
+  ],
+  "license": "MIT",
+  "author": "Martin Havel <martin.havel@gmail.com>",
+  "homepage": "https://cz-agents.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/martinhavel/cz-agents-mcp.git",
+    "directory": "packages/payqr"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "start:http": "node dist/http.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@czagents/shared": "^0.1.8",
+    "@modelcontextprotocol/sdk": "^1.10.0",
+    "jimp": "^1.6.0",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/jimp": "^0.2.28",
+    "@types/node": "^20.11.0",
+    "@types/qrcode": "^1.5.6",
+    "@vitest/coverage-v8": "^4.1.4",
+    "tsx": "^4.7.0",
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.4"
+  },
+  "mcpName": "dev.cz-agents/payqr"
+}
