@@ -24,10 +24,11 @@ export function buildPayqrServer(): McpServer {
     'Create a European payment QR code. Auto-selects SPAYD for CZ/SK IBANs and EPC/GiroCode for other SEPA IBANs.',
     {
       iban: z.string().describe('Recipient IBAN. Validated with the IBAN mod-97 checksum.'),
+      bic: z.string().optional().describe('Optional BIC for EPC/GiroCode line 5. Ignored with a warning for SPAYD.'),
       amount: z.number().optional().describe('Optional payment amount.'),
       currency: z.string().optional().describe('Optional ISO 4217 currency code. Defaults to CZK for SPAYD and EUR for EPC.'),
       message: z.string().optional().describe('Optional payment message or EPC remittance text.'),
-      variable_symbol: z.string().optional().describe('Optional Czech variable symbol for SPAYD.'),
+      variable_symbol: z.string().optional().describe('Optional reference: goes to remittance (line 11) for EPC, to X-VS for SPAYD.'),
       constant_symbol: z.string().optional().describe('Optional Czech constant symbol for SPAYD.'),
       recipient_name: z.string().optional().describe('Recipient name. Required for EPC/GiroCode.'),
       standard: z.enum(['spayd', 'epc', 'auto']).default('auto').describe('Payment QR standard. Defaults to auto detection.'),

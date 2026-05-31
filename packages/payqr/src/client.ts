@@ -14,6 +14,7 @@ export type PaymentStandard = 'spayd' | 'epc' | 'auto';
 
 export interface PaymentInput {
   iban: string;
+  bic?: string;
   amount?: number;
   currency?: string;
   message?: string;
@@ -138,6 +139,7 @@ export function buildSpaydPayload(input: PaymentInput, warnings: string[] = []):
   if (input.message) fields.push(`MSG:${toSpaydAscii(input.message)}`);
   if (input.variable_symbol) fields.push(`X-VS:${toSpaydAscii(input.variable_symbol)}`);
   if (input.constant_symbol) fields.push(`X-KS:${toSpaydAscii(input.constant_symbol)}`);
+  if (input.bic) warnings.push('bic is not encoded by SPAYD');
   if (input.recipient_name) warnings.push('recipient_name is not encoded by SPAYD');
   return fields.join('*');
 }
@@ -150,12 +152,16 @@ export function buildEpcPayload(input: PaymentInput, warnings: string[] = []): s
   const currency = (input.currency ?? 'EUR').toUpperCase();
   if (currency !== 'EUR') throw new Error('EPC payment QR supports EUR only');
   if (!input.recipient_name) throw new Error('EPC payment QR requires recipient_name');
-  const message = input.message ?? '';
-  if (message.length > 140) throw new Error('EPC remittance must not exceed 140 characters');
-  if (input.variable_symbol) warnings.push('variable_symbol is not encoded by EPC');
+  const bic = input.bic ?? '';
+  if (bic && !/^[A-Za-z0-9]{8}(?:[A-Za-z0-9]{3})?$/.test(bic)) {
+    throw new Error('EPC BIC must be 8 or 11 alphanumeric characters');
+  }
+  const remittance = [input.message, input.variable_symbol].filter(Boolean).join(' ');
+  if (remittance.length > 140) throw new Error('EPC remittance must not exceed 140 characters');
+  if (input.message && input.variable_symbol) warnings.push('variable_symbol was appended to EPC remittance');
   if (input.constant_symbol) warnings.push('constant_symbol is not encoded by EPC');
   const amount = input.amount === undefined ? '' : `EUR${formatAmount(input.amount)}`;
-  return ['BCD', '002', '1', 'SCT', '', input.recipient_name, iban, amount, '', message].join('\n');
+  return ['BCD', '002', '1', 'SCT', bic, input.recipient_name, iban, amount, '', '', remittance, ''].join('\n');
 }
 
 export function classifyQr(raw: string): ReadQrResult {
@@ -186,9 +192,10 @@ function parseEpc(raw: string): Record<string, unknown> {
   const amount = lines[7]?.startsWith('EUR') ? Number(lines[7].slice(3)) : undefined;
   return {
     iban: lines[6],
+    bic: lines[4] || undefined,
     amount,
     currency: 'EUR',
-    message: lines[9] || undefined,
+    message: lines[10] || undefined,
   };
 }
 

@@ -9,11 +9,37 @@ import {
 
 const CZ_IBAN = 'CZ6508000000192000145399';
 const DE_IBAN = 'DE89370400440532013000';
+const TRADING_212 = {
+  iban: 'DE70500110800623141382',
+  bic: 'CHASDEFX',
+  recipient_name: 'Trading 212 Markets Limited',
+  amount: 0.07,
+  currency: 'EUR',
+  variable_symbol: '33562799',
+};
+const XTB = {
+  iban: 'DE66501108014253442321',
+  bic: 'CHASDEFX',
+  recipient_name: 'XTB S.A',
+  amount: 0.07,
+  currency: 'EUR',
+  variable_symbol: '1583545',
+};
+const REVOLUT = {
+  iban: 'LT983250087356965435',
+  bic: 'REVOLT21',
+  recipient_name: 'Martin Havel',
+  amount: 0.07,
+  currency: 'EUR',
+};
 
 describe('IBAN validation', () => {
   it('validates the mod-97 checksum', () => {
     expect(isValidIban(CZ_IBAN)).toBe(true);
     expect(isValidIban(DE_IBAN)).toBe(true);
+    expect(isValidIban(TRADING_212.iban)).toBe(false);
+    expect(isValidIban(XTB.iban)).toBe(true);
+    expect(isValidIban(REVOLUT.iban)).toBe(true);
     expect(isValidIban('CZ6508000000192000145398')).toBe(false);
   });
 });
@@ -58,8 +84,42 @@ describe('payment QR', () => {
       recipient_name: 'Example GmbH',
       message: 'Invoice 2026-001',
     })).toBe(
-      'BCD\n002\n1\nSCT\n\nExample GmbH\nDE89370400440532013000\nEUR19.90\n\nInvoice 2026-001',
+      'BCD\n002\n1\nSCT\n\nExample GmbH\nDE89370400440532013000\nEUR19.90\n\n\nInvoice 2026-001\n',
     );
+  });
+
+  it('builds EPC fixture payloads with BIC on line 5 and reference on line 11', () => {
+    const xtbLines = buildEpcPayload(XTB).split('\n');
+    const revolutLines = buildEpcPayload(REVOLUT).split('\n');
+
+    expect(xtbLines).toHaveLength(12);
+    expect(xtbLines[4]).toBe('CHASDEFX');
+    expect(xtbLines[10]).toBe('1583545');
+    expect(revolutLines).toHaveLength(12);
+    expect(revolutLines[4]).toBe('REVOLT21');
+    expect(revolutLines[10]).toBe('');
+  });
+
+  it('rejects the supplied Trading 212 fixture because its IBAN fails mod-97', () => {
+    expect(() => buildEpcPayload(TRADING_212)).toThrow(/Invalid IBAN checksum/);
+  });
+
+  it('appends variable_symbol to an EPC message and warns', () => {
+    const warnings: string[] = [];
+    const lines = buildEpcPayload({
+      ...XTB,
+      message: 'Deposit',
+    }, warnings).split('\n');
+
+    expect(lines[10]).toBe('Deposit 1583545');
+    expect(warnings).toContain('variable_symbol was appended to EPC remittance');
+  });
+
+  it('validates EPC BIC format loosely', () => {
+    expect(() => buildEpcPayload({
+      ...REVOLUT,
+      bic: 'INVALID',
+    })).toThrow(/8 or 11 alphanumeric/);
   });
 
   it('enforces strict EPC EUR currency', () => {
@@ -142,6 +202,19 @@ describe('PayqrClient', () => {
       amount: 9.99,
       currency: 'EUR',
       message: 'Invoice 9',
+    });
+  });
+
+  it('qr_read recovers the XTB EPC fixture reference', async () => {
+    const generated = await client.payment(XTB);
+    const result = await client.read(generated.qr_data_uri);
+    expect(result.type).toBe('payment/EPC');
+    expect(result.parsed).toMatchObject({
+      iban: XTB.iban,
+      bic: XTB.bic,
+      amount: XTB.amount,
+      currency: 'EUR',
+      message: XTB.variable_symbol,
     });
   });
 });
