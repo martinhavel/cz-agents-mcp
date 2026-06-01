@@ -2,8 +2,6 @@
   "name": "@czagents/payqr",
   "version": "0.1.0",
   "description": "MCP server for European payment QR codes, text, Wi-Fi, vCard, and QR decoding",
-  "private": true,
-  "comment_private": "Phase A — controlled launch gate: keep private until launch-ready, then remove this flag + npm publish (that publish IS the launch moment; Glama auto-discovers npm-published servers). See decisions.md 2026-05-31.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
