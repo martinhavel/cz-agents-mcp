@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Platební QR kód — cz-agents</title>
+  <meta name="description" content="Lokální generátor platebních QR kódů SPAYD a EPC pro české a evropské platby.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://cz-agents.dev/qr.html">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0e14;
+      --bg-elev: #131820;
+      --fg: #e6e9ef;
+      --fg-dim: #8a93a6;
+      --fg-ghost: #4a5365;
+      --accent: #ff6b35;
+      --accent-dim: #c94a1a;
+      --border: #1f2630;
+      --green: #6ece58;
+      --yellow: #e4d050;
+      --blue: #5eaeff;
+      --red: #ff6b6b;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    pre, code, .mono {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.85em;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .container { max-width: 920px; margin: 0 auto; padding: 40px 20px; }
+    header { border-bottom: 1px solid var(--border); padding-bottom: 32px; margin-bottom: 48px; }
+    .logo { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; }
+    .logo a { text-decoration: none; color: inherit; }
+    .logo h1 { font-size: 32px; font-weight: 800; letter-spacing: -1px; }
+    .logo .tld { color: var(--accent); font-size: 32px; font-weight: 800; }
+    .nav-links { display: flex; gap: 20px; margin-top: 16px; flex-wrap: wrap; }
+    .nav-links a {
+      color: var(--fg-dim); text-decoration: none;
+      font-size: 14px; font-family: 'JetBrains Mono', monospace;
+    }
+    .nav-links a:hover, .nav-links a.active { color: var(--accent); }
+    h2 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    h3 { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+    p { color: var(--fg-dim); margin-bottom: 12px; }
+    .subtitle { color: var(--fg-dim); font-size: 15px; margin-bottom: 28px; }
+    .panel {
+      background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px;
+      padding: 24px; margin-top: 20px;
+    }
+    .mode-tabs { display: flex; gap: 8px; margin: 20px 0; flex-wrap: wrap; }
+    .mode-tab, button, .file-button {
+      border: 1px solid var(--border); border-radius: 6px; padding: 9px 16px;
+      background: transparent; color: var(--fg-dim); cursor: pointer;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600;
+    }
+    .mode-tab:hover, button:hover, .file-button:hover { color: var(--accent); border-color: var(--accent-dim); }
+    .mode-tab.active, button.primary {
+      background: var(--accent); border-color: var(--accent); color: var(--bg);
+    }
+    button.primary:hover { background: #ff8555; }
+    button:disabled { cursor: wait; opacity: 0.65; }
+    .mode-panel[hidden], .result[hidden], .ocr-review[hidden] { display: none; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .field.full { grid-column: 1 / -1; }
+    label, legend {
+      display: block; color: var(--fg-dim); font-size: 12px;
+      font-family: 'JetBrains Mono', monospace; margin-bottom: 6px;
+    }
+    input, select, textarea {
+      width: 100%; color: var(--fg); background: var(--bg);
+      border: 1px solid var(--border); border-radius: 5px; padding: 10px 12px;
+      font: inherit; font-size: 14px;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent-dim); box-shadow: 0 0 0 1px var(--accent-dim);
+    }
+    fieldset { border: 0; }
+    .radios { display: flex; gap: 16px; flex-wrap: wrap; }
+    .radio { display: inline-flex; gap: 7px; align-items: center; color: var(--fg); margin: 0; }
+    .radio input { width: auto; }
+    .hint { color: var(--fg-ghost); font-size: 12px; margin-top: 5px; }
+    .actions { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .errors {
+      color: var(--red); font-size: 13px; margin-top: 16px;
+      padding-left: 18px;
+    }
+    .drop-zone {
+      border: 1px dashed var(--fg-ghost); border-radius: 8px; padding: 32px 20px;
+      text-align: center; color: var(--fg-dim); transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone.dragover { border-color: var(--accent); background: #1a1208; }
+    .drop-zone p { margin-bottom: 14px; }
+    .file-button { display: inline-block; }
+    input[type="file"] { display: none; }
+    .privacy, .warning {
+      font-size: 13px; padding: 10px 12px; border-radius: 5px; margin-top: 14px;
+    }
+    .privacy { color: var(--green); background: #1a3a1a; }
+    .warning { color: var(--yellow); background: #2a2a1a; font-weight: 600; }
+    .progress { color: var(--blue); font-family: 'JetBrains Mono', monospace; font-size: 12px; margin-top: 14px; }
+    .ocr-review { margin-top: 18px; }
+    .ocr-review textarea { min-height: 180px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .result {
+      display: grid; grid-template-columns: minmax(260px, 330px) 1fr;
+      gap: 24px; align-items: start;
+    }
+    .qr-card {
+      background: #fff; border-radius: 8px; padding: 14px;
+      width: min(100%, 330px); min-height: 288px;
+    }
+    #qr-code img, #qr-code canvas { display: block; width: 100% !important; height: auto !important; }
+    .badge {
+      display: inline-block; color: var(--green); background: #1a3a1a;
+      border-radius: 10px; padding: 3px 10px; margin-bottom: 14px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+    }
+    .summary { display: grid; grid-template-columns: max-content 1fr; gap: 7px 14px; font-size: 13px; }
+    .summary dt { color: var(--fg-ghost); font-family: 'JetBrains Mono', monospace; }
+    .summary dd { color: var(--fg); overflow-wrap: anywhere; }
+    details { margin-top: 16px; }
+    summary { color: var(--fg-dim); cursor: pointer; font-size: 13px; }
+    .payload {
+      white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg-dim);
+      border: 1px solid var(--border); border-radius: 5px; padding: 10px;
+      background: var(--bg); margin-top: 8px; font-size: 11px;
+    }
+    footer {
+      margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border);
+      color: var(--fg-ghost); font-size: 13px;
+    }
+    footer a { color: var(--fg-ghost); }
+    footer a:hover { color: var(--fg-dim); }
+    @media (max-width: 700px) {
+      .form-grid, .result { grid-template-columns: 1fr; }
+      .panel { padding: 18px; }
+      .container { padding: 28px 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">
+      <a href="/"><h1>cz-agents<span class="tld">.dev</span></h1></a>
+    </div>
+    <nav class="nav-links" aria-label="Navigace webu">
+      <a href="/">Home</a>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/onboard.html">Get Started</a>
+      <a href="/qr.html" class="active">Platební QR</a>
+    </nav>
+  </header>
+
+  <main>
+    <h2>Platební QR kód</h2>
+    <p class="subtitle">Generátor pro SEPA a české platby · by cz-agents</p>
+
+    <div class="mode-tabs" role="tablist" aria-label="Způsob zadání">
+      <button type="button" class="mode-tab active" id="tab-manual" role="tab" aria-selected="true" aria-controls="manual-panel">Ruční zadání</button>
+      <button type="button" class="mode-tab" id="tab-ocr" role="tab" aria-selected="false" aria-controls="ocr-panel">Načíst z obrázku</button>
+    </div>
+
+    <section class="panel mode-panel" id="ocr-panel" role="tabpanel" aria-labelledby="tab-ocr" hidden>
+      <h3>Načtení údajů z obrázku</h3>
+      <div class="drop-zone" id="drop-zone">
+        <p>Přetáhněte sem PNG nebo JPG s platebními údaji</p>
+        <label class="file-button" for="image-file">Vybrat obrázek</label>
+        <input type="file" id="image-file" accept="image/png,image/jpeg">
+      </div>
+      <div class="privacy">Obrázek zůstává ve Vašem prohlížeči. OCR probíhá lokálně a platební údaje se nikam neodesílají.</div>
+      <p class="progress" id="ocr-progress" aria-live="polite"></p>
+      <div class="ocr-review" id="ocr-review" hidden>
+        <div class="warning">Zkontrolujte všechna pole — chybná číslice = platba na špatný účet</div>
+        <label for="ocr-text" style="margin-top:16px;">Rozpoznaný text pro kontrolu</label>
+        <textarea id="ocr-text" readonly></textarea>
+        <div class="actions">
+          <button type="button" class="primary" id="review-fields">Zkontrolovat vyplněná pole</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel mode-panel" id="manual-panel" role="tabpanel" aria-labelledby="tab-manual">
+      <h3>Platební údaje</h3>
+      <form id="payment-form" novalidate>
+        <div class="form-grid">
+          <div class="field full">
+            <label for="iban">IBAN *</label>
+            <input id="iban" name="iban" autocomplete="off" required placeholder="CZ65 0800 0000 1920 0014 5399">
+          </div>
+          <div class="field">
+            <label for="amount">Částka</label>
+            <input id="amount" name="amount" inputmode="decimal" placeholder="1250,00">
+          </div>
+          <div class="field">
+            <label for="currency">Měna</label>
+            <select id="currency" name="currency">
+              <option value="CZK">CZK</option>
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="PLN">PLN</option>
+              <option value="HUF">HUF</option>
+              <option value="CHF">CHF</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="recipient-name">Jméno příjemce</label>
+            <input id="recipient-name" name="recipient_name" autocomplete="organization" placeholder="Povinné pro EPC">
+          </div>
+          <div class="field">
+            <label for="bic">BIC</label>
+            <input id="bic" name="bic" autocomplete="off" placeholder="Volitelné, 8 nebo 11 znaků">
+          </div>
+          <div class="field">
+            <label for="reference">Reference / VS</label>
+            <input id="reference" name="variable_symbol" autocomplete="off" placeholder="Variabilní symbol">
+          </div>
+          <div class="field full">
+            <label for="message">Zpráva pro příjemce</label>
+            <input id="message" name="message" autocomplete="off" placeholder="Účel platby">
+          </div>
+          <fieldset class="field full">
+            <legend>Standard</legend>
+            <div class="radios">
+              <label class="radio"><input type="radio" name="standard" value="auto" checked> Automaticky</label>
+              <label class="radio"><input type="radio" name="standard" value="spayd"> SPAYD</label>
+              <label class="radio"><input type="radio" name="standard" value="epc"> EPC</label>
+            </div>
+            <p class="hint">Automaticky: CZ/SK IBAN → SPAYD, ostatní SEPA země → EPC.</p>
+          </fieldset>
+        </div>
+        <ul class="errors" id="errors" aria-live="polite"></ul>
+        <div class="actions">
+          <button type="submit" class="primary">Vygenerovat QR kód</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel result" id="result" aria-live="polite" hidden>
+      <div>
+        <div class="qr-card"><div id="qr-code"></div></div>
+        <div class="actions">
+          <button type="button" class="primary" id="download-png">Stáhnout PNG</button>
+        </div>
+      </div>
+      <div>
+        <span class="badge" id="result-standard"></span>
+        <h3>Souhrn platby</h3>
+        <dl class="summary" id="summary"></dl>
+        <details>
+          <summary>Zobrazit obsah QR kódu</summary>
+          <pre class="payload" id="payload"></pre>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Generování probíhá pouze ve Vašem prohlížeči. Před platbou vždy zkontrolujte údaje v bankovní aplikaci.
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const SEPA_COUNTRIES = new Set([
+    'AD', 'AT', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB',
+    'GI', 'GR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MC', 'MT', 'NL',
+    'NO', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK', 'SM', 'VA',
+  ]);
+
+  const form = document.getElementById('payment-form');
+  const errors = document.getElementById('errors');
+  const result = document.getElementById('result');
+  const qrCode = document.getElementById('qr-code');
+  const ocrProgress = document.getElementById('ocr-progress');
+  const ocrReview = document.getElementById('ocr-review');
+  const ocrText = document.getElementById('ocr-text');
+  const fileInput = document.getElementById('image-file');
+  const dropZone = document.getElementById('drop-zone');
+
+  function normalizeIban(iban) {
+    return iban.replace(/\s+/g, '').toUpperCase();
+  }
+
+  function isValidIban(iban) {
+    const compact = normalizeIban(iban);
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(compact)) return false;
+    const rearranged = compact.slice(4) + compact.slice(0, 4);
+    let remainder = 0;
+    for (const char of rearranged) {
+      const value = char >= 'A' && char <= 'Z' ? String(char.charCodeAt(0) - 55) : char;
+      for (const digit of value) remainder = (remainder * 10 + Number(digit)) % 97;
+    }
+    return remainder === 1;
+  }
+
+  function resolveStandard(standard, iban) {
+    if (standard !== 'auto') return standard;
+    const country = normalizeIban(iban).slice(0, 2);
+    if (country === 'CZ' || country === 'SK') return 'spayd';
+    if (!SEPA_COUNTRIES.has(country)) throw new Error(`Země IBAN ${country} není v SEPA.`);
+    return 'epc';
+  }
+
+  function formatAmount(amount) {
+    if (!Number.isFinite(amount) || amount < 0) throw new Error('Částka musí být nezáporné číslo.');
+    return amount.toFixed(2);
+  }
+
+  function toSpaydAscii(value) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\x20-\x7E]/g, '')
+      .replace(/\*/g, '');
+  }
+
+  function buildSpaydPayload(input) {
+    const iban = normalizeIban(input.iban);
+    if (!isValidIban(iban)) throw new Error('Neplatný kontrolní součet IBAN.');
+    const fields = ['SPD*1.0', `ACC:${iban}`];
+    if (input.amount !== undefined) fields.push(`AM:${formatAmount(input.amount)}`);
+    fields.push(`CC:${(input.currency || 'CZK').toUpperCase()}`);
+    if (input.message) fields.push(`MSG:${toSpaydAscii(input.message)}`);
+    if (input.variable_symbol) fields.push(`X-VS:${toSpaydAscii(input.variable_symbol)}`);
+    return fields.join('*');
+  }
+
+  function buildEpcPayload(input) {
+    const iban = normalizeIban(input.iban);
+    if (!isValidIban(iban)) throw new Error('Neplatný kontrolní součet IBAN.');
+    const country = iban.slice(0, 2);
+    if (!SEPA_COUNTRIES.has(country)) throw new Error(`Země IBAN ${country} není v SEPA.`);
+    const currency = (input.currency || 'EUR').toUpperCase();
+    if (currency !== 'EUR') throw new Error('Platební QR EPC podporuje pouze měnu EUR.');
+    if (!input.recipient_name) throw new Error('Pro platební QR EPC vyplňte jméno příjemce.');
+    const bic = input.bic || '';
+    if (bic && !/^[A-Za-z0-9]{8}(?:[A-Za-z0-9]{3})?$/.test(bic)) {
+      throw new Error('BIC pro EPC musí mít 8 nebo 11 alfanumerických znaků.');
+    }
+    const remittance = [input.message, input.variable_symbol].filter(Boolean).join(' ');
+    if (remittance.length > 140) throw new Error('Reference a zpráva pro EPC mohou mít dohromady nejvýše 140 znaků.');
+    const amount = input.amount === undefined ? '' : `EUR${formatAmount(input.amount)}`;
+    return ['BCD', '002', '1', 'SCT', bic, input.recipient_name, iban, amount, '', '', remittance, ''].join('\n');
+  }
+
+  function parseAmount(value) {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const normalized = trimmed.replace(/\s+/g, '').replace(',', '.');
+    if (!/^\d+(?:\.\d+)?$/.test(normalized)) throw new Error('Částka musí být číslo, například 1250,00.');
+    return Number(normalized);
+  }
+
+  function readInput() {
+    return {
+      iban: document.getElementById('iban').value,
+      amount: parseAmount(document.getElementById('amount').value),
+      currency: document.getElementById('currency').value,
+      recipient_name: document.getElementById('recipient-name').value.trim(),
+      bic: document.getElementById('bic').value.trim(),
+      variable_symbol: document.getElementById('reference').value.trim(),
+      message: document.getElementById('message').value.trim(),
+      standard: form.elements.standard.value,
+    };
+  }
+
+  function showErrors(messages) {
+    errors.replaceChildren(...messages.map((message) => {
+      const item = document.createElement('li');
+      item.textContent = message;
+      return item;
+    }));
+  }
+
+  function addSummaryItem(fragment, label, value) {
+    const term = document.createElement('dt');
+    const detail = document.createElement('dd');
+    term.textContent = label;
+    detail.textContent = value || '—';
+    fragment.append(term, detail);
+  }
+
+  function renderResult(payload, standard, input) {
+    qrCode.replaceChildren();
+    new QRCode(qrCode, {
+      text: payload,
+      width: 300,
+      height: 300,
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+    document.getElementById('result-standard').textContent = standard.toUpperCase();
+    document.getElementById('payload').textContent = payload;
+    const summary = document.getElementById('summary');
+    const fragment = document.createDocumentFragment();
+    addSummaryItem(fragment, 'IBAN', normalizeIban(input.iban));
+    addSummaryItem(fragment, 'Částka', input.amount === undefined ? '—' : `${formatAmount(input.amount)} ${input.currency}`);
+    addSummaryItem(fragment, 'Příjemce', input.recipient_name);
+    addSummaryItem(fragment, 'Reference', input.variable_symbol);
+    summary.replaceChildren(fragment);
+    result.hidden = false;
+    result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    showErrors([]);
+    try {
+      const input = readInput();
+      const iban = normalizeIban(input.iban);
+      if (!isValidIban(iban)) throw new Error('Neplatný IBAN nebo jeho kontrolní součet.');
+      const standard = resolveStandard(input.standard, iban);
+      const payload = standard === 'spayd' ? buildSpaydPayload({ ...input, iban }) : buildEpcPayload({ ...input, iban });
+      renderResult(payload, standard, input);
+    } catch (error) {
+      result.hidden = true;
+      showErrors([error.message]);
+    }
+  });
+
+  document.getElementById('download-png').addEventListener('click', () => {
+    const canvas = qrCode.querySelector('canvas');
+    const image = qrCode.querySelector('img');
+    const href = canvas ? canvas.toDataURL('image/png') : image && image.src;
+    if (!href) return;
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = 'platebni-qr.png';
+    link.click();
+  });
+
+  function setMode(mode) {
+    const manual = mode === 'manual';
+    document.getElementById('manual-panel').hidden = !manual;
+    document.getElementById('ocr-panel').hidden = manual;
+    document.getElementById('tab-manual').classList.toggle('active', manual);
+    document.getElementById('tab-ocr').classList.toggle('active', !manual);
+    document.getElementById('tab-manual').setAttribute('aria-selected', String(manual));
+    document.getElementById('tab-ocr').setAttribute('aria-selected', String(!manual));
+  }
+
+  document.getElementById('tab-manual').addEventListener('click', () => setMode('manual'));
+  document.getElementById('tab-ocr').addEventListener('click', () => setMode('ocr'));
+  document.getElementById('review-fields').addEventListener('click', () => {
+    setMode('manual');
+    document.getElementById('iban').focus();
+  });
+
+  function setIfFound(id, value) {
+    if (value) document.getElementById(id).value = value;
+  }
+
+  function extractOcrFields(text) {
+    const upper = text.toUpperCase();
+    const ibanMatch = upper.match(/\b[A-Z]{2}[ \t]*\d{2}(?:[ \t]*[A-Z0-9]){10,30}\b/);
+    const iban = ibanMatch ? ibanMatch[0].replace(/\s+/g, '') : '';
+    const bicMatches = upper.match(/\b[A-Z]{6}[A-Z0-9]{2,5}\b/g) || [];
+    const bic = bicMatches.find((candidate) => candidate !== iban && (candidate.length === 8 || candidate.length === 11)) || '';
+    const currencyMatch = upper.match(/\b(EUR|CZK|USD|GBP|PLN|HUF|CHF)\b/);
+    const currency = currencyMatch ? currencyMatch[1] : '';
+    const amountPattern = currency
+      ? new RegExp(`(?:${currency}\\s*)?(\\d{1,3}(?:[ .]\\d{3})*(?:[,.]\\d{1,2})|\\d+[,.]\\d{1,2})(?:\\s*${currency})?`, 'i')
+      : /(\d{1,3}(?:[ .]\d{3})*(?:[,.]\d{1,2})|\d+[,.]\d{1,2})/;
+    const amountMatch = text.match(amountPattern);
+    const amount = amountMatch ? amountMatch[1].replace(/[ .](?=\d{3}(?:\D|$))/g, '').replace(',', '.') : '';
+    const referenceMatch = text.match(/(?:VS|V\.?S\.?|VARIABILN[IÍ]\s+SYMBOL|REFERENCE|REF)[^\d]{0,12}(\d{3,20})/i);
+    const reference = referenceMatch ? referenceMatch[1] : '';
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const recipient = lines.find((line) =>
+      /[A-Za-zÀ-ž]/.test(line) &&
+      !/IBAN|BIC|SWIFT|EUR|CZK|USD|GBP|PLN|HUF|CHF|Č[ÁA]STKA|AMOUNT|VS|SYMBOL|REFERENCE|REF/i.test(line) &&
+      line.length >= 3 && line.length <= 70
+    ) || '';
+    return { iban, bic, currency, amount, reference, recipient };
+  }
+
+  async function processImage(file) {
+    if (!file || !['image/png', 'image/jpeg'].includes(file.type)) {
+      ocrProgress.textContent = 'Vyberte obrázek ve formátu PNG nebo JPG.';
+      return;
+    }
+    ocrReview.hidden = true;
+    ocrProgress.textContent = 'Načítám OCR modul…';
+    try {
+      const worker = await Tesseract.createWorker('eng', 1, {
+        logger: (message) => {
+          if (message.progress !== undefined) {
+            ocrProgress.textContent = `${message.status}: ${Math.round(message.progress * 100)} %`;
+          }
+        },
+      });
+      const { data: { text } } = await worker.recognize(file);
+      await worker.terminate();
+      const fields = extractOcrFields(text);
+      setIfFound('iban', fields.iban);
+      setIfFound('bic', fields.bic);
+      setIfFound('currency', fields.currency);
+      setIfFound('amount', fields.amount);
+      setIfFound('reference', fields.reference);
+      setIfFound('recipient-name', fields.recipient);
+      ocrText.value = text;
+      ocrReview.hidden = false;
+      ocrProgress.textContent = 'OCR dokončeno. Zkontrolujte rozpoznaný text a vyplněná pole.';
+    } catch (error) {
+      ocrProgress.textContent = `OCR se nepodařilo dokončit: ${error.message}`;
+    }
+  }
+
+  fileInput.addEventListener('change', () => processImage(fileInput.files[0]));
+  for (const eventName of ['dragenter', 'dragover']) {
+    dropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+  }
+  for (const eventName of ['dragleave', 'drop']) {
+    dropZone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('dragover');
+    });
+  }
+  dropZone.addEventListener('drop', (event) => processImage(event.dataTransfer.files[0]));
+})();
+</script>
+</body>
+</html>
