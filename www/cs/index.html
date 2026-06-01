@@ -393,7 +393,7 @@
       </div>
       <div class="sandbox-panel" data-panel="browser">
         <div class="sandbox-input-row">
-          <input type="text" id="sandbox-ico" value="60193531" maxlength="8" placeholder="IČO (8 digits)" />
+          <input type="text" id="sandbox-ico" value="48136450" maxlength="8" placeholder="IČO (8 digits)" />
           <button id="sandbox-btn">Načíst data firmy →</button>
         </div>
         <div id="sandbox-counter" style="display:none"></div>
@@ -403,7 +403,7 @@
         </div>
       </div>
       <div class="sandbox-panel" data-panel="curl" style="display:none">
-        <pre>curl https://ares.cz-agents.dev/sandbox/v1/companies/60193531</pre>
+        <pre id="sandbox-curl">curl https://ares.cz-agents.dev/sandbox/v1/companies/48136450</pre>
         <p style="font-size:13px; color:var(--fg-dim, #888)">Bez autentizace. Vrátí ARES data + <code>_sandbox.token</code> pro 2. a 3. volání.</p>
       </div>
       <script>
@@ -411,6 +411,16 @@
         var SANDBOX_URL = 'https://ares.cz-agents.dev/sandbox/v1/companies/';
         var sandboxToken = null;
         var callsMade = 0;
+        // Rotace demo IČO přes neutrální veřejné/státní subjekty — žádná jednotlivá
+        // (soukromá) firma není věčný lookup terč pro návštěvníky ani crawlery.
+        var NEUTRAL_ICOS = ['48136450', '00027383', '47114983', '69797111', '00025593', '00006947'];
+        var defaultIco = NEUTRAL_ICOS[Math.floor(Math.random() * NEUTRAL_ICOS.length)];
+        (function rotateDemoIco() {
+          var inp = document.getElementById('sandbox-ico');
+          if (inp) inp.value = defaultIco;
+          var pre = document.getElementById('sandbox-curl');
+          if (pre) pre.textContent = 'curl ' + SANDBOX_URL + defaultIco;
+        })();
         document.querySelectorAll('.sandbox-tab').forEach(function(tab) {
           tab.addEventListener('click', function() {
             document.querySelectorAll('.sandbox-tab').forEach(function(t) { t.classList.remove('active'); });
@@ -437,7 +447,7 @@
             if (r.ok && json._sandbox) {
               if (window.umami) {
                 window.umami.track('sandbox_call_made', {
-                  ico_changed: document.getElementById('sandbox-ico').value.trim() !== '60193531',
+                  ico_changed: document.getElementById('sandbox-ico').value.trim() !== defaultIco,
                   call_number: callsMade + 1,
                 });
               }
