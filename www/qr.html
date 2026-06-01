@@ -156,7 +156,7 @@
         <span class="drop-icon" aria-hidden="true">🖼️</span>
         <span data-i18n="dropText">Drop a payment screenshot here — we read it locally with OCR</span>
         <span class="file-button" data-i18n="pickImage">Choose image</span>
-        <input type="file" id="image-file" accept="image/png,image/jpeg" capture="environment">
+        <input type="file" id="image-file" accept="image/png,image/jpeg">
       </label>
       <p class="progress" id="ocr-progress" aria-live="polite"></p>
       <div class="ocr-review" id="ocr-review" hidden>
@@ -610,7 +610,7 @@
     ctx.drawImage(bitmap, 0, 0);
     bitmap.close?.();
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const result = jsQR(imageData.data, imageData.width, imageData.height);
+    const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
     return result ? result.data : null;
   }
 
