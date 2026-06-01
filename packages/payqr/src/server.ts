@@ -6,7 +6,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.0',
+      version: '0.1.1',
     },
     {
       capabilities: { tools: {} },
@@ -14,11 +14,13 @@ export function buildPayqrServer(): McpServer {
         'European Payment QR generator and QR utility tools. Deterministically create SPAYD ' +
         '(CZ/SK) or EPC/GiroCode (SEPA) payment QR codes, plain-text QR codes, Wi-Fi QR codes, ' +
         'vCards, and decode QR images. Free MIT-licensed tool with no AI and no paid API.\n\n' +
-        'PAYMENT-FROM-IMAGE WORKFLOW: When the user pastes a screenshot or photo of payment ' +
-        'details (e.g. a broker deposit instruction from Revolut, Trading 212, XTB, a bank, or an ' +
-        'invoice), read the IBAN, amount, currency, recipient name and reference/variable symbol ' +
-        'from the image yourself, then call qr_payment with those values. This is the primary ' +
-        'use case — it removes the error-prone manual re-typing of payment details into a banking app.\n' +
+        'PAYMENT-FROM-IMAGE / INVOICE WORKFLOW: When the user shares a PDF, photo or screenshot ' +
+        'of payment details — most commonly an INVOICE (Czech "faktura") that has no QR code, but ' +
+        'also a broker deposit instruction (Revolut, Trading 212, XTB), a bank transfer slip or a ' +
+        'paper bill — read the IBAN, amount, currency, recipient name and reference / variable ' +
+        'symbol from the document yourself, then call qr_payment with those values. This is the ' +
+        'primary use case: it turns an invoice or payment instruction that lacks a QR code into a ' +
+        'scannable payment QR, removing the error-prone manual re-typing into a banking app.\n' +
         'MANDATORY before showing the QR: echo the extracted fields back to the user as a short ' +
         'confirmation list (IBAN, amount, currency, recipient, reference) and ask them to verify ' +
         'against the source, because a misread digit sends real money to the wrong place. After the ' +
