@@ -1,18 +1,42 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { PayqrClient, type QrResult } from './client.js';
-import { putQr } from './qr-store.js';
+import { PayqrClient, type QrResult, type PaymentInput } from './client.js';
+import { putQr, putPrefill } from './qr-store.js';
 
 // Set only on the hosted HTTP server (compose env). When present, generated QRs are
 // exposed as short temporary URLs the client can render inline; absent (npx/stdio) we
 // fall back to base64 in the result.
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 
+// Public web app — opens with the payment prefilled and the QR already rendered.
+// Works in any browser, independent of the hosted server (good fallback when a client
+// cannot render images inline, e.g. Claude Desktop).
+const WEB_APP_URL = process.env.WEB_APP_URL ?? 'https://qr.cz-agents.dev';
+
+// Opaque web link: payment fields are stashed server-side under a random id (ephemeral)
+// and the URL carries ONLY ?p=<id> — no payment data in the URL, so nothing leaks into
+// browser history / logs / referrers and the link cannot be hand-crafted or tampered.
+// Requires the hosted server (the /p/<id> endpoint); returns undefined for npx/stdio.
+function buildWebUrl(input: PaymentInput): string | undefined {
+  if (!PUBLIC_BASE_URL) return undefined;
+  const fields: Record<string, string> = {};
+  if (input.iban) fields.iban = input.iban;
+  if (input.amount !== undefined) fields.amount = String(input.amount);
+  if (input.currency) fields.currency = input.currency;
+  if (input.recipient_name) fields.recipient = input.recipient_name;
+  if (input.bic) fields.bic = input.bic;
+  if (input.variable_symbol) fields.vs = input.variable_symbol;
+  if (input.constant_symbol) fields.ks = input.constant_symbol;
+  if (input.message) fields.msg = input.message;
+  const id = putPrefill(JSON.stringify(fields));
+  return `${WEB_APP_URL}/?p=${id}`;
+}
+
 export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.8',
+      version: '0.1.9',
     },
     {
       capabilities: { tools: {} },
@@ -66,7 +90,10 @@ export function buildPayqrServer(): McpServer {
       standard: z.enum(['spayd', 'epc', 'auto']).default('auto').describe('Payment QR standard. Defaults to auto detection.'),
     },
     { title: 'Create Payment QR', readOnlyHint: true, openWorldHint: false },
-    async (input) => qrResult(await payqr.payment(input)),
+    async (input) => {
+      const web_url = buildWebUrl(input);
+      return qrResult(await payqr.payment(input), web_url ? { web_url } : undefined);
+    },
   );
 
   server.tool(
@@ -127,12 +154,17 @@ function jsonResult(value: unknown) {
 // QR-generating tools return BOTH an MCP image block (so Claude Desktop / clients
 // render the QR natively as a picture — not a broken base64 string the model tries
 // to "display" itself) AND a text block with payload/standard/warnings for context.
-function qrResult(value: QrResult) {
+function qrResult(value: QrResult, extra?: Record<string, unknown>) {
   const { qr_data_uri, ...rest } = value;
   const base64 = qr_data_uri.startsWith('data:')
     ? qr_data_uri.slice(qr_data_uri.indexOf(',') + 1)
     : qr_data_uri;
-  const text: Record<string, unknown> = { ...rest };
+  const text: Record<string, unknown> = { ...rest, ...(extra ?? {}) };
+  const webHint = text.web_url
+    ? ' For a guaranteed view (e.g. Claude Desktop, which may not render inline images), give web_url — ' +
+      'it opens the payment in the browser app with the QR already rendered. It carries no payment data ' +
+      '(opaque id), only renders.'
+    : '';
   if (PUBLIC_BASE_URL) {
     // Hosted server: stash the PNG and hand the model a short, un-corruptible URL the
     // client renders inline. Ephemeral — 15-min TTL, in-memory only, never persisted.
@@ -140,8 +172,8 @@ function qrResult(value: QrResult) {
     text.qr_url = `${PUBLIC_BASE_URL}/i/${id}.png`;
     text.display_hint =
       'self_verified = the server confirmed this PNG decodes to payload. To SHOW the QR, present ' +
-      'qr_url — a temporary (~15 min) hosted PNG that renders inline, e.g. ![payment QR](qr_url). ' +
-      'Do NOT transcribe base64, regenerate the QR, or call qr_read on your own output.';
+      'qr_url as an inline image, e.g. ![payment QR](qr_url).' + webHint +
+      ' Do NOT transcribe base64, regenerate the QR, or call qr_read on your own output.';
   } else {
     // npx / self-hosted (no public endpoint): expose base64 for programmatic decode.
     text.qr_png_base64 = base64;

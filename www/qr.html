@@ -206,6 +206,10 @@
             <label for="reference" data-i18n="referenceLabel">Reference / VS</label>
             <input id="reference" name="variable_symbol" autocomplete="off" data-i18n-placeholder="referencePlaceholder" placeholder="Variable symbol">
           </div>
+          <div class="field">
+            <label for="constant" data-i18n="constantLabel">Constant symbol / KS</label>
+            <input id="constant" name="constant_symbol" autocomplete="off" data-i18n-placeholder="constantPlaceholder" placeholder="Optional (SPAYD only)">
+          </div>
           <div class="field full">
             <label for="message" data-i18n="messageLabel">Message for recipient</label>
             <input id="message" name="message" autocomplete="off" data-i18n-placeholder="messagePlaceholder" placeholder="Payment purpose">
@@ -253,7 +257,7 @@
       ocrText: 'Recognized text', paymentDetails: 'Payment details', ibanLabel: 'IBAN *', amountLabel: 'Amount',
       currencyLabel: 'Currency', recipientNameLabel: 'Recipient name', recipientPlaceholder: 'Required for EPC',
       bicPlaceholder: 'Optional, 8 or 11 characters', referenceLabel: 'Reference / VS',
-      referencePlaceholder: 'Variable symbol', messageLabel: 'Message for recipient', messagePlaceholder: 'Payment purpose',
+      referencePlaceholder: 'Variable symbol', constantLabel: 'Constant symbol / KS', constantPlaceholder: 'Optional (SPAYD only)', messageLabel: 'Message for recipient', messagePlaceholder: 'Payment purpose',
       standardLabel: 'Standard', auto: 'Auto', autoHint: 'Auto: CZ/SK IBAN → SPAYD, other SEPA countries → EPC.',
       validIbanPrompt: 'Enter a valid IBAN', downloadPng: 'Download PNG', copyPayload: 'Copy payload',
       copied: 'Copied', footerPrefix: 'A free tool by', footerSuffix: 'no tracking', pay: 'Pay', to: 'to',
@@ -281,7 +285,7 @@
       ocrText: 'Rozpoznaný text', paymentDetails: 'Platební údaje', ibanLabel: 'IBAN *', amountLabel: 'Částka',
       currencyLabel: 'Měna', recipientNameLabel: 'Jméno příjemce', recipientPlaceholder: 'Povinné pro EPC',
       bicPlaceholder: 'Volitelné, 8 nebo 11 znaků', referenceLabel: 'Reference / VS',
-      referencePlaceholder: 'Variabilní symbol', messageLabel: 'Zpráva pro příjemce', messagePlaceholder: 'Účel platby',
+      referencePlaceholder: 'Variabilní symbol', constantLabel: 'Konstantní symbol / KS', constantPlaceholder: 'Volitelné (jen SPAYD)', messageLabel: 'Zpráva pro příjemce', messagePlaceholder: 'Účel platby',
       standardLabel: 'Standard', auto: 'Automaticky', autoHint: 'Automaticky: CZ/SK IBAN → SPAYD, ostatní země SEPA → EPC.',
       validIbanPrompt: 'Zadejte platný IBAN', downloadPng: 'Stáhnout PNG', copyPayload: 'Kopírovat obsah',
       copied: 'Zkopírováno', footerPrefix: 'Bezplatný nástroj od', footerSuffix: 'bez sledování', pay: 'Zaplatit', to: 'na účet',
@@ -309,7 +313,7 @@
       ocrText: 'Erkannter Text', paymentDetails: 'Zahlungsdetails', ibanLabel: 'IBAN *', amountLabel: 'Betrag',
       currencyLabel: 'Währung', recipientNameLabel: 'Empfänger', recipientPlaceholder: 'Für EPC erforderlich',
       bicPlaceholder: 'Optional, 8 oder 11 Zeichen', referenceLabel: 'Verwendungszweck / VS',
-      referencePlaceholder: 'Variabler Symbolwert', messageLabel: 'Nachricht an den Empfänger', messagePlaceholder: 'Zahlungszweck',
+      referencePlaceholder: 'Variabler Symbolwert', constantLabel: 'Konstantes Symbol / KS', constantPlaceholder: 'Optional (nur SPAYD)', messageLabel: 'Nachricht an den Empfänger', messagePlaceholder: 'Zahlungszweck',
       standardLabel: 'Standard', auto: 'Automatisch', autoHint: 'Automatisch: CZ/SK-IBAN → SPAYD, andere SEPA-Länder → EPC.',
       validIbanPrompt: 'Geben Sie eine gültige IBAN ein', downloadPng: 'PNG herunterladen', copyPayload: 'Inhalt kopieren',
       copied: 'Kopiert', footerPrefix: 'Ein kostenloses Tool von', footerSuffix: 'kein Tracking', pay: 'Bezahlen', to: 'an',
@@ -406,6 +410,7 @@
     fields.push(`CC:${(input.currency || 'CZK').toUpperCase()}`);
     if (input.message) fields.push(`MSG:${toSpaydAscii(input.message)}`);
     if (input.variable_symbol) fields.push(`X-VS:${toSpaydAscii(input.variable_symbol)}`);
+    if (input.constant_symbol) fields.push(`X-KS:${toSpaydAscii(input.constant_symbol)}`);
     return fields.join('*');
   }
 
@@ -443,6 +448,7 @@
       recipient_name: document.getElementById('recipient-name').value.trim(),
       bic: document.getElementById('bic').value.trim(),
       variable_symbol: document.getElementById('reference').value.trim(),
+      constant_symbol: document.getElementById('constant').value.trim(),
       message: document.getElementById('message').value.trim(),
     };
   }
@@ -634,7 +640,7 @@
   }
 
   function clearPaymentFields() {
-    for (const id of ['iban', 'amount', 'recipient-name', 'bic', 'reference', 'message']) {
+    for (const id of ['iban', 'amount', 'recipient-name', 'bic', 'reference', 'constant', 'message']) {
       document.getElementById(id).value = '';
     }
   }
@@ -653,6 +659,7 @@
     setIfFound('currency', map.CC);
     setIfFound('recipient-name', map.RN);
     setIfFound('reference', map['X-VS']);
+    setIfFound('constant', map['X-KS']);
     setIfFound('message', map.MSG);
   }
 
@@ -771,6 +778,26 @@
     const file = event.dataTransfer.files[0];
     if (file) processImage(file);
   });
+
+  // Prefill via an OPAQUE id (?p=<id>): the payment fields are fetched from the API by
+  // a random id, never carried in the URL — nothing leaks into history/logs and the link
+  // cannot be hand-crafted or tampered. (No plaintext-param prefill, by design.)
+  (async function prefillFromUrl() {
+    const id = new URLSearchParams(location.search).get('p');
+    if (!id || !/^[0-9a-f-]{36}$/.test(id)) return;
+    try {
+      const res = await fetch('https://payqr.cz-agents.dev/p/' + id);
+      if (!res.ok) return;
+      const f = await res.json();
+      const map = { iban: 'iban', amount: 'amount', currency: 'currency', recipient: 'recipient-name', bic: 'bic', vs: 'reference', ks: 'constant', msg: 'message' };
+      for (const [param, fid] of Object.entries(map)) {
+        const v = f[param];
+        const el = document.getElementById(fid);
+        if (v != null && v !== '' && el) el.value = String(v);
+      }
+      updateLive();
+    } catch (_) { /* ignore — leave form empty */ }
+  })();
 
   applyI18n();
 })();

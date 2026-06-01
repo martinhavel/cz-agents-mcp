@@ -36,3 +36,32 @@ export function getQr(id: string): Buffer | null {
   }
   return entry.png;
 }
+
+// Prefill store: holds the payment fields (JSON) for a web_url under an opaque random
+// id, so payment data never appears in a shareable URL (no leak in logs/history, not
+// craftable/injectable). Same ephemeral semantics — in-memory, 15-min TTL, never persisted.
+const prefill = new Map<string, { json: string; expires: number }>();
+
+export function putPrefill(json: string): string {
+  const now = Date.now();
+  if (prefill.size >= MAX_ENTRIES) {
+    for (const [k, v] of prefill) if (v.expires <= now) prefill.delete(k);
+    if (prefill.size >= MAX_ENTRIES) {
+      const oldest = prefill.keys().next().value;
+      if (oldest) prefill.delete(oldest);
+    }
+  }
+  const id = randomUUID();
+  prefill.set(id, { json, expires: now + TTL_MS });
+  return id;
+}
+
+export function getPrefill(id: string): string | null {
+  const entry = prefill.get(id);
+  if (!entry) return null;
+  if (entry.expires <= Date.now()) {
+    prefill.delete(id);
+    return null;
+  }
+  return entry.json;
+}

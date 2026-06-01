@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics } from '@czagents/shared';
 import { buildPayqrServer } from './server.js';
-import { getQr } from './qr-store.js';
+import { getQr, getPrefill } from './qr-store.js';
 
 const PORT = Number(process.env.PORT ?? 3032);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
@@ -31,7 +31,7 @@ async function main() {
     }
     if (req.url === '/v1/health' || req.url === '/health' || req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', service: 'cz-agents/payqr', version: '0.1.8' }));
+      res.end(JSON.stringify({ status: 'ok', service: 'cz-agents/payqr', version: '0.1.9' }));
       return;
     }
 
@@ -53,6 +53,20 @@ async function main() {
       }
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=900' });
       res.end(png);
+      return;
+    }
+
+    // Ephemeral prefill payload for the web app: GET /p/<uuid> — returns the payment
+    // fields (JSON) for a web_url. Opaque id, 15-min TTL, no payment data in any URL.
+    const prefillId = req.url?.match(/^\/p\/([0-9a-f-]{36})$/)?.[1];
+    if (req.method === 'GET' && prefillId) {
+      const json = getPrefill(prefillId);
+      res.writeHead(json ? 200 : 404, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store',
+      });
+      res.end(json ?? '{"error":"not found or expired"}');
       return;
     }
 
