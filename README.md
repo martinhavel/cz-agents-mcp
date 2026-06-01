@@ -27,6 +27,7 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 | [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + ADIS + statutory chain) | ✅ live |
 | [`@czagents/realestate`](./packages/realestate) | Czech distress real estate intelligence (ISIR sales + portál dražeb) | ✅ live (v0.1) |
 | [`@czagents/eu-registry`](./packages/eu-registry) | EU business registries — GB (Companies House), SK, PL, NL, DE, FR via GLEIF/LEI | ✅ live |
+| [`@czagents/payqr`](./packages/payqr) | European payment QR — SPAYD (CZ/SK) + EPC/GiroCode (SEPA), text/Wi-Fi/vCard, QR decode (free, no AI) | ✅ live |
 
 ### Premium tier — closed source
 
@@ -47,7 +48,8 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
     "isir":      { "command": "npx", "args": ["-y", "@czagents/isir"], "env": { "ISIR_SOAP_ENABLED": "1" } },
     "adis":      { "command": "npx", "args": ["-y", "@czagents/adis"], "env": { "ADIS_SOAP_ENABLED": "1" } },
     "dd":          { "command": "npx", "args": ["-y", "@czagents/dd"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db", "ADIS_SOAP_ENABLED": "1" } },
-    "eu-registry": { "command": "npx", "args": ["-y", "@czagents/eu-registry"] }
+    "eu-registry": { "command": "npx", "args": ["-y", "@czagents/eu-registry"] },
+    "payqr":       { "command": "npx", "args": ["-y", "@czagents/payqr"] }
   }
 }
 ```
