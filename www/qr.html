@@ -59,14 +59,18 @@
     h2 { margin-bottom: 14px; font-size: 18px; }
     .subtitle { max-width: 820px; margin-top: 9px; color: var(--fg-dim); font-size: 15px; }
     .lang-toggle { position: absolute; top: 0; right: 0; padding: 7px 10px; background: var(--surface); color: var(--accent); }
-    .workspace { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr); gap: 22px; align-items: start; }
+    .workspace { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: start; }
+    .workspace.has-result { grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr); }
     .panel { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 20px; box-shadow: 0 10px 30px rgba(34, 42, 53, 0.04); }
     .drop-zone {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px;
-      margin-bottom: 18px; border: 1px dashed #b8c0ca; border-radius: 10px; padding: 10px 12px;
-      color: var(--fg-dim); font-size: 13px; transition: border-color 0.2s, background 0.2s;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 104px;
+      margin-bottom: 18px; border: 2px dashed var(--accent); border-radius: 12px; padding: 16px 14px;
+      background: #fff7f3; color: var(--accent); font-size: 14px; font-weight: 600; text-align: center;
+      cursor: pointer; transition: border-color 0.2s, background 0.2s;
     }
-    .drop-zone.dragover { border-color: var(--accent); background: #fff7f3; }
+    .drop-zone:hover { background: #ffeee6; }
+    .drop-zone.dragover { border-color: var(--accent); background: #ffe2d4; }
+    .drop-icon { font-size: 28px; line-height: 1; }
     /* Whole-page drop overlay — user can drop an image ANYWHERE, not just the
        small banner (which was easy to miss / confused with the QR output area). */
     #page-drop-overlay {
@@ -81,8 +85,8 @@
       padding: 20px 32px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
     }
     .file-button {
-      flex: 0 0 auto; border: 1px solid var(--accent); border-radius: 7px; padding: 6px 10px;
-      color: var(--accent); cursor: pointer; font-size: 12px; font-weight: 600;
+      flex: 0 0 auto; border: 1px solid var(--accent); border-radius: 7px; padding: 6px 12px;
+      background: var(--surface); color: var(--accent); cursor: pointer; font-size: 12px; font-weight: 600;
     }
     input[type="file"] { display: none; }
     .progress { margin: -7px 0 14px; color: var(--fg-dim); font-size: 12px; }
@@ -146,13 +150,14 @@
     <p class="subtitle" data-i18n="subtitle">SEPA · SPAYD · EPC — runs in your browser, your image never leaves your device</p>
   </header>
 
-  <main class="workspace">
+  <main class="workspace" id="workspace">
     <section class="panel">
-      <div class="drop-zone" id="drop-zone">
-        <span data-i18n="dropText">Drop a PNG or JPG to fill the form with local OCR</span>
-        <label class="file-button" for="image-file" data-i18n="pickImage">Choose image</label>
+      <label class="drop-zone" id="drop-zone" for="image-file">
+        <span class="drop-icon" aria-hidden="true">🖼️</span>
+        <span data-i18n="dropText">Drop a payment screenshot here — we read it locally with OCR</span>
+        <span class="file-button" data-i18n="pickImage">Choose image</span>
         <input type="file" id="image-file" accept="image/png,image/jpeg" capture="environment">
-      </div>
+      </label>
       <p class="progress" id="ocr-progress" aria-live="polite"></p>
       <div class="ocr-review" id="ocr-review" hidden>
         <p class="warning" data-i18n="ocrWarning">Check every filled field carefully. A wrong digit can send money to the wrong account.</p>
@@ -202,7 +207,7 @@
       </form>
     </section>
 
-    <section class="panel result-panel" aria-live="polite">
+    <section class="panel result-panel" id="result-panel" aria-live="polite" hidden>
       <div class="qr-stage">
         <p class="placeholder" id="placeholder" data-i18n="validIbanPrompt">Enter a valid IBAN</p>
         <div class="qr-card" id="qr-card" hidden><div id="qr-code"></div></div>
@@ -231,9 +236,9 @@
   const I = {
     en: {
       title: 'European Payment QR Generator',
-      intro: 'Free generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste your IBAN, fill in the details, or drop a payment screenshot — everything runs in your browser, nothing is sent to any server.',
+      intro: 'Free generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste your IBAN, fill in the details, or drop a payment screenshot or QR code — everything runs in your browser, nothing is sent to any server.',
       subtitle: 'SEPA · SPAYD · EPC — runs in your browser, your image never leaves your device',
-      dropText: 'Drop a PNG or JPG to fill the form with local OCR', pickImage: 'Choose image',
+      dropText: 'Drop a payment screenshot or QR code here — read locally in your browser', pickImage: 'Choose image',
       pageDropText: 'Drop the image anywhere to read it',
       ocrWarning: 'Check every filled field carefully. A wrong digit can send money to the wrong account.',
       ocrText: 'Recognized text', paymentDetails: 'Payment details', ibanLabel: 'IBAN *', amountLabel: 'Amount',
@@ -252,13 +257,14 @@
       epcBic: 'EPC BIC must contain 8 or 11 alphanumeric characters.',
       epcRemittance: 'EPC reference and message must be at most 140 characters combined.',
       ocrType: 'Choose a PNG or JPG image.', ocrLoading: 'Loading OCR module…', ocrWorking: 'Reading image',
-      ocrDone: 'OCR complete. Check the recognized text and filled fields.', ocrFailed: 'OCR could not finish'
+      ocrDone: 'OCR complete. Check the recognized text and filled fields.', ocrFailed: 'OCR could not finish',
+      qrScanning: 'Scanning the image…', qrPaymentRead: 'Payment QR code read — check the fields below.', qrGenericRead: 'QR code read (not a payment code).'
     },
     cs: {
       title: 'Generátor evropských platebních QR kódů',
-      intro: 'Bezplatný generátor platebních QR kódů pro SEPA (EPC/GiroCode) a české SPAYD kódy. Zadejte IBAN, vyplňte údaje nebo přetáhněte screenshot platby — vše běží ve vašem prohlížeči, nic se nikam neposílá.',
+      intro: 'Bezplatný generátor platebních QR kódů pro SEPA (EPC/GiroCode) a české SPAYD kódy. Zadejte IBAN, vyplňte údaje nebo přetáhněte screenshot platby či QR kód — vše běží ve vašem prohlížeči, nic se nikam neposílá.',
       subtitle: 'SEPA · SPAYD · EPC — běží ve vašem prohlížeči, váš obrázek nikdy neopustí vaše zařízení',
-      dropText: 'Přetáhněte PNG nebo JPG a vyplňte formulář lokálním OCR', pickImage: 'Vybrat obrázek',
+      dropText: 'Přetáhněte sem screenshot platby nebo QR kód — přečteme lokálně v prohlížeči', pickImage: 'Vybrat obrázek',
       pageDropText: 'Pusťte obrázek kamkoliv na stránku',
       ocrWarning: 'Pečlivě zkontrolujte všechna vyplněná pole. Chybná číslice může odeslat peníze na jiný účet.',
       ocrText: 'Rozpoznaný text', paymentDetails: 'Platební údaje', ibanLabel: 'IBAN *', amountLabel: 'Částka',
@@ -277,13 +283,14 @@
       epcBic: 'BIC pro EPC musí mít 8 nebo 11 alfanumerických znaků.',
       epcRemittance: 'Reference a zpráva pro EPC mohou mít dohromady nejvýše 140 znaků.',
       ocrType: 'Vyberte obrázek ve formátu PNG nebo JPG.', ocrLoading: 'Načítám OCR modul…', ocrWorking: 'Načítám obrázek',
-      ocrDone: 'OCR dokončeno. Zkontrolujte rozpoznaný text a vyplněná pole.', ocrFailed: 'OCR se nepodařilo dokončit'
+      ocrDone: 'OCR dokončeno. Zkontrolujte rozpoznaný text a vyplněná pole.', ocrFailed: 'OCR se nepodařilo dokončit',
+      qrScanning: 'Prohledávám obrázek…', qrPaymentRead: 'Platební QR kód načten — zkontrolujte pole níže.', qrGenericRead: 'QR kód načten (není to platební kód).'
     },
     de: {
       title: 'Generator für europäische Zahlungs-QR-Codes',
-      intro: 'Kostenloser Generator für SEPA-Zahlungs-QR-Codes (EPC/GiroCode) und tschechische SPAYD-Codes. Geben Sie Ihre IBAN ein oder ziehen Sie einen Zahlungsscreenshot hierher — alles läuft in Ihrem Browser, es werden keine Daten übertragen.',
+      intro: 'Kostenloser Generator für SEPA-Zahlungs-QR-Codes (EPC/GiroCode) und tschechische SPAYD-Codes. Geben Sie Ihre IBAN ein oder ziehen Sie einen Zahlungsscreenshot oder QR-Code hierher — alles läuft in Ihrem Browser, es werden keine Daten übertragen.',
       subtitle: 'SEPA · SPAYD · EPC — läuft in Ihrem Browser, Ihr Bild verlässt niemals Ihr Gerät',
-      dropText: 'Legen Sie eine PNG- oder JPG-Datei ab, um das Formular mit lokaler OCR auszufüllen', pickImage: 'Bild auswählen',
+      dropText: 'Zahlungs-Screenshot oder QR-Code hier ablegen — lokal im Browser gelesen', pickImage: 'Bild auswählen',
       pageDropText: 'Datei hier ablegen, um sie einzulesen',
       ocrWarning: 'Prüfen Sie alle ausgefüllten Felder sorgfältig. Eine falsche Ziffer kann Geld auf das falsche Konto überweisen.',
       ocrText: 'Erkannter Text', paymentDetails: 'Zahlungsdetails', ibanLabel: 'IBAN *', amountLabel: 'Betrag',
@@ -302,7 +309,8 @@
       epcBic: 'Der EPC-BIC muss 8 oder 11 alphanumerische Zeichen enthalten.',
       epcRemittance: 'Verwendungszweck und Nachricht dürfen für EPC zusammen höchstens 140 Zeichen lang sein.',
       ocrType: 'Wählen Sie eine PNG- oder JPG-Datei aus.', ocrLoading: 'OCR-Modul wird geladen…', ocrWorking: 'Bild wird gelesen',
-      ocrDone: 'OCR abgeschlossen. Prüfen Sie den erkannten Text und die ausgefüllten Felder.', ocrFailed: 'OCR konnte nicht abgeschlossen werden'
+      ocrDone: 'OCR abgeschlossen. Prüfen Sie den erkannten Text und die ausgefüllten Felder.', ocrFailed: 'OCR konnte nicht abgeschlossen werden',
+      qrScanning: 'Bild wird gescannt…', qrPaymentRead: 'Zahlungs-QR-Code gelesen — bitte Felder unten prüfen.', qrGenericRead: 'QR-Code gelesen (kein Zahlungscode).'
     }
   };
   let L = localStorage.qrLang;
@@ -325,6 +333,8 @@
   const qrCard = document.getElementById('qr-card');
   const placeholder = document.getElementById('placeholder');
   const summaryBox = document.getElementById('summary-box');
+  const workspace = document.getElementById('workspace');
+  const resultPanel = document.getElementById('result-panel');
   const ibanInput = document.getElementById('iban');
   const ocrProgress = document.getElementById('ocr-progress');
   const ocrReview = document.getElementById('ocr-review');
@@ -333,6 +343,7 @@
   const dropZone = document.getElementById('drop-zone');
   let currentPayload = '';
   let tesseractPromise;
+  let jsQrPromise;
 
   function normalizeIban(iban) {
     return iban.replace(/\s+/g, '').toUpperCase();
@@ -461,6 +472,8 @@
     placeholder.hidden = true;
     qrCard.hidden = false;
     summaryBox.hidden = false;
+    resultPanel.hidden = false;
+    workspace.classList.add('has-result');
   }
 
   function clearResult() {
@@ -469,6 +482,8 @@
     qrCard.hidden = true;
     summaryBox.hidden = true;
     placeholder.hidden = false;
+    resultPanel.hidden = true;
+    workspace.classList.remove('has-result');
   }
 
   function updateLive() {
@@ -570,12 +585,104 @@
     return tesseractPromise;
   }
 
+  function loadJsQr() {
+    if (!jsQrPromise) {
+      jsQrPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+        script.onload = () => resolve(window.jsQR);
+        script.onerror = () => reject(new Error('jsQR failed to load'));
+        document.head.append(script);
+      });
+    }
+    return jsQrPromise;
+  }
+
+  // Try to decode a QR code embedded in the image. Returns the decoded string,
+  // or null if the image contains no readable QR code (→ fall back to OCR).
+  async function decodeQr(file) {
+    const jsQR = await loadJsQr();
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const result = jsQR(imageData.data, imageData.width, imageData.height);
+    return result ? result.data : null;
+  }
+
+  function clearPaymentFields() {
+    for (const id of ['iban', 'amount', 'recipient-name', 'bic', 'reference', 'message']) {
+      document.getElementById(id).value = '';
+    }
+  }
+
+  function fillFromSpayd(text) {
+    const map = {};
+    for (const part of text.split('*')) {
+      const sep = part.indexOf(':');
+      if (sep > 0) map[part.slice(0, sep).toUpperCase()] = part.slice(sep + 1);
+    }
+    const account = (map.ACC || '').split('+');
+    clearPaymentFields();
+    setIfFound('iban', account[0]);
+    setIfFound('bic', account[1]);
+    setIfFound('amount', map.AM);
+    setIfFound('currency', map.CC);
+    setIfFound('recipient-name', map.RN);
+    setIfFound('reference', map['X-VS']);
+    setIfFound('message', map.MSG);
+  }
+
+  function fillFromEpc(text) {
+    const lines = text.split(/\r?\n/);
+    clearPaymentFields();
+    setIfFound('bic', (lines[4] || '').trim());
+    setIfFound('recipient-name', (lines[5] || '').trim());
+    setIfFound('iban', (lines[6] || '').trim());
+    setIfFound('amount', (lines[7] || '').trim().replace(/^EUR/i, ''));
+    document.getElementById('currency').value = 'EUR';
+    setIfFound('message', (lines[10] || '').trim());
+  }
+
+  function handleDecodedQr(text) {
+    const trimmed = text.trim();
+    if (trimmed.toUpperCase().startsWith('SPD')) {
+      fillFromSpayd(trimmed);
+      ocrProgress.textContent = I[L].qrPaymentRead;
+      updateLive();
+    } else if (trimmed.startsWith('BCD')) {
+      fillFromEpc(trimmed);
+      ocrProgress.textContent = I[L].qrPaymentRead;
+      updateLive();
+    } else {
+      ocrText.value = trimmed;
+      ocrReview.hidden = false;
+      ocrProgress.textContent = I[L].qrGenericRead;
+    }
+  }
+
   async function processImage(file) {
     if (!file || !['image/png', 'image/jpeg'].includes(file.type)) {
       ocrProgress.textContent = I[L].ocrType;
       return;
     }
     ocrReview.hidden = true;
+    ocrProgress.textContent = I[L].qrScanning;
+    // 1. Try to read an embedded QR code first (deterministic, fast).
+    try {
+      const decoded = await decodeQr(file);
+      if (decoded) {
+        handleDecodedQr(decoded);
+        return;
+      }
+    } catch (error) {
+      // no QR / decode failed → fall through to OCR
+    }
+    // 2. No QR found → OCR the text (payment screenshot).
     ocrProgress.textContent = I[L].ocrLoading;
     try {
       const Tesseract = await loadTesseract();
