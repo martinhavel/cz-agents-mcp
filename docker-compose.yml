@@ -220,6 +220,28 @@ services:
       - default
       - apache
 
+  payqr:
+    build:
+      context: .
+      dockerfile: packages/payqr/Dockerfile
+    image: cz-agents-payqr:latest
+    container_name: cz-agents-payqr
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3037:3037"
+    environment:
+      - PORT=3037
+      - NODE_ENV=production
+      - RATE_LIMIT_MAX=120
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3037/v1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - default
+      - apache
+
 networks:
   default:
   apache:
