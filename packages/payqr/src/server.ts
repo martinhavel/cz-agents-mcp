@@ -13,7 +13,18 @@ export function buildPayqrServer(): McpServer {
       instructions:
         'European Payment QR generator and QR utility tools. Deterministically create SPAYD ' +
         '(CZ/SK) or EPC/GiroCode (SEPA) payment QR codes, plain-text QR codes, Wi-Fi QR codes, ' +
-        'vCards, and decode QR images. Free MIT-licensed tool with no AI and no paid API.',
+        'vCards, and decode QR images. Free MIT-licensed tool with no AI and no paid API.\n\n' +
+        'PAYMENT-FROM-IMAGE WORKFLOW: When the user pastes a screenshot or photo of payment ' +
+        'details (e.g. a broker deposit instruction from Revolut, Trading 212, XTB, a bank, or an ' +
+        'invoice), read the IBAN, amount, currency, recipient name and reference/variable symbol ' +
+        'from the image yourself, then call qr_payment with those values. This is the primary ' +
+        'use case — it removes the error-prone manual re-typing of payment details into a banking app.\n' +
+        'MANDATORY before showing the QR: echo the extracted fields back to the user as a short ' +
+        'confirmation list (IBAN, amount, currency, recipient, reference) and ask them to verify ' +
+        'against the source, because a misread digit sends real money to the wrong place. After the ' +
+        'user confirms, present the QR. You may also call qr_read on the generated QR to show ' +
+        'exactly what it encodes as a second check. Never silently generate a payment QR from an ' +
+        'image without this read-back confirmation step.',
     },
   );
 
