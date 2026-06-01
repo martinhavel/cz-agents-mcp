@@ -23,6 +23,6 @@ COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.
 COPY --from=builder /app/packages/payqr/dist ./packages/payqr/dist
 COPY --from=builder /app/packages/payqr/package.json ./packages/payqr/package.json
 
-ENV PORT=3037
-EXPOSE 3037
+ENV PORT=3040
+EXPOSE 3040
 CMD ["node", "packages/payqr/dist/http.js"]
