@@ -523,6 +523,11 @@
         <p>EU obchodní rejstříky — vyhledávání a detail firem v 6 zemích přes volně dostupná API. GB (Companies House), SK (RPO), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI), FR (SIRENE). Použij přes hostovaný endpoint <code>eu-registry.cz-agents.dev/mcp</code> nebo self-host z GitHub monorepa.</p>
         <div class="tools">search_company · get_company</div>
       </div>
+      <div class="server">
+        <h3>@czagents/payqr <span class="pill live">live</span></h3>
+        <p>Generátor a čtečka evropských platebních QR — z faktury nebo platební dispozice udělá naskenovatelný QR (SPAYD pro CZ/SK, EPC/GiroCode pro SEPA), plus text / Wi-Fi / vCard QR a dekódování QR. Zdarma, MIT, deterministické — žádná AI, žádné placené API. Samostatný privacy-first nástroj (není součástí compliance sady); také jako webová aplikace na <a class="url" href="https://qr.cz-agents.dev" target="_blank" rel="noopener">qr.cz-agents.dev</a>.</p>
+        <div class="tools">qr_payment · qr_text · qr_wifi · qr_vcard · qr_read</div>
+      </div>
     </div>
 
     <h2 id="placeny-tier">Placený tier — closed source extensions</h2>
@@ -564,7 +569,8 @@
     "isir":        { "command": "npx", "args": ["-y", "@czagents/isir"] },
     "adis":        { "command": "npx", "args": ["-y", "@czagents/adis"] },
     "dd":          { "command": "npx", "args": ["-y", "@czagents/dd"] },
-    "eu-registry": { "command": "npx", "args": ["-y", "@czagents/eu-registry"] }
+    "eu-registry": { "command": "npx", "args": ["-y", "@czagents/eu-registry"] },
+    "payqr":       { "command": "npx", "args": ["-y", "@czagents/payqr"] }
   }
 }'>kopírovat</button><pre class="code"><span class="k">{</span>
   <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
@@ -574,7 +580,8 @@
     <span class="s">"isir"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/isir"</span>] <span class="k">},</span>
     <span class="s">"adis"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/adis"</span>] <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>          <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/dd"</span>] <span class="k">},</span>
-    <span class="s">"eu-registry"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/eu-registry"</span>] <span class="k">}</span>
+    <span class="s">"eu-registry"</span><span class="k">:</span> <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/eu-registry"</span>] <span class="k">},</span>
+    <span class="s">"payqr"</span><span class="k">:</span>       <span class="k">{</span> <span class="s">"command"</span><span class="k">:</span> <span class="s">"npx"</span><span class="k">,</span> <span class="s">"args"</span><span class="k">:</span> [<span class="s">"-y"</span><span class="k">,</span> <span class="s">"@czagents/payqr"</span>] <span class="k">}</span>
   <span class="k">}</span>
 <span class="k">}</span></pre></div>
 
@@ -587,7 +594,8 @@
     "isir":         { "url": "https://isir.cz-agents.dev/mcp" },
     "adis":         { "url": "https://adis.cz-agents.dev/mcp" },
     "dd":           { "url": "https://dd.cz-agents.dev/mcp" },
-    "eu-registry":  { "url": "https://eu-registry.cz-agents.dev/mcp" }
+    "eu-registry":  { "url": "https://eu-registry.cz-agents.dev/mcp" },
+    "payqr":        { "url": "https://payqr.cz-agents.dev/mcp" }
 }}'>kopírovat</button><pre class="code"><span class="k">{</span> <span class="s">"mcpServers"</span><span class="k">:</span> <span class="k">{</span>
     <span class="s">"ares"</span><span class="k">:</span>         <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://ares.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"cnb"</span><span class="k">:</span>          <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://cnb.cz-agents.dev/mcp"</span> <span class="k">},</span>
@@ -595,7 +603,8 @@
     <span class="s">"isir"</span><span class="k">:</span>         <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://isir.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"adis"</span><span class="k">:</span>         <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://adis.cz-agents.dev/mcp"</span> <span class="k">},</span>
     <span class="s">"dd"</span><span class="k">:</span>           <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://dd.cz-agents.dev/mcp"</span> <span class="k">},</span>
-    <span class="s">"eu-registry"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://eu-registry.cz-agents.dev/mcp"</span> <span class="k">}</span>
+    <span class="s">"eu-registry"</span><span class="k">:</span>  <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://eu-registry.cz-agents.dev/mcp"</span> <span class="k">},</span>
+    <span class="s">"payqr"</span><span class="k">:</span>        <span class="k">{</span> <span class="s">"url"</span><span class="k">:</span> <span class="s">"https://payqr.cz-agents.dev/mcp"</span> <span class="k">}</span>
 <span class="k">}}</span></pre></div>
 
     <h2 id="rest-api">REST API</h2>
@@ -716,6 +725,7 @@ Risk score: 12/100 (low) — flag: chybí transparentní účet DPH.</pre>
     <footer>
       <div>
         <a href="https://github.com/martinhavel/cz-agents-mcp">GitHub</a> ·
+        <a href="https://qr.cz-agents.dev">Platební QR</a> ·
         <a href="https://dev.to/martinhavel/building-mcp-servers-for-a-country-that-isnt-in-the-dataset-czech-gov-apis-1lo8">dev.to</a> ·
         <a href="https://modelcontextprotocol.io">MCP spec</a> ·
         <a href="https://registry.modelcontextprotocol.io">MCP registry</a> ·
