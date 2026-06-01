@@ -6,7 +6,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.5',
+      version: '0.1.6',
     },
     {
       capabilities: { tools: {} },
@@ -37,9 +37,13 @@ export function buildPayqrServer(): McpServer {
         '(it is short); never reconstruct payment data from the invoice or from memory. ' +
         'NON-NEGOTIABLE for any payment QR you produce yourself, either way: immediately call qr_read ' +
         'on YOUR file and confirm its decoded text matches the "payload" string this tool returned, ' +
-        'character for character. If it does not match, discard it and do NOT show it — one wrong ' +
-        'character sends money to the wrong account. If you cannot verify, send the user to ' +
-        'https://qr.cz-agents.dev instead.',
+        'character for character. SAFE-FAIL: if qr_read errors, fails, or the decoded text does not ' +
+        'match — for ANY reason, including the base64 getting corrupted while you moved it — then you ' +
+        'have NOT verified the QR. In that case you MUST NOT tell the user to scan or use it, and you ' +
+        'MUST NOT rationalize it away (e.g. "the payload looks fine, scan it anyway"). Instead, say ' +
+        'plainly that verification failed and direct them to https://qr.cz-agents.dev to generate the ' +
+        'QR themselves from the same details (IBAN, amount, VS). One wrong character sends money to ' +
+        'the wrong account, so an unverified payment QR must never be presented as scannable.',
     },
   );
 
@@ -136,8 +140,9 @@ function qrResult(value: QrResult) {
       'To show a scannable QR: PREFER decoding qr_png_base64 programmatically (read it in code — ' +
       'do not hand-retype ~2KB, it corrupts) and write those bytes to a .png. Otherwise regenerate ' +
       'ONLY from the exact "payload" above (copy verbatim). EITHER WAY, for a payment QR you MUST ' +
-      'then qr_read your file and confirm it decodes to this exact payload before showing it; if ' +
-      'not, discard it and use https://qr.cz-agents.dev instead.',
+      'then qr_read your file and confirm it decodes to this exact payload. SAFE-FAIL: if qr_read ' +
+      'errors or does not match (for any reason), do NOT tell the user to scan it and do NOT ' +
+      'rationalize — say verification failed and send them to https://qr.cz-agents.dev instead.',
   };
   return {
     content: [
