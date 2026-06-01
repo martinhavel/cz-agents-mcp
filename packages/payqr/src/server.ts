@@ -1,12 +1,18 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { PayqrClient, type QrResult } from './client.js';
+import { putQr } from './qr-store.js';
+
+// Set only on the hosted HTTP server (compose env). When present, generated QRs are
+// exposed as short temporary URLs the client can render inline; absent (npx/stdio) we
+// fall back to base64 in the result.
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 
 export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.7',
+      version: '0.1.8',
     },
     {
       capabilities: { tools: {} },
@@ -27,22 +33,19 @@ export function buildPayqrServer(): McpServer {
         'user confirms, present the QR. You may also call qr_read on the generated QR to show ' +
         'exactly what it encodes as a second check. Never silently generate a payment QR from an ' +
         'image without this read-back confirmation step.\n' +
-        'DISPLAYING THE QR: each generating tool returns the PNG as an image content block AND, in ' +
-        'the text result, the same PNG as base64 (qr_png_base64), the encoded "payload", and ' +
-        '"self_verified". The SERVER has already self-verified: it re-decoded the PNG it generated ' +
-        'and confirmed it carries exactly "payload" (deterministic, server-side, no bytes moved by ' +
-        'you). So when self_verified is true the QR is correct — DO NOT call qr_read on your own ' +
-        'generated QR to re-check it; that only risks corrupting the bytes and adds nothing. To show ' +
-        'it: some clients (Claude Desktop) do NOT render tool-result images inline, so you may write ' +
-        'a PNG from qr_png_base64 (read it programmatically — never hand-retype ~2KB). If you cannot ' +
-        'reliably render/display the image, just give the user https://qr.cz-agents.dev — the payment ' +
-        'is already verified, this is only about rendering. (If self_verified were ever false, do not ' +
-        'present the QR.)\n' +
-        'qr_read is for decoding QR codes you did NOT generate here (e.g. the user’s existing ' +
-        'invoice QR), where the server cannot know the expected payload. SAFE-FAIL there: if qr_read ' +
+        'DISPLAYING THE QR: the result has "self_verified" (the server re-decoded its own PNG and ' +
+        'confirmed it matches "payload" — trust it; do NOT call qr_read on your own output). On the ' +
+        'hosted server the result also has "qr_url": a short, TEMPORARY (~15 min) hosted PNG. ' +
+        'TO SHOW THE QR, present qr_url — render it inline as an image, e.g. ![payment QR](qr_url), ' +
+        'or give it as a link. A URL cannot be corrupted and clients render it natively. Do NOT ' +
+        'transcribe base64, do NOT regenerate the QR, do NOT build your own PNG. (If there is no ' +
+        'qr_url — e.g. self-hosted via npx — decode qr_png_base64 programmatically, never by hand; ' +
+        'if you cannot, send the user to https://qr.cz-agents.dev.)\n' +
+        'qr_read is ONLY for QR codes you did NOT generate here (an existing invoice QR the user ' +
+        'provides), where the server cannot know the expected payload. SAFE-FAIL there: if qr_read ' +
         'errors or you cannot trust the decode, do not present it as a verified payment and do not ' +
-        'rationalize — point the user to https://qr.cz-agents.dev. One wrong character sends money to ' +
-        'the wrong account.',
+        'rationalize — point the user to https://qr.cz-agents.dev. One wrong character sends money ' +
+        'to the wrong account.',
     },
   );
 
@@ -129,22 +132,28 @@ function qrResult(value: QrResult) {
   const base64 = qr_data_uri.startsWith('data:')
     ? qr_data_uri.slice(qr_data_uri.indexOf(',') + 1)
     : qr_data_uri;
-  // The image block is given to the model as rendered pixels it cannot re-export, and
-  // clients like Claude Desktop do not render it. We ALSO return the PNG as base64 text
-  // (qr_png_base64) and the encoded payload, so the model can produce a file itself.
-  const payload = {
-    ...rest,
-    qr_png_base64: base64,
-    display_hint:
-      'self_verified means the server already decoded this PNG and confirmed it matches payload — ' +
-      'do NOT call qr_read on it yourself. To show it, decode qr_png_base64 programmatically (never ' +
-      'hand-retype ~2KB) and write a .png; if you cannot render it reliably, just send the user to ' +
-      'https://qr.cz-agents.dev (already verified, only rendering remains).',
-  };
+  const text: Record<string, unknown> = { ...rest };
+  if (PUBLIC_BASE_URL) {
+    // Hosted server: stash the PNG and hand the model a short, un-corruptible URL the
+    // client renders inline. Ephemeral — 15-min TTL, in-memory only, never persisted.
+    const id = putQr(Buffer.from(base64, 'base64'));
+    text.qr_url = `${PUBLIC_BASE_URL}/i/${id}.png`;
+    text.display_hint =
+      'self_verified = the server confirmed this PNG decodes to payload. To SHOW the QR, present ' +
+      'qr_url — a temporary (~15 min) hosted PNG that renders inline, e.g. ![payment QR](qr_url). ' +
+      'Do NOT transcribe base64, regenerate the QR, or call qr_read on your own output.';
+  } else {
+    // npx / self-hosted (no public endpoint): expose base64 for programmatic decode.
+    text.qr_png_base64 = base64;
+    text.display_hint =
+      'self_verified = the server confirmed this PNG decodes to payload. To SHOW the QR, decode ' +
+      'qr_png_base64 PROGRAMMATICALLY (never hand-retype ~2KB) and write a .png; if you cannot ' +
+      'render it, send the user to https://qr.cz-agents.dev. Do NOT call qr_read on your own output.';
+  }
   return {
     content: [
       { type: 'image' as const, data: base64, mimeType: 'image/png' },
-      { type: 'text' as const, text: JSON.stringify(payload, null, 2) },
+      { type: 'text' as const, text: JSON.stringify(text, null, 2) },
     ],
   };
 }

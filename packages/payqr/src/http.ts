@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics } from '@czagents/shared';
 import { buildPayqrServer } from './server.js';
+import { getQr } from './qr-store.js';
 
 const PORT = Number(process.env.PORT ?? 3032);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
@@ -30,13 +31,28 @@ async function main() {
     }
     if (req.url === '/v1/health' || req.url === '/health' || req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', service: 'cz-agents/payqr', version: '0.1.7' }));
+      res.end(JSON.stringify({ status: 'ok', service: 'cz-agents/payqr', version: '0.1.8' }));
       return;
     }
 
     if (req.url === '/metrics') {
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
       res.end(getMetrics());
+      return;
+    }
+
+    // Ephemeral hosted QR image: GET /i/<uuid>.png — serves a recently generated QR
+    // from memory (15-min TTL). Lets clients render the QR via a short, un-corruptible URL.
+    const imgId = req.url?.match(/^\/i\/([0-9a-f-]{36})\.png$/)?.[1];
+    if (req.method === 'GET' && imgId) {
+      const png = getQr(imgId);
+      if (!png) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('QR not found or expired');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=900' });
+      res.end(png);
       return;
     }
 
