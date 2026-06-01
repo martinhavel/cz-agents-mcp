@@ -6,7 +6,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.4',
+      version: '0.1.5',
     },
     {
       capabilities: { tools: {} },
@@ -27,17 +27,19 @@ export function buildPayqrServer(): McpServer {
         'user confirms, present the QR. You may also call qr_read on the generated QR to show ' +
         'exactly what it encodes as a second check. Never silently generate a payment QR from an ' +
         'image without this read-back confirmation step.\n' +
-        'DISPLAYING THE QR: the QR-generating tools return the QR as a PNG image content block. ' +
-        'Some MCP clients (notably Claude Desktop) do NOT render tool-result images inline, so the ' +
-        'user may see only your text and no picture. To make sure they get a scannable QR, present ' +
-        'it on your FIRST response by writing the EXACT base64 PNG bytes THIS tool returned to a ' +
-        'downloadable file. CRITICAL: do NOT re-encode or regenerate the QR from the payload string ' +
-        'yourself — if you do, you become the source of truth and a single mistyped character would ' +
-        'silently send money to the wrong account. If you have no choice but to regenerate the QR ' +
-        'instead of reusing the returned bytes, you MUST then call qr_read on your generated image ' +
-        'and confirm its decoded payload matches the payload this tool returned, character for ' +
-        'character, before showing it. If you cannot produce a file at all, point the user to ' +
-        'https://qr.cz-agents.dev.',
+        'DISPLAYING THE QR: each QR tool returns the PNG as an image content block AND, in the text ' +
+        'result, the same PNG as base64 (qr_png_base64) plus the encoded "payload" string. Some MCP ' +
+        'clients (notably Claude Desktop) do NOT render tool-result images inline, so to show a ' +
+        'scannable QR you may have to write a PNG file yourself. Two acceptable ways, in order of ' +
+        'preference: (1) handle qr_png_base64 PROGRAMMATICALLY — read it from the tool result in code ' +
+        'and decode it; never hand-retype a ~2KB base64 string, it WILL get corrupted. (2) Otherwise ' +
+        'regenerate the QR ONLY from the exact "payload" string this tool returned — copy it verbatim ' +
+        '(it is short); never reconstruct payment data from the invoice or from memory. ' +
+        'NON-NEGOTIABLE for any payment QR you produce yourself, either way: immediately call qr_read ' +
+        'on YOUR file and confirm its decoded text matches the "payload" string this tool returned, ' +
+        'character for character. If it does not match, discard it and do NOT show it — one wrong ' +
+        'character sends money to the wrong account. If you cannot verify, send the user to ' +
+        'https://qr.cz-agents.dev instead.',
     },
   );
 
@@ -124,17 +126,18 @@ function qrResult(value: QrResult) {
   const base64 = qr_data_uri.startsWith('data:')
     ? qr_data_uri.slice(qr_data_uri.indexOf(',') + 1)
     : qr_data_uri;
-  // The image block is given to the model as rendered pixels, which the model
-  // cannot re-export. We ALSO return the PNG as base64 text (qr_png_base64) so the
-  // model can write the EXACT bytes to a file and display them — without ever
-  // regenerating the QR from the payload (a transcription typo would corrupt the payment).
+  // The image block is given to the model as rendered pixels it cannot re-export, and
+  // clients like Claude Desktop do not render it. We ALSO return the PNG as base64 text
+  // (qr_png_base64) and the encoded payload, so the model can produce a file itself.
   const payload = {
     ...rest,
     qr_png_base64: base64,
     display_hint:
-      'To show the user a scannable QR, base64-decode qr_png_base64 and write it to a .png file, ' +
-      'then present that file. Do NOT regenerate the QR from the payload string. If you cannot ' +
-      'write a file, give the user https://qr.cz-agents.dev to render the same payment.',
+      'To show a scannable QR: PREFER decoding qr_png_base64 programmatically (read it in code — ' +
+      'do not hand-retype ~2KB, it corrupts) and write those bytes to a .png. Otherwise regenerate ' +
+      'ONLY from the exact "payload" above (copy verbatim). EITHER WAY, for a payment QR you MUST ' +
+      'then qr_read your file and confirm it decodes to this exact payload before showing it; if ' +
+      'not, discard it and use https://qr.cz-agents.dev instead.',
   };
   return {
     content: [
