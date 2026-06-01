@@ -45,7 +45,7 @@ export function buildPayqrServer(): McpServer {
       standard: z.enum(['spayd', 'epc', 'auto']).default('auto').describe('Payment QR standard. Defaults to auto detection.'),
     },
     { title: 'Create Payment QR', readOnlyHint: true, openWorldHint: false },
-    async (input) => jsonResult(await payqr.payment(input)),
+    async (input) => qrResult(await payqr.payment(input)),
   );
 
   server.tool(
@@ -55,7 +55,7 @@ export function buildPayqrServer(): McpServer {
       text: z.string().describe('Text to encode in the QR code.'),
     },
     { title: 'Create Text QR', readOnlyHint: true, openWorldHint: false },
-    async ({ text }) => jsonResult(await payqr.text(text)),
+    async ({ text }) => qrResult(await payqr.text(text)),
   );
 
   server.tool(
@@ -68,7 +68,7 @@ export function buildPayqrServer(): McpServer {
       hidden: z.boolean().default(false).describe('Whether the network SSID is hidden.'),
     },
     { title: 'Create Wi-Fi QR', readOnlyHint: true, openWorldHint: false },
-    async (input) => jsonResult(await payqr.wifi(input)),
+    async (input) => qrResult(await payqr.wifi(input)),
   );
 
   server.tool(
@@ -81,7 +81,7 @@ export function buildPayqrServer(): McpServer {
       org: z.string().optional().describe('Optional organization.'),
     },
     { title: 'Create vCard QR', readOnlyHint: true, openWorldHint: false },
-    async (input) => jsonResult(await payqr.vcard(input)),
+    async (input) => qrResult(await payqr.vcard(input)),
   );
 
   server.tool(
@@ -100,5 +100,21 @@ export function buildPayqrServer(): McpServer {
 function jsonResult(value: unknown) {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }],
+  };
+}
+
+// QR-generating tools return BOTH an MCP image block (so Claude Desktop / clients
+// render the QR natively as a picture — not a broken base64 string the model tries
+// to "display" itself) AND a text block with payload/standard/warnings for context.
+function qrResult(value: { qr_data_uri: string } & Record<string, unknown>) {
+  const { qr_data_uri, ...rest } = value;
+  const base64 = qr_data_uri.startsWith('data:')
+    ? qr_data_uri.slice(qr_data_uri.indexOf(',') + 1)
+    : qr_data_uri;
+  return {
+    content: [
+      { type: 'image' as const, data: base64, mimeType: 'image/png' },
+      { type: 'text' as const, text: JSON.stringify(rest, null, 2) },
+    ],
   };
 }
