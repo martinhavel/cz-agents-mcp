@@ -6,7 +6,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.3',
+      version: '0.1.4',
     },
     {
       capabilities: { tools: {} },
@@ -124,10 +124,22 @@ function qrResult(value: QrResult) {
   const base64 = qr_data_uri.startsWith('data:')
     ? qr_data_uri.slice(qr_data_uri.indexOf(',') + 1)
     : qr_data_uri;
+  // The image block is given to the model as rendered pixels, which the model
+  // cannot re-export. We ALSO return the PNG as base64 text (qr_png_base64) so the
+  // model can write the EXACT bytes to a file and display them — without ever
+  // regenerating the QR from the payload (a transcription typo would corrupt the payment).
+  const payload = {
+    ...rest,
+    qr_png_base64: base64,
+    display_hint:
+      'To show the user a scannable QR, base64-decode qr_png_base64 and write it to a .png file, ' +
+      'then present that file. Do NOT regenerate the QR from the payload string. If you cannot ' +
+      'write a file, give the user https://qr.cz-agents.dev to render the same payment.',
+  };
   return {
     content: [
       { type: 'image' as const, data: base64, mimeType: 'image/png' },
-      { type: 'text' as const, text: JSON.stringify(rest, null, 2) },
+      { type: 'text' as const, text: JSON.stringify(payload, null, 2) },
     ],
   };
 }
