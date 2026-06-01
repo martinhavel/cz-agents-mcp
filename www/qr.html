@@ -3,16 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>European Payment QR Generator — cz-agents</title>
-  <meta name="description" content="Browser-only SPAYD and EPC payment QR generator for Czech and European payments.">
+  <title>SEPA QR Code Generator — EPC/GiroCode &amp; SPAYD | Free, browser-only</title>
+  <meta name="description" content="Free online generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste IBAN or drop a screenshot — everything runs in your browser.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://cz-agents.dev/qr.html">
+  <link rel="canonical" href="https://qr.cz-agents.dev/">
+  <link rel="alternate" hreflang="x-default" href="https://qr.cz-agents.dev/">
+  <link rel="alternate" hreflang="en" href="https://qr.cz-agents.dev/">
+  <link rel="alternate" hreflang="cs" href="https://qr.cz-agents.dev/">
+  <link rel="alternate" hreflang="de" href="https://qr.cz-agents.dev/">
+  <meta property="og:title" content="SEPA QR Code Generator — EPC/GiroCode &amp; SPAYD | Free, browser-only">
+  <meta property="og:description" content="Free online generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste IBAN or drop a screenshot — everything runs in your browser.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://qr.cz-agents.dev/">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "SEPA QR Code Generator",
+      "description": "Free browser-based generator for SEPA EPC/GiroCode and Czech SPAYD payment QR codes.",
+      "url": "https://qr.cz-agents.dev/",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+    }
+  </script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -97,6 +117,7 @@
     .placeholder { max-width: 260px; color: var(--fg-dim); text-align: center; font-size: 15px; }
     .summary-box { margin-top: 18px; }
     .standard { display: inline-block; margin-bottom: 9px; border-radius: 999px; background: #eaf8f3; padding: 4px 9px; color: var(--green); font-size: 11px; font-weight: 800; }
+    .format-info { margin-bottom: 9px; color: #888; font-size: 0.82em; }
     .summary-lead { color: var(--fg); font-size: 16px; line-height: 1.65; }
     .mono { font-family: 'JetBrains Mono', monospace; }
     .summary-details { margin-top: 10px; color: var(--fg-dim); font-size: 13px; line-height: 1.7; }
@@ -119,8 +140,9 @@
 <div id="page-drop-overlay"><span data-i18n="pageDropText">Drop the image anywhere to read it</span></div>
 <div class="container">
   <header>
-    <button type="button" class="lang-toggle" id="lang-toggle" aria-label="CS | EN">CS | EN</button>
+    <button type="button" class="lang-toggle" id="lang-toggle" aria-label="CS | EN | DE">CS | EN | DE</button>
     <h1 data-i18n="title">European Payment QR Generator</h1>
+    <p class="subtitle" data-i18n="intro">Free generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste your IBAN, fill in the details, or drop a payment screenshot — everything runs in your browser, nothing is sent to any server.</p>
     <p class="subtitle" data-i18n="subtitle">SEPA · SPAYD · EPC — runs in your browser, your image never leaves your device</p>
   </header>
 
@@ -175,15 +197,6 @@
             <label for="message" data-i18n="messageLabel">Message for recipient</label>
             <input id="message" name="message" autocomplete="off" data-i18n-placeholder="messagePlaceholder" placeholder="Payment purpose">
           </div>
-          <fieldset class="field full">
-            <legend data-i18n="standardLabel">Standard</legend>
-            <div class="radios">
-              <label class="radio"><input type="radio" name="standard" value="auto" checked> <span data-i18n="auto">Auto</span></label>
-              <label class="radio"><input type="radio" name="standard" value="spayd"> SPAYD</label>
-              <label class="radio"><input type="radio" name="standard" value="epc"> EPC</label>
-            </div>
-            <p class="hint" data-i18n="autoHint">Auto: CZ/SK IBAN → SPAYD, other SEPA countries → EPC.</p>
-          </fieldset>
         </div>
         <ul class="errors" id="errors" aria-live="polite"></ul>
       </form>
@@ -196,6 +209,7 @@
       </div>
       <div class="summary-box" id="summary-box" hidden>
         <span class="standard" id="result-standard"></span>
+        <p class="format-info" id="format-info"></p>
         <p class="summary-lead" id="summary-lead"></p>
         <p class="summary-details" id="summary-details"></p>
         <pre class="payload mono" id="payload"></pre>
@@ -217,6 +231,7 @@
   const I = {
     en: {
       title: 'European Payment QR Generator',
+      intro: 'Free generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste your IBAN, fill in the details, or drop a payment screenshot — everything runs in your browser, nothing is sent to any server.',
       subtitle: 'SEPA · SPAYD · EPC — runs in your browser, your image never leaves your device',
       dropText: 'Drop a PNG or JPG to fill the form with local OCR', pickImage: 'Choose image',
       pageDropText: 'Drop the image anywhere to read it',
@@ -229,6 +244,8 @@
       validIbanPrompt: 'Enter a valid IBAN', downloadPng: 'Download PNG', copyPayload: 'Copy payload',
       copied: 'Copied', footerPrefix: 'A free tool by', footerSuffix: 'no tracking', pay: 'Pay', to: 'to',
       recipient: 'Recipient', reference: 'Reference', standard: 'Standard', noValue: '—',
+      formatSpayd: 'Format: SPAYD — compatible with Czech/Slovak bank apps',
+      formatEpc: 'Format: EPC/GiroCode — your bank app will read it',
       invalidIban: 'Invalid IBAN or checksum.', invalidAmount: 'Amount must be a number, for example 1250.00.',
       negativeAmount: 'Amount must be non-negative.', nonSepa: 'IBAN country is not in SEPA.',
       epcEur: 'EPC payment QR supports EUR only.', epcRecipient: 'Recipient name is required for EPC.',
@@ -239,6 +256,7 @@
     },
     cs: {
       title: 'Generátor evropských platebních QR kódů',
+      intro: 'Bezplatný generátor platebních QR kódů pro SEPA (EPC/GiroCode) a české SPAYD kódy. Zadejte IBAN, vyplňte údaje nebo přetáhněte screenshot platby — vše běží ve vašem prohlížeči, nic se nikam neposílá.',
       subtitle: 'SEPA · SPAYD · EPC — běží ve vašem prohlížeči, váš obrázek nikdy neopustí vaše zařízení',
       dropText: 'Přetáhněte PNG nebo JPG a vyplňte formulář lokálním OCR', pickImage: 'Vybrat obrázek',
       pageDropText: 'Pusťte obrázek kamkoliv na stránku',
@@ -251,6 +269,8 @@
       validIbanPrompt: 'Zadejte platný IBAN', downloadPng: 'Stáhnout PNG', copyPayload: 'Kopírovat obsah',
       copied: 'Zkopírováno', footerPrefix: 'Bezplatný nástroj od', footerSuffix: 'bez sledování', pay: 'Zaplatit', to: 'na účet',
       recipient: 'Příjemce', reference: 'Reference', standard: 'Standard', noValue: '—',
+      formatSpayd: 'Formát: SPAYD — kompatibilní s českými a slovenskými bankami',
+      formatEpc: 'Formát: EPC/GiroCode — přečte ho vaše bankovní aplikace',
       invalidIban: 'Neplatný IBAN nebo jeho kontrolní součet.', invalidAmount: 'Částka musí být číslo, například 1250,00.',
       negativeAmount: 'Částka musí být nezáporné číslo.', nonSepa: 'Země IBAN není v SEPA.',
       epcEur: 'Platební QR EPC podporuje pouze měnu EUR.', epcRecipient: 'Pro platební QR EPC vyplňte jméno příjemce.',
@@ -258,9 +278,39 @@
       epcRemittance: 'Reference a zpráva pro EPC mohou mít dohromady nejvýše 140 znaků.',
       ocrType: 'Vyberte obrázek ve formátu PNG nebo JPG.', ocrLoading: 'Načítám OCR modul…', ocrWorking: 'Načítám obrázek',
       ocrDone: 'OCR dokončeno. Zkontrolujte rozpoznaný text a vyplněná pole.', ocrFailed: 'OCR se nepodařilo dokončit'
+    },
+    de: {
+      title: 'Generator für europäische Zahlungs-QR-Codes',
+      intro: 'Kostenloser Generator für SEPA-Zahlungs-QR-Codes (EPC/GiroCode) und tschechische SPAYD-Codes. Geben Sie Ihre IBAN ein oder ziehen Sie einen Zahlungsscreenshot hierher — alles läuft in Ihrem Browser, es werden keine Daten übertragen.',
+      subtitle: 'SEPA · SPAYD · EPC — läuft in Ihrem Browser, Ihr Bild verlässt niemals Ihr Gerät',
+      dropText: 'Legen Sie eine PNG- oder JPG-Datei ab, um das Formular mit lokaler OCR auszufüllen', pickImage: 'Bild auswählen',
+      pageDropText: 'Datei hier ablegen, um sie einzulesen',
+      ocrWarning: 'Prüfen Sie alle ausgefüllten Felder sorgfältig. Eine falsche Ziffer kann Geld auf das falsche Konto überweisen.',
+      ocrText: 'Erkannter Text', paymentDetails: 'Zahlungsdetails', ibanLabel: 'IBAN *', amountLabel: 'Betrag',
+      currencyLabel: 'Währung', recipientNameLabel: 'Empfänger', recipientPlaceholder: 'Für EPC erforderlich',
+      bicPlaceholder: 'Optional, 8 oder 11 Zeichen', referenceLabel: 'Verwendungszweck / VS',
+      referencePlaceholder: 'Variabler Symbolwert', messageLabel: 'Nachricht an den Empfänger', messagePlaceholder: 'Zahlungszweck',
+      standardLabel: 'Standard', auto: 'Automatisch', autoHint: 'Automatisch: CZ/SK-IBAN → SPAYD, andere SEPA-Länder → EPC.',
+      validIbanPrompt: 'Geben Sie eine gültige IBAN ein', downloadPng: 'PNG herunterladen', copyPayload: 'Inhalt kopieren',
+      copied: 'Kopiert', footerPrefix: 'Ein kostenloses Tool von', footerSuffix: 'kein Tracking', pay: 'Bezahlen', to: 'an',
+      recipient: 'Empfänger', reference: 'Verwendungszweck', standard: 'Standard', noValue: '—',
+      formatSpayd: 'Format: SPAYD — kompatibel mit tschechischen und slowakischen Banking-Apps',
+      formatEpc: 'Format: EPC/GiroCode — Ihre Banking-App kann ihn lesen',
+      invalidIban: 'Ungültige IBAN oder Prüfsumme.', invalidAmount: 'Der Betrag muss eine Zahl sein, zum Beispiel 1250,00.',
+      negativeAmount: 'Der Betrag darf nicht negativ sein.', nonSepa: 'Das IBAN-Land gehört nicht zum SEPA-Raum.',
+      epcEur: 'Der EPC-Zahlungs-QR-Code unterstützt nur EUR.', epcRecipient: 'Geben Sie für EPC den Namen des Empfängers ein.',
+      epcBic: 'Der EPC-BIC muss 8 oder 11 alphanumerische Zeichen enthalten.',
+      epcRemittance: 'Verwendungszweck und Nachricht dürfen für EPC zusammen höchstens 140 Zeichen lang sein.',
+      ocrType: 'Wählen Sie eine PNG- oder JPG-Datei aus.', ocrLoading: 'OCR-Modul wird geladen…', ocrWorking: 'Bild wird gelesen',
+      ocrDone: 'OCR abgeschlossen. Prüfen Sie den erkannten Text und die ausgefüllten Felder.', ocrFailed: 'OCR konnte nicht abgeschlossen werden'
     }
   };
-  let L = localStorage.qrLang || (navigator.language.startsWith('cs') ? 'cs' : 'en');
+  let L = localStorage.qrLang;
+  if (!L) {
+    if (navigator.language.startsWith('cs')) L = 'cs';
+    else if (navigator.language.startsWith('de')) L = 'de';
+    else L = 'en';
+  }
   if (!I[L]) L = 'en';
 
   const SEPA_COUNTRIES = new Set([
@@ -300,8 +350,7 @@
     return remainder === 1;
   }
 
-  function resolveStandard(standard, iban) {
-    if (standard !== 'auto') return standard;
+  function resolveStandard(iban) {
     const country = normalizeIban(iban).slice(0, 2);
     if (country === 'CZ' || country === 'SK') return 'spayd';
     if (!SEPA_COUNTRIES.has(country)) throw new Error(`Země IBAN ${country} není v SEPA.`);
@@ -367,7 +416,6 @@
       bic: document.getElementById('bic').value.trim(),
       variable_symbol: document.getElementById('reference').value.trim(),
       message: document.getElementById('message').value.trim(),
-      standard: form.elements.standard.value,
     };
   }
 
@@ -396,7 +444,7 @@
 
   function localAmount(amount) {
     if (amount === undefined) return I[L].noValue;
-    return new Intl.NumberFormat(L === 'cs' ? 'cs-CZ' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+    return new Intl.NumberFormat(L === 'cs' ? 'cs-CZ' : L === 'de' ? 'de-DE' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
   }
 
   function renderResult(payload, standard, input) {
@@ -404,6 +452,7 @@
     qrCode.replaceChildren();
     new QRCode(qrCode, { text: payload, width: 320, height: 320, correctLevel: QRCode.CorrectLevel.M });
     document.getElementById('result-standard').textContent = `${I[L].standard}: ${standard.toUpperCase()}`;
+    document.getElementById('format-info').textContent = standard === 'spayd' ? I[L].formatSpayd : I[L].formatEpc;
     document.getElementById('payload').textContent = payload;
     const amount = input.amount === undefined ? I[L].noValue : `${localAmount(input.amount)} ${input.currency}`;
     document.getElementById('summary-lead').innerHTML = `${I[L].pay} <strong>${amount}</strong> ${I[L].to} <span class="mono">${groupIban(input.iban)}</span>`;
@@ -435,7 +484,7 @@
     }
     try {
       const input = readInput();
-      const standard = resolveStandard(input.standard, iban);
+      const standard = resolveStandard(iban);
       const payload = standard === 'spayd' ? buildSpaydPayload({ ...input, iban }) : buildEpcPayload({ ...input, iban });
       renderResult(payload, standard, input);
     } catch (error) {
@@ -453,7 +502,7 @@
   }
 
   document.getElementById('lang-toggle').addEventListener('click', () => {
-    L = L === 'en' ? 'cs' : 'en';
+    L = L === 'cs' ? 'en' : L === 'en' ? 'de' : 'cs';
     applyI18n();
   });
 
