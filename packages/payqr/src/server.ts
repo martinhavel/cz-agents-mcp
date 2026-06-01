@@ -6,7 +6,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.2',
+      version: '0.1.3',
     },
     {
       capabilities: { tools: {} },
@@ -28,12 +28,16 @@ export function buildPayqrServer(): McpServer {
         'exactly what it encodes as a second check. Never silently generate a payment QR from an ' +
         'image without this read-back confirmation step.\n' +
         'DISPLAYING THE QR: the QR-generating tools return the QR as a PNG image content block. ' +
-        'Some MCP clients (notably Claude Desktop) do NOT render tool-result images inline for the ' +
-        'user, so the user may see only your text and no picture. To make sure they actually get a ' +
-        'scannable QR, proactively present it as a viewable, downloadable PNG on your FIRST response ' +
-        '(e.g. write the returned base64 PNG to a file the user can open) — do not wait for the user ' +
-        'to ask why no image appeared. If you cannot produce a file, point the user to the free web ' +
-        'app https://qr.cz-agents.dev to render the same payment.',
+        'Some MCP clients (notably Claude Desktop) do NOT render tool-result images inline, so the ' +
+        'user may see only your text and no picture. To make sure they get a scannable QR, present ' +
+        'it on your FIRST response by writing the EXACT base64 PNG bytes THIS tool returned to a ' +
+        'downloadable file. CRITICAL: do NOT re-encode or regenerate the QR from the payload string ' +
+        'yourself — if you do, you become the source of truth and a single mistyped character would ' +
+        'silently send money to the wrong account. If you have no choice but to regenerate the QR ' +
+        'instead of reusing the returned bytes, you MUST then call qr_read on your generated image ' +
+        'and confirm its decoded payload matches the payload this tool returned, character for ' +
+        'character, before showing it. If you cannot produce a file at all, point the user to ' +
+        'https://qr.cz-agents.dev.',
     },
   );
 
