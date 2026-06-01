@@ -47,6 +47,19 @@
       color: var(--fg-dim); font-size: 13px; transition: border-color 0.2s, background 0.2s;
     }
     .drop-zone.dragover { border-color: var(--accent); background: #fff7f3; }
+    /* Whole-page drop overlay — user can drop an image ANYWHERE, not just the
+       small banner (which was easy to miss / confused with the QR output area). */
+    #page-drop-overlay {
+      position: fixed; inset: 0; z-index: 9999; display: none;
+      align-items: center; justify-content: center;
+      background: rgba(255, 107, 53, 0.08); backdrop-filter: blur(2px);
+      border: 4px dashed var(--accent); pointer-events: none;
+    }
+    #page-drop-overlay.show { display: flex; }
+    #page-drop-overlay span {
+      background: var(--surface); color: var(--accent); font-size: 20px; font-weight: 600;
+      padding: 20px 32px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
     .file-button {
       flex: 0 0 auto; border: 1px solid var(--accent); border-radius: 7px; padding: 6px 10px;
       color: var(--accent); cursor: pointer; font-size: 12px; font-weight: 600;
@@ -103,6 +116,7 @@
   </style>
 </head>
 <body>
+<div id="page-drop-overlay"><span data-i18n="pageDropText">Drop the image anywhere to read it</span></div>
 <div class="container">
   <header>
     <button type="button" class="lang-toggle" id="lang-toggle" aria-label="CS | EN">CS | EN</button>
@@ -205,6 +219,7 @@
       title: 'European Payment QR Generator',
       subtitle: 'SEPA · SPAYD · EPC — runs in your browser, your image never leaves your device',
       dropText: 'Drop a PNG or JPG to fill the form with local OCR', pickImage: 'Choose image',
+      pageDropText: 'Drop the image anywhere to read it',
       ocrWarning: 'Check every filled field carefully. A wrong digit can send money to the wrong account.',
       ocrText: 'Recognized text', paymentDetails: 'Payment details', ibanLabel: 'IBAN *', amountLabel: 'Amount',
       currencyLabel: 'Currency', recipientNameLabel: 'Recipient name', recipientPlaceholder: 'Required for EPC',
@@ -226,6 +241,7 @@
       title: 'Generátor evropských platebních QR kódů',
       subtitle: 'SEPA · SPAYD · EPC — běží ve vašem prohlížeči, váš obrázek nikdy neopustí vaše zařízení',
       dropText: 'Přetáhněte PNG nebo JPG a vyplňte formulář lokálním OCR', pickImage: 'Vybrat obrázek',
+      pageDropText: 'Pusťte obrázek kamkoliv na stránku',
       ocrWarning: 'Pečlivě zkontrolujte všechna vyplněná pole. Chybná číslice může odeslat peníze na jiný účet.',
       ocrText: 'Rozpoznaný text', paymentDetails: 'Platební údaje', ibanLabel: 'IBAN *', amountLabel: 'Částka',
       currencyLabel: 'Měna', recipientNameLabel: 'Jméno příjemce', recipientPlaceholder: 'Povinné pro EPC',
@@ -551,6 +567,34 @@
     });
   }
   dropZone.addEventListener('drop', (event) => processImage(event.dataTransfer.files[0]));
+
+  // Whole-page drop: user can drop an image ANYWHERE (the small banner was easy
+  // to miss / got confused with the QR output area). A fullscreen overlay appears
+  // while dragging a file over the window; dropping anywhere runs OCR.
+  const pageOverlay = document.getElementById('page-drop-overlay');
+  let dragDepth = 0;
+  const hasFiles = (event) => Array.from(event.dataTransfer?.types || []).includes('Files');
+  window.addEventListener('dragenter', (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth += 1;
+    pageOverlay.classList.add('show');
+  });
+  window.addEventListener('dragover', (event) => { if (hasFiles(event)) event.preventDefault(); });
+  window.addEventListener('dragleave', (event) => {
+    if (!hasFiles(event)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) pageOverlay.classList.remove('show');
+  });
+  window.addEventListener('drop', (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    dragDepth = 0;
+    pageOverlay.classList.remove('show');
+    const file = event.dataTransfer.files[0];
+    if (file) processImage(file);
+  });
+
   applyI18n();
 })();
 </script>
