@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { PayqrClient } from './client.js';
+import { PayqrClient, type QrResult } from './client.js';
 
 export function buildPayqrServer(): McpServer {
   const server = new McpServer(
@@ -106,7 +106,7 @@ function jsonResult(value: unknown) {
 // QR-generating tools return BOTH an MCP image block (so Claude Desktop / clients
 // render the QR natively as a picture — not a broken base64 string the model tries
 // to "display" itself) AND a text block with payload/standard/warnings for context.
-function qrResult(value: { qr_data_uri: string } & Record<string, unknown>) {
+function qrResult(value: QrResult) {
   const { qr_data_uri, ...rest } = value;
   const base64 = qr_data_uri.startsWith('data:')
     ? qr_data_uri.slice(qr_data_uri.indexOf(',') + 1)
