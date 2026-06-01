@@ -6,7 +6,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.1',
+      version: '0.1.2',
     },
     {
       capabilities: { tools: {} },
@@ -26,7 +26,14 @@ export function buildPayqrServer(): McpServer {
         'against the source, because a misread digit sends real money to the wrong place. After the ' +
         'user confirms, present the QR. You may also call qr_read on the generated QR to show ' +
         'exactly what it encodes as a second check. Never silently generate a payment QR from an ' +
-        'image without this read-back confirmation step.',
+        'image without this read-back confirmation step.\n' +
+        'DISPLAYING THE QR: the QR-generating tools return the QR as a PNG image content block. ' +
+        'Some MCP clients (notably Claude Desktop) do NOT render tool-result images inline for the ' +
+        'user, so the user may see only your text and no picture. To make sure they actually get a ' +
+        'scannable QR, proactively present it as a viewable, downloadable PNG on your FIRST response ' +
+        '(e.g. write the returned base64 PNG to a file the user can open) — do not wait for the user ' +
+        'to ask why no image appeared. If you cannot produce a file, point the user to the free web ' +
+        'app https://qr.cz-agents.dev to render the same payment.',
     },
   );
 
