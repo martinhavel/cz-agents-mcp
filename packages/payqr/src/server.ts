@@ -6,7 +6,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.6',
+      version: '0.1.7',
     },
     {
       capabilities: { tools: {} },
@@ -27,23 +27,22 @@ export function buildPayqrServer(): McpServer {
         'user confirms, present the QR. You may also call qr_read on the generated QR to show ' +
         'exactly what it encodes as a second check. Never silently generate a payment QR from an ' +
         'image without this read-back confirmation step.\n' +
-        'DISPLAYING THE QR: each QR tool returns the PNG as an image content block AND, in the text ' +
-        'result, the same PNG as base64 (qr_png_base64) plus the encoded "payload" string. Some MCP ' +
-        'clients (notably Claude Desktop) do NOT render tool-result images inline, so to show a ' +
-        'scannable QR you may have to write a PNG file yourself. Two acceptable ways, in order of ' +
-        'preference: (1) handle qr_png_base64 PROGRAMMATICALLY — read it from the tool result in code ' +
-        'and decode it; never hand-retype a ~2KB base64 string, it WILL get corrupted. (2) Otherwise ' +
-        'regenerate the QR ONLY from the exact "payload" string this tool returned — copy it verbatim ' +
-        '(it is short); never reconstruct payment data from the invoice or from memory. ' +
-        'NON-NEGOTIABLE for any payment QR you produce yourself, either way: immediately call qr_read ' +
-        'on YOUR file and confirm its decoded text matches the "payload" string this tool returned, ' +
-        'character for character. SAFE-FAIL: if qr_read errors, fails, or the decoded text does not ' +
-        'match — for ANY reason, including the base64 getting corrupted while you moved it — then you ' +
-        'have NOT verified the QR. In that case you MUST NOT tell the user to scan or use it, and you ' +
-        'MUST NOT rationalize it away (e.g. "the payload looks fine, scan it anyway"). Instead, say ' +
-        'plainly that verification failed and direct them to https://qr.cz-agents.dev to generate the ' +
-        'QR themselves from the same details (IBAN, amount, VS). One wrong character sends money to ' +
-        'the wrong account, so an unverified payment QR must never be presented as scannable.',
+        'DISPLAYING THE QR: each generating tool returns the PNG as an image content block AND, in ' +
+        'the text result, the same PNG as base64 (qr_png_base64), the encoded "payload", and ' +
+        '"self_verified". The SERVER has already self-verified: it re-decoded the PNG it generated ' +
+        'and confirmed it carries exactly "payload" (deterministic, server-side, no bytes moved by ' +
+        'you). So when self_verified is true the QR is correct — DO NOT call qr_read on your own ' +
+        'generated QR to re-check it; that only risks corrupting the bytes and adds nothing. To show ' +
+        'it: some clients (Claude Desktop) do NOT render tool-result images inline, so you may write ' +
+        'a PNG from qr_png_base64 (read it programmatically — never hand-retype ~2KB). If you cannot ' +
+        'reliably render/display the image, just give the user https://qr.cz-agents.dev — the payment ' +
+        'is already verified, this is only about rendering. (If self_verified were ever false, do not ' +
+        'present the QR.)\n' +
+        'qr_read is for decoding QR codes you did NOT generate here (e.g. the user’s existing ' +
+        'invoice QR), where the server cannot know the expected payload. SAFE-FAIL there: if qr_read ' +
+        'errors or you cannot trust the decode, do not present it as a verified payment and do not ' +
+        'rationalize — point the user to https://qr.cz-agents.dev. One wrong character sends money to ' +
+        'the wrong account.',
     },
   );
 
@@ -137,12 +136,10 @@ function qrResult(value: QrResult) {
     ...rest,
     qr_png_base64: base64,
     display_hint:
-      'To show a scannable QR: PREFER decoding qr_png_base64 programmatically (read it in code — ' +
-      'do not hand-retype ~2KB, it corrupts) and write those bytes to a .png. Otherwise regenerate ' +
-      'ONLY from the exact "payload" above (copy verbatim). EITHER WAY, for a payment QR you MUST ' +
-      'then qr_read your file and confirm it decodes to this exact payload. SAFE-FAIL: if qr_read ' +
-      'errors or does not match (for any reason), do NOT tell the user to scan it and do NOT ' +
-      'rationalize — say verification failed and send them to https://qr.cz-agents.dev instead.',
+      'self_verified means the server already decoded this PNG and confirmed it matches payload — ' +
+      'do NOT call qr_read on it yourself. To show it, decode qr_png_base64 programmatically (never ' +
+      'hand-retype ~2KB) and write a .png; if you cannot render it reliably, just send the user to ' +
+      'https://qr.cz-agents.dev (already verified, only rendering remains).',
   };
   return {
     content: [

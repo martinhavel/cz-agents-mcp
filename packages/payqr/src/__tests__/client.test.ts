@@ -152,6 +152,16 @@ describe('PayqrClient', () => {
     expect(result.qr_data_uri).toMatch(/^data:image\/png;base64,/);
   });
 
+  it('server self-verifies every generated QR (decodes its own PNG back to the payload)', async () => {
+    const pay = await client.payment({ iban: CZ_IBAN, amount: 1547, variable_symbol: '41851701' });
+    expect(pay.self_verified).toBe(true);
+    expect((await client.text('hello')).self_verified).toBe(true);
+    expect((await client.wifi({ ssid: 'Net', password: 'pw' })).self_verified).toBe(true);
+    expect((await client.vcard({ name: 'Ada' })).self_verified).toBe(true);
+    const epc = await client.payment({ iban: DE_IBAN, amount: 9.99, recipient_name: 'Example GmbH' });
+    expect(epc.self_verified).toBe(true);
+  });
+
   it('qr_text creates a plain text QR', async () => {
     const result = await client.text('https://cz-agents.dev');
     expect(result.payload).toBe('https://cz-agents.dev');

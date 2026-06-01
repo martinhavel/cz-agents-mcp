@@ -27,6 +27,10 @@ export interface PaymentInput {
 export interface QrResult {
   qr_data_uri: string;
   payload: string;
+  // Server-side self-verification: the generated PNG was decoded again and confirmed
+  // to carry exactly `payload`. Deterministic, no client/model involvement. The model
+  // must NOT re-verify its own output — it trusts this flag.
+  self_verified: boolean;
 }
 
 export interface PaymentQrResult extends QrResult {
@@ -61,11 +65,13 @@ export class PayqrClient {
       payload = buildEpcPayload({ ...input, iban }, warnings);
     }
 
-    return { qr_data_uri: await renderQr(payload), payload, standard, warnings };
+    const qr_data_uri = await renderQr(payload);
+    return { qr_data_uri, payload, standard, warnings, self_verified: await selfVerify(qr_data_uri, payload) };
   }
 
   async text(text: string): Promise<QrResult> {
-    return { qr_data_uri: await renderQr(text), payload: text };
+    const qr_data_uri = await renderQr(text);
+    return { qr_data_uri, payload: text, self_verified: await selfVerify(qr_data_uri, text) };
   }
 
   async wifi(input: {
@@ -79,7 +85,8 @@ export class PayqrClient {
       `WIFI:T:${security};S:${escapeWifi(input.ssid)};` +
       `${input.password === undefined ? '' : `P:${escapeWifi(input.password)};`}` +
       `${input.hidden ? 'H:true;' : ''};`;
-    return { qr_data_uri: await renderQr(payload), payload };
+    const qr_data_uri = await renderQr(payload);
+    return { qr_data_uri, payload, self_verified: await selfVerify(qr_data_uri, payload) };
   }
 
   async vcard(input: {
@@ -94,15 +101,32 @@ export class PayqrClient {
     if (input.org) fields.push(`ORG:${escapeVcard(input.org)}`);
     fields.push('END:VCARD');
     const payload = fields.join('\r\n');
-    return { qr_data_uri: await renderQr(payload), payload };
+    const qr_data_uri = await renderQr(payload);
+    return { qr_data_uri, payload, self_verified: await selfVerify(qr_data_uri, payload) };
   }
 
   async read(imageData: string): Promise<ReadQrResult> {
-    const image = await Jimp.read(decodeImageData(imageData));
-    const { data, width, height } = image.bitmap;
-    const decoded = jsQR(new Uint8ClampedArray(data), width, height);
-    if (!decoded) throw new Error('No QR code found in image');
-    return classifyQr(decoded.data);
+    const decoded = await decodeQr(decodeImageData(imageData));
+    if (decoded === null) throw new Error('No QR code found in image');
+    return classifyQr(decoded);
+  }
+}
+
+// Shared QR decode (Jimp + jsQR) used by both qr_read and the server-side self-verify.
+async function decodeQr(buffer: Buffer): Promise<string | null> {
+  const image = await Jimp.read(buffer);
+  const { data, width, height } = image.bitmap;
+  const decoded = jsQR(new Uint8ClampedArray(data), width, height);
+  return decoded ? decoded.data : null;
+}
+
+// Decode the PNG we just generated and confirm it carries exactly `payload`.
+// Deterministic, server-side; never throws (a false result must fail safe, not crash).
+async function selfVerify(dataUri: string, payload: string): Promise<boolean> {
+  try {
+    return (await decodeQr(decodeImageData(dataUri))) === payload;
+  } catch {
+    return false;
   }
 }
 

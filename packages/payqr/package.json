@@ -1,6 +1,6 @@
 {
   "name": "@czagents/payqr",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "MCP server for European payment QR codes, text, Wi-Fi, vCard, and QR decoding",
   "type": "module",
   "main": "./dist/index.js",
