@@ -1,6 +1,6 @@
 {
   "name": "@czagents/realestate",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "BREAKING(0.2.0): Paid tools moved to hosted realestate-pro.cz-agents.dev. Free tier package — district aggregates + market trends only. See https://cz-agents.dev/pricing.",
   "type": "module",
   "main": "./dist/index.js",

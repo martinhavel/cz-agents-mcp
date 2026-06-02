@@ -15,6 +15,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { logToolCall } from '@czagents/shared';
 import { getDistrictAggregate } from './tools/get_district_aggregate.js';
 
 export type RealEstateTier = 'free';
@@ -51,6 +52,7 @@ export function buildRealEstateServer(_tier: RealEstateTier = 'free'): McpServer
     },
     { title: 'Get District Distress Aggregate', readOnlyHint: true },
     async ({ okres, window_days }) => {
+      logToolCall('realestate', 'get_district_aggregate');
       const agg = getDistrictAggregate({ okres, window_days });
       return wrap(JSON.stringify(agg, null, 2));
     },

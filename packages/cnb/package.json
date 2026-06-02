@@ -1,6 +1,6 @@
 {
   "name": "@czagents/cnb",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "MCP server for ČNB (Czech National Bank) — daily FX rates, currency conversion",
   "type": "module",
   "main": "./dist/index.js",

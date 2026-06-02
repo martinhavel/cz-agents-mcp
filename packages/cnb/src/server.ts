@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { logToolCall } from '@czagents/shared';
 import { CnbClient } from './client.js';
 
 export function buildCnbServer(): McpServer {
@@ -35,6 +36,7 @@ export function buildCnbServer(): McpServer {
     },
     { title: 'Get ČNB Daily FX Rates', readOnlyHint: true, openWorldHint: true },
     async ({ date }) => {
+      logToolCall('cnb', 'get_rates');
       const sheet = await cnb.getDailyRates(date);
       const summary = sheet.rates
         .map((r) => `${r.code}  ${r.amount} ${r.currencyName} = ${r.rate} CZK`)
@@ -68,6 +70,7 @@ export function buildCnbServer(): McpServer {
     },
     { title: 'Convert Currency via ČNB Rates', readOnlyHint: true, openWorldHint: true },
     async ({ amount, from, to, date }) => {
+      logToolCall('cnb', 'convert');
       const result = await cnb.convert(amount, from, to, date);
       return {
         content: [
@@ -96,6 +99,7 @@ export function buildCnbServer(): McpServer {
     },
     { title: 'Get Single Currency ČNB Rate', readOnlyHint: true, openWorldHint: true },
     async ({ code, date }) => {
+      logToolCall('cnb', 'get_rate');
       const sheet = await cnb.getDailyRates(date);
       const r = sheet.rates.find((x) => x.code === code.toUpperCase());
       if (!r) {
