@@ -8,7 +8,7 @@
     "source": "github",
     "subfolder": "packages/sanctions"
   },
-  "version": "0.1.4",
+  "version": "0.1.5",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {

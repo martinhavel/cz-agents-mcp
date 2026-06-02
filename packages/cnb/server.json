@@ -8,7 +8,7 @@
     "source": "github",
     "subfolder": "packages/cnb"
   },
-  "version": "0.1.5",
+  "version": "0.1.7",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {

@@ -8,7 +8,7 @@
     "source": "github",
     "subfolder": "packages/payqr"
   },
-  "version": "0.1.4",
+  "version": "0.1.11",
   "websiteUrl": "https://qr.cz-agents.dev",
   "packages": [
     {

@@ -1,6 +1,6 @@
 {
   "name": "@czagents/ares",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Czech & Slovak business registry — look up companies by IČO, search by name, check legal form, address, and VAT status. Direct from ARES (Czech Ministry of Finance), the official source. Fast, free, no reseller markup.",
   "type": "module",
   "main": "./dist/index.js",

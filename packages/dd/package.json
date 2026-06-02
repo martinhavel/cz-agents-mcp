@@ -1,6 +1,6 @@
 {
   "name": "@czagents/dd",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Czech & EU due diligence in one call — company facts, insolvency (ISIR), EU+OFAC sanctions, VAT reliability, risk scoring (0-100), and statutory chain. EU coverage via GLEIF/LEI. Official state registries only, no Cribis/Bisnode reselling.",
   "type": "module",
   "main": "./dist/index.js",

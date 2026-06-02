@@ -8,7 +8,7 @@
     "source": "github",
     "subfolder": "packages/ares"
   },
-  "version": "0.1.7",
+  "version": "0.1.9",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
