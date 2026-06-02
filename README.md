@@ -65,7 +65,8 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
     "isir":        { "url": "https://isir.cz-agents.dev/mcp" },
     "adis":        { "url": "https://adis.cz-agents.dev/mcp" },
     "dd":          { "url": "https://dd.cz-agents.dev/mcp" },
-    "eu-registry": { "url": "https://eu-registry.cz-agents.dev/mcp" }
+    "eu-registry": { "url": "https://eu-registry.cz-agents.dev/mcp" },
+    "payqr":       { "url": "https://payqr.cz-agents.dev/mcp" }
   }
 }
 ```
