@@ -31,7 +31,7 @@ async function main() {
     }
     if (req.url === '/v1/health' || req.url === '/health' || req.url === '/healthz') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', service: 'cz-agents/payqr', version: '0.1.9' }));
+      res.end(JSON.stringify({ status: 'ok', service: 'cz-agents/payqr', version: '0.1.10' }));
       return;
     }
 

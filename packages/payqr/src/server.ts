@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { PayqrClient, type QrResult, type PaymentInput } from './client.js';
 import { putQr, putPrefill } from './qr-store.js';
+import { logToolCall } from '@czagents/shared';
 
 // Set only on the hosted HTTP server (compose env). When present, generated QRs are
 // exposed as short temporary URLs the client can render inline; absent (npx/stdio) we
@@ -36,7 +37,7 @@ export function buildPayqrServer(): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.9',
+      version: '0.1.10',
     },
     {
       capabilities: { tools: {} },
@@ -91,6 +92,7 @@ export function buildPayqrServer(): McpServer {
     },
     { title: 'Create Payment QR', readOnlyHint: true, openWorldHint: false },
     async (input) => {
+      logToolCall('payqr', 'qr_payment');
       const web_url = buildWebUrl(input);
       return qrResult(await payqr.payment(input), web_url ? { web_url } : undefined);
     },
@@ -103,7 +105,7 @@ export function buildPayqrServer(): McpServer {
       text: z.string().describe('Text to encode in the QR code.'),
     },
     { title: 'Create Text QR', readOnlyHint: true, openWorldHint: false },
-    async ({ text }) => qrResult(await payqr.text(text)),
+    async ({ text }) => { logToolCall('payqr', 'qr_text'); return qrResult(await payqr.text(text)); },
   );
 
   server.tool(
@@ -116,7 +118,7 @@ export function buildPayqrServer(): McpServer {
       hidden: z.boolean().default(false).describe('Whether the network SSID is hidden.'),
     },
     { title: 'Create Wi-Fi QR', readOnlyHint: true, openWorldHint: false },
-    async (input) => qrResult(await payqr.wifi(input)),
+    async (input) => { logToolCall('payqr', 'qr_wifi'); return qrResult(await payqr.wifi(input)); },
   );
 
   server.tool(
@@ -129,7 +131,7 @@ export function buildPayqrServer(): McpServer {
       org: z.string().optional().describe('Optional organization.'),
     },
     { title: 'Create vCard QR', readOnlyHint: true, openWorldHint: false },
-    async (input) => qrResult(await payqr.vcard(input)),
+    async (input) => { logToolCall('payqr', 'qr_vcard'); return qrResult(await payqr.vcard(input)); },
   );
 
   server.tool(
@@ -139,7 +141,7 @@ export function buildPayqrServer(): McpServer {
       image_data: z.string().describe('Base64 image bytes or a PNG/JPEG data URI.'),
     },
     { title: 'Read QR Image', readOnlyHint: true, openWorldHint: false },
-    async ({ image_data }) => jsonResult(await payqr.read(image_data)),
+    async ({ image_data }) => { logToolCall('payqr', 'qr_read'); return jsonResult(await payqr.read(image_data)); },
   );
 
   return server;

@@ -89,7 +89,13 @@ export function trackIco(ico: string): void {
   icoCounter.set(ico, (icoCounter.get(ico) ?? 0) + 1);
 }
 
+const toolCallCounter = new Map<string, number>();
+
 export function logToolCall(service: string, tool: string, args: Record<string, unknown> = {}): void {
+  // Real tool usage counter (a tools/call actually ran) — distinct from /mcp request
+  // count, which is inflated by transport/handshake (initialize, tools/list, ping).
+  const tcKey = `${service}\t${tool}`;
+  toolCallCounter.set(tcKey, (toolCallCounter.get(tcKey) ?? 0) + 1);
   const ip = getCurrentIp() ?? 'unknown';
   const parts = [`service=${service}`, `tool=${tool}`];
   const paramKeys: string[] = [];
@@ -155,6 +161,15 @@ export function getMetrics(): string {
   for (const [key, count] of searchCounter) {
     const [tool, query, city, street] = key.split('\t') as [string, string, string, string];
     lines.push(`search_query_total{tool="${escapeLabel(tool)}",query="${escapeLabel(query)}",city="${escapeLabel(city)}",street="${escapeLabel(street)}"} ${count}`);
+  }
+
+  // Per-tool call counter — real tools/call usage (not transport/handshake requests).
+  lines.push('');
+  lines.push('# HELP mcp_tool_calls_total Tool invocations per server and tool (actual tools/call).');
+  lines.push('# TYPE mcp_tool_calls_total counter');
+  for (const [key, count] of toolCallCounter) {
+    const [server, tool] = key.split('\t') as [string, string];
+    lines.push(`mcp_tool_calls_total{server="${escapeLabel(server)}",tool="${escapeLabel(tool)}"} ${count}`);
   }
 
   return `${lines.join('\n')}\n`;
