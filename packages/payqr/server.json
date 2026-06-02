@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/payqr",
-  "description": "European payment QR — SPAYD (CZ/SK), EPC/GiroCode (SEPA), text, Wi-Fi, vCard, QR decode.",
+  "description": "European payment QR codes \u2014 generate and read SPAYD (CZ/SK) and EPC/GiroCode (Eurozone) payment QR, plus standard QR (text, WiFi, vCard). Scan with any banking app to pre-fill a transfer. Runs locally, no data leaves your device. Free.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",

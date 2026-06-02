@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/ares",
-  "description": "Czech Business Register (ARES) \u2014 company lookup by I\u010cO (8-digit ID), DI\u010c (VAT number), full-text search. Returns name, registered address, legal form, statutory body, founding date, trade license activities. Transparent accounts under \u00a7 96a ZDPH. Czech business intelligence and KYC compliance ready.",
+  "description": "Czech & Slovak business registry \u2014 look up companies by I\u010cO, search by name, check legal form, address, and VAT status. Direct from ARES (Czech Ministry of Finance), the official source. Fast, free, no reseller markup.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",

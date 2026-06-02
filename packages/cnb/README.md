@@ -1,6 +1,6 @@
 # @czagents/cnb
 
-Czech National Bank (ČNB) FX-rate MCP server — official daily CZK exchange rates and currency conversion.
+Official Czech National Bank (ČNB) exchange rates — daily and historical CZK rates against EUR, USD, and 30+ currencies. Direct from the central bank, the authoritative source for accounting and invoicing in the Czech Republic.
 
 ## Install
 

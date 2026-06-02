@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/sanctions",
-  "description": "Sanctions screening for KYC/AML compliance — EU consolidated list (FSF) + OFAC SDN combined. Fuzzy person/entity name match with Cyrillic, Arabic, and Chinese transliteration. IČO direct check, daily updates monitoring, listing detail by source ID. Anti-money-laundering ready, Czech sanctions compliance.",
+  "description": "Sanctions screening for KYC/AML \u2014 check Czech companies and individuals against EU Financial Sanctions (FSF) and US OFAC SDN lists. Per-entity and per-statutory-member checks. Official consolidated lists, updated from source.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",

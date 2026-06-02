@@ -1,7 +1,7 @@
 {
   "name": "@czagents/eu-registry",
   "version": "0.1.2",
-  "description": "MCP server for EU business registries — GB (Companies House), SK (ORSR), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI), FR (SIRENE)",
+  "description": "European business registry lookups in one MCP — verify companies across EU member states via GLEIF/LEI and official national registries. Entity status, registration data, addresses, and parent-company resolution. Built for cross-border due-diligence and KYC directly in your AI assistant.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

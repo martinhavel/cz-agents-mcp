@@ -1,6 +1,6 @@
 # @czagents/realestate
 
-**Free tier package only.** Czech distress real estate MCP server — district-level aggregate statistics and market trends. No PII exposed.
+**Free tier package only.** Czech distressed real estate intelligence — anonymized district-level aggregates (insolvency and forced-sale counts, price trends; k≥5 anonymity). No PII exposed.
 
 **Paid features** (full property search, owner data, per-property details) are at the hosted endpoint:
 **[realestate-pro.cz-agents.dev](https://realestate-pro.cz-agents.dev/mcp)** — see [https://cz-agents.dev/pricing.html](https://cz-agents.dev/pricing.html).

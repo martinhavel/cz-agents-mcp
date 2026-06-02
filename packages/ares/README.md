@@ -1,6 +1,6 @@
 # @czagents/ares
 
-Czech Business Register (ARES) lookup MCP server — company search and detail by IČO, DIČ, address, or NACE code.
+Czech & Slovak business registry — look up companies by IČO, search by name, check legal form, address, and VAT status. Direct from ARES (Czech Ministry of Finance), the official source. Fast, free, no reseller markup.
 
 ## Install
 

@@ -1,6 +1,6 @@
 # @czagents/isir
 
-Czech Insolvency Register (ISIR) MCP server — IČO and person insolvency check via the official SOAP web services (PublicWS event feed + CuzkWS for lookups).
+Czech insolvency register (ISIR) lookups — check whether a company or person has active or historical insolvency proceedings, bankruptcy, or debt-relief filings. Direct monitoring and lookup from the official Ministry of Justice register. Essential for vendor and counterparty risk checks.
 
 ## Status
 

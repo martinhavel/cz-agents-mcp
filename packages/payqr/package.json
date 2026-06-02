@@ -1,7 +1,7 @@
 {
   "name": "@czagents/payqr",
   "version": "0.1.10",
-  "description": "MCP server for European payment QR codes, text, Wi-Fi, vCard, and QR decoding",
+  "description": "European payment QR codes — generate and read SPAYD (CZ/SK) and EPC/GiroCode (Eurozone) payment QR, plus standard QR (text, WiFi, vCard). Scan with any banking app to pre-fill a transfer. Runs locally, no data leaves your device. Free.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

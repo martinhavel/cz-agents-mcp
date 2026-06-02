@@ -1,6 +1,6 @@
 # @czagents/eu-registry
 
-MCP server for non-Czech business registry lookup — company search and detail across 6 countries via free public APIs.
+European business registry lookups in one MCP — verify companies across EU member states via GLEIF/LEI and official national registries. Entity status, registration data, addresses, and parent-company resolution. Built for cross-border due-diligence and KYC directly in your AI assistant.
 
 Part of the [cz-agents](https://cz-agents.dev) suite.
 

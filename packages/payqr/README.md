@@ -1,6 +1,6 @@
 # @czagents/payqr
 
-**European Payment QR — an MCP server for generating and reading payment QR codes.**
+**European payment QR codes — generate and read SPAYD (CZ/SK) and EPC/GiroCode (Eurozone) payment QR, plus standard QR (text, WiFi, vCard). Scan with any banking app to pre-fill a transfer. Runs locally, no data leaves your device. Free.**
 
 Deterministically create **SPAYD** (Czech/Slovak) and **EPC / GiroCode** (SEPA) payment QR codes,
 plus plain-text, Wi-Fi and vCard QR codes — and decode QR codes back from an image.

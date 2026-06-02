@@ -1,7 +1,7 @@
 {
   "name": "@czagents/ares",
   "version": "0.1.8",
-  "description": "MCP server for ARES (Czech Business Register) — company lookup by IČO, full-text search, history",
+  "description": "Czech & Slovak business registry — look up companies by IČO, search by name, check legal form, address, and VAT status. Direct from ARES (Czech Ministry of Finance), the official source. Fast, free, no reseller markup.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

@@ -1,6 +1,6 @@
 # @czagents/dd
 
-Czech company due-diligence MCP server — aggregates ARES, sanctions, ISIR, and ADIS into a single risk-scored report with statutory-chain analysis and nominee-director detection.
+Czech & EU due diligence in one call — company facts, insolvency (ISIR), EU+OFAC sanctions, VAT reliability, risk scoring (0-100), and statutory chain. EU coverage via GLEIF/LEI. Official state registries only, no Cribis/Bisnode reselling.
 
 ## Install
 

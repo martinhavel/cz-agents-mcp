@@ -1,6 +1,6 @@
 # @czagents/sanctions
 
-Sanctions-screening MCP server — fuzzy KYC/AML lookup against EU consolidated list, OFAC SDN, UN, and OFSI.
+Sanctions screening for KYC/AML — check Czech companies and individuals against EU Financial Sanctions (FSF) and US OFAC SDN lists. Per-entity and per-statutory-member checks. Official consolidated lists, updated from source.
 
 ## Install
 

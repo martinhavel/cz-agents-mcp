@@ -1,6 +1,6 @@
 # @czagents/adis
 
-ADIS MCP server — Czech VAT-payer reliability check (nespolehlivý plátce DPH) via the official MFČR SOAP service. Returns reliability status, published bank accounts (§ 96a ZDPH), subject name, and address.
+Czech VAT payer reliability check (ADIS / "nespolehlivý plátce DPH") — verify whether a VAT payer is flagged as unreliable and retrieve officially registered bank accounts for a given DIČ. Critical for VAT-deduction risk and pre-payment verification. Direct from the Czech tax administration.
 
 ## Install
 
