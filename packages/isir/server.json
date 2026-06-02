@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/isir",
-  "description": "Czech insolvency register (ISIR) lookups \u2014 check whether a company or person has active or historical insolvency proceedings, bankruptcy, or debt-relief filings. Direct monitoring and lookup from the official Ministry of Justice register. Essential for vendor and counterparty risk checks.",
+  "description": "Czech insolvency register (ISIR) \u2014 active/historical insolvency & bankruptcy by I\u010cO or person.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",

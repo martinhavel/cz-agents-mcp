@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/adis",
-  "description": "Czech VAT payer reliability check (ADIS / \"nespolehliv\u00fd pl\u00e1tce DPH\") \u2014 verify whether a VAT payer is flagged as unreliable and retrieve officially registered bank accounts for a given DI\u010c. Critical for VAT-deduction risk and pre-payment verification. Direct from the Czech tax administration.",
+  "description": "Czech VAT-payer reliability (ADIS / nespolehliv\u00fd pl\u00e1tce DPH) + registered bank accounts by DI\u010c.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",

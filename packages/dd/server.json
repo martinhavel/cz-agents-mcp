@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/dd",
-  "description": "Czech & EU due diligence in one call \u2014 company facts, insolvency (ISIR), EU+OFAC sanctions, VAT reliability, risk scoring (0-100), and statutory chain. EU coverage via GLEIF/LEI. Official state registries only, no Cribis/Bisnode reselling.",
+  "description": "Czech & EU due diligence in one call \u2014 facts, insolvency, sanctions, VAT, risk score, UBO chain.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",
