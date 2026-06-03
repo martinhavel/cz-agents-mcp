@@ -5,8 +5,7 @@
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-listed-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=cz-agents)
 [![Glama](https://img.shields.io/badge/glama.ai-listed-success)](https://glama.ai/mcp/servers/lgs0fwjrl8)
 
-Model Context Protocol servers for Czech government & business data.
-Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a unified due-diligence aggregator.
+Model Context Protocol servers for Czech & EU government and business data. Native access to ARES (company registry), ČNB (FX rates), ADIS (VAT-payer status), ISIR (insolvency), EU + OFAC sanctions screening, and EU business registries (GB/SK/PL/NL/DE/FR) — plus a unified due-diligence aggregator that combines them into risk scoring and statutory-chain (UBO) analysis.
 
 > **Want a hosted, production-ready version?**
 > [cz-agents.dev](https://cz-agents.dev) — managed API with a 14-day free trial (no credit card).
@@ -27,7 +26,7 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 | [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + ADIS + statutory chain) | ✅ live |
 | [`@czagents/realestate`](./packages/realestate) | Czech distress real estate intelligence (ISIR sales + portál dražeb) | ✅ live (v0.1) |
 | [`@czagents/eu-registry`](./packages/eu-registry) | EU business registries — GB (Companies House), SK, PL, NL, DE, FR via GLEIF/LEI | ✅ live |
-| [`@czagents/payqr`](./packages/payqr) | European payment QR — SPAYD (CZ/SK) + EPC/GiroCode (SEPA), text/Wi-Fi/vCard, QR decode (free, no AI) | ✅ live |
+| [`@czagents/payqr`](./packages/payqr) | Payment QR codes (SPAYD / EPC-GiroCode) — bonus utility | ✅ live |
 
 ### Premium tier — closed source
 
@@ -125,23 +124,20 @@ Give your AI agent native access to ARES, ČNB, ISIR, sanctions screening, and a
 
 ## What this is good for
 
-The aggregator (`@czagents/dd`) was built for one specific recurring chore:
-checking new business partners before signing or paying. The kinds of prompts
-it handles well:
+A toolkit for compliance, KYC/AML, accounting and cross-border checks over Czech & EU registries:
 
-- **KYC pre-invoice** — *"Before we send a 350 000 Kč invoice to IČO 27074358,
-  flag any insolvency, sanctions, unreliable-VAT-payer status, or nominee-director red flags."*
-- **Vendor onboarding** — *"Run KYC on this prospective supplier and tell me
-  if anything looks off. Use the full statutory chain."*
-- **M&A pre-due-diligence** — *"Generate a DD report on the acquisition target
-  and walk the statutory body two levels deep — flag any insolvent firms in
-  the network."*
-- **Bookkeeping triage** — *"For these 12 incoming invoices, screen each
-  issuer's IČO against EU sanctions and active insolvency. Sort by risk."*
+- **VAT & invoicing** — verify VAT-payer status (ADIS) and convert at official ČNB FX rates before booking.
+- **Counterparty screening** — ARES identity, EU + OFAC sanctions, ISIR insolvency.
+- **Due diligence (flagship)** — the `@czagents/dd` aggregator combines the above into a risk score, statutory-chain / UBO walk, and EU-parent lookup.
+- **Cross-border** — company lookups across GB / SK / PL / NL / DE / FR registries (`@czagents/eu-registry`).
 
-The standalone packages (`@czagents/ares`, `cnb`, `sanctions`, `isir`) are
-thinner — useful when you only need one specific data source, or when you're
-building your own custom workflow on top.
+Use a single-source server when you need just one dataset; use the due-diligence aggregator for combined, scored output.
+
+Example prompts the aggregator handles well:
+
+- **KYC pre-invoice** — *"Before we send a 350 000 Kč invoice to IČO 27074358, flag any insolvency, sanctions, unreliable-VAT-payer status, or nominee-director red flags."*
+- **Vendor onboarding** — *"Run KYC on this prospective supplier and tell me if anything looks off. Use the full statutory chain."*
+- **M&A pre-due-diligence** — *"Generate a DD report on the acquisition target and walk the statutory body two levels deep — flag any insolvent firms in the network."*
 
 ## Score & validation
 
