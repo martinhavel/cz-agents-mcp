@@ -70,6 +70,110 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/advokat/"/>
   </url>
   <url>
+    <loc>https://cz-agents.dev/cs/aml/danovy-poradce/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/danovy-poradce/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/danovy-poradce/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/autobazar/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/autobazar/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/autobazar/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/fintech/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/fintech/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/fintech/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/povinna-osoba/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/povinna-osoba/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/povinna-osoba/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/identifikace-klienta/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/identifikace-klienta/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/identifikace-klienta/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/kontrola-klienta/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/kontrola-klienta/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/kontrola-klienta/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/hodnoceni-rizik/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/hodnoceni-rizik/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/hodnoceni-rizik/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/skutecny-majitel/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/skutecny-majitel/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/skutecny-majitel/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/pep/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/pep/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/pep/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/sankce-screening/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/sankce-screening/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/sankce-screening/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/oznameni-podezreleho-obchodu/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/oznameni-podezreleho-obchodu/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/oznameni-podezreleho-obchodu/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/uschova-dokumentu/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/uschova-dokumentu/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/uschova-dokumentu/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/kontrola-fau/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/kontrola-fau/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/kontrola-fau/"/>
+  </url>
+  <url>
     <loc>https://cz-agents.dev/privacy</loc>
     <lastmod>2026-04-27</lastmod>
     <changefreq>yearly</changefreq>
