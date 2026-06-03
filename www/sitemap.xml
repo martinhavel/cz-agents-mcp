@@ -38,6 +38,38 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://qr.cz-agents.dev/"/>
   </url>
   <url>
+    <loc>https://cz-agents.dev/cs/aml/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/realitni-kancelar/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/realitni-kancelar/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/realitni-kancelar/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/ucetni/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/ucetni/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/ucetni/"/>
+  </url>
+  <url>
+    <loc>https://cz-agents.dev/cs/aml/advokat/</loc>
+    <lastmod>2026-06-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://cz-agents.dev/cs/aml/advokat/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://cz-agents.dev/cs/aml/advokat/"/>
+  </url>
+  <url>
     <loc>https://cz-agents.dev/privacy</loc>
     <lastmod>2026-04-27</lastmod>
     <changefreq>yearly</changefreq>

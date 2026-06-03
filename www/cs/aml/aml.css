@@ -1,0 +1,58 @@
+/* Shared styles for the AML/compliance SEO cluster (cz-agents.dev/cs/aml/*) */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0e14; --bg-elev: #131820; --fg: #e6e9ef; --fg-dim: #8a93a6;
+  --fg-ghost: #4a5365; --accent: #ff6b35; --accent-dim: #c94a1a; --border: #1f2630;
+  --green: #6ece58; --yellow: #e4d050;
+}
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.65; min-height: 100vh; }
+.container { max-width: 760px; margin: 0 auto; padding: 40px 20px; }
+
+nav.topnav { display: flex; align-items: center; margin-bottom: 40px; flex-wrap: wrap; }
+.nav-brand { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 15px; color: var(--fg); text-decoration: none; margin-right: 16px; }
+.nav-brand span { color: var(--accent); }
+.nav-links { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.nav-links a { color: var(--fg-dim); text-decoration: none; font-size: 13px; padding: 4px 8px; border-radius: 4px; }
+.nav-links a:hover { color: var(--fg); }
+.nav-links .sep { color: var(--fg-ghost); font-size: 13px; }
+.nav-links a.cta { color: var(--accent); }
+
+.hero { padding: 16px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+.hero-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; color: var(--fg-ghost); text-transform: uppercase; margin-bottom: 14px; }
+.hero h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.22; margin-bottom: 16px; }
+.hero h1 span { color: var(--accent); }
+.hero .lead { color: var(--fg-dim); font-size: 17px; max-width: 600px; }
+
+article h2 { font-size: 21px; font-weight: 600; margin: 40px 0 16px; }
+article h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+article p { color: var(--fg-dim); font-size: 15.5px; margin-bottom: 14px; }
+article ul { color: var(--fg-dim); font-size: 15.5px; margin: 0 0 16px 20px; }
+article li { margin-bottom: 7px; }
+article strong { color: var(--fg); }
+article a { color: var(--accent); text-decoration: none; }
+article a:hover { text-decoration: underline; }
+.law { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: var(--fg-ghost); }
+
+.note { background: var(--bg-elev); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 24px 0; font-size: 14.5px; color: var(--fg-dim); }
+.note strong { color: var(--fg); }
+
+.steps { display: flex; flex-direction: column; gap: 14px; margin: 8px 0; }
+.step { display: flex; gap: 14px; align-items: flex-start; }
+.step-num { flex-shrink: 0; width: 26px; height: 26px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); margin-top: 2px; }
+.step p { font-size: 15px; color: var(--fg-dim); }
+.step strong { color: var(--fg); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 8px 0; }
+.card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.card a { color: var(--fg); text-decoration: none; font-weight: 600; font-size: 14.5px; display: block; margin-bottom: 4px; }
+.card a:hover { color: var(--accent); }
+.card p { font-size: 13px; color: var(--fg-dim); margin: 0; }
+
+.cta-box { text-align: center; margin-top: 44px; padding: 28px 20px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 10px; }
+.cta-box p { color: var(--fg-dim); margin-bottom: 16px; }
+.btn-primary { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 15px; transition: background 0.15s, transform 0.1s; }
+.btn-primary:hover { background: var(--accent-dim); transform: translateY(-1px); }
+
+footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--fg-ghost); display: flex; gap: 16px; flex-wrap: wrap; }
+footer a { color: var(--fg-ghost); text-decoration: none; }
+footer a:hover { color: var(--fg-dim); }
