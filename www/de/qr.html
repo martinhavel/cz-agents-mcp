@@ -1,20 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SEPA QR Code Generator — EPC/GiroCode &amp; SPAYD | Free, browser-only</title>
-  <meta name="description" content="Free online generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste IBAN or drop a screenshot — everything runs in your browser.">
+  <title>QR-Code für Überweisung erstellen — GiroCode &amp; SEPA (kostenlos)</title>
+  <meta name="description" content="Kostenlos einen Zahlungs-QR-Code (GiroCode/EPC) aus IBAN oder aus einer abfotografierten Rechnung erstellen. Alles läuft in Ihrem Browser — es werden keine Daten übertragen.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://qr.cz-agents.dev/">
+  <link rel="canonical" href="https://qr.cz-agents.dev/de/">
   <link rel="alternate" hreflang="x-default" href="https://qr.cz-agents.dev/">
   <link rel="alternate" hreflang="en" href="https://qr.cz-agents.dev/">
   <link rel="alternate" hreflang="cs" href="https://qr.cz-agents.dev/cs/">
   <link rel="alternate" hreflang="de" href="https://qr.cz-agents.dev/de/">
-  <meta property="og:title" content="SEPA QR Code Generator — EPC/GiroCode &amp; SPAYD | Free, browser-only">
-  <meta property="og:description" content="Free online generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste IBAN or drop a screenshot — everything runs in your browser.">
+  <meta property="og:title" content="QR-Code für Überweisung erstellen — GiroCode &amp; SEPA (kostenlos)">
+  <meta property="og:description" content="Zahlungs-QR-Code (GiroCode/EPC) aus IBAN oder Rechnung erstellen. Alles läuft in Ihrem Browser.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://qr.cz-agents.dev/">
+  <meta property="og:url" content="https://qr.cz-agents.dev/de/">
+  <meta property="og:locale" content="de_DE">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,14 +26,15 @@
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      "name": "SEPA QR Code Generator",
-      "description": "Free browser-based generator for SEPA EPC/GiroCode and Czech SPAYD payment QR codes.",
-      "url": "https://qr.cz-agents.dev/",
+      "name": "Zahlungs-QR-Code Generator",
+      "description": "Kostenloser Generator für Zahlungs-QR-Codes (GiroCode/EPC und SPAYD), der im Browser läuft.",
+      "url": "https://qr.cz-agents.dev/de/",
+      "inLanguage": "de",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Any",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
     }
-  </script>
+    </script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -151,9 +153,9 @@
 <div class="container">
   <header>
     <button type="button" class="lang-toggle" id="lang-toggle" aria-label="CS | EN | DE">CS | EN | DE</button>
-    <h1 data-i18n="title">European Payment QR Generator</h1>
-    <p class="subtitle" data-i18n="intro">Free generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste your IBAN, fill in the details, or drop a payment screenshot — everything runs in your browser, nothing is sent to any server.</p>
-    <p class="subtitle" data-i18n="subtitle">SEPA · SPAYD · EPC — runs in your browser, your image never leaves your device</p>
+    <h1 data-i18n="title">QR-Code für Überweisung erstellen</h1>
+    <p class="subtitle" data-i18n="intro">Geben Sie IBAN und Betrag ein oder ziehen Sie ein Foto der Rechnung hierher — den Zahlungs-QR-Code erstellen Sie in wenigen Sekunden. Es entsteht ein europäischer GiroCode (SEPA/EPC) oder ein tschechischer SPAYD-Code. Alles wird direkt in Ihrem Browser berechnet, es werden keine Daten übertragen.</p>
+    <p class="subtitle" data-i18n="subtitle">SEPA · SPAYD · EPC — läuft in Ihrem Browser, Ihr Bild verlässt niemals Ihr Gerät</p>
   </header>
 
   <main class="workspace" id="workspace">
@@ -241,6 +243,73 @@
     </section>
   </main>
 
+  <style>.faq{max-width:680px;margin:30px auto 0;padding:0 16px}.faq h2{font-size:18px;margin:0 0 8px}.faq details{border-top:1px solid #e5e7eb;padding:11px 0}.faq summary{cursor:pointer;font-weight:600;font-size:14.5px}.faq p{margin:8px 0 0;color:#555;font-size:14px;line-height:1.55}</style>
+  <section class="faq" aria-labelledby="faq-h">
+    <h2 id="faq-h">Häufige Fragen</h2>
+      <details><summary>Was ist ein GiroCode?</summary><p>Ein GiroCode ist ein QR-Code nach dem europäischen EPC-Standard. Er enthält die Zahlungsdaten (IBAN, Betrag, Verwendungszweck). Ihre Banking-App liest ihn und füllt die Überweisung automatisch aus.</p></details>
+      <details><summary>Wie erstelle ich einen QR-Code aus einer Rechnung?</summary><p>Ziehen Sie ein Foto oder einen Screenshot der Rechnung in das Tool. Der Text wird direkt in Ihrem Browser erkannt und IBAN sowie Betrag werden übernommen. Prüfen Sie die Daten und laden Sie den QR-Code herunter.</p></details>
+      <details><summary>Ist das Tool kostenlos und sicher?</summary><p>Es ist kostenlos und werbefrei. Die gesamte Verarbeitung einschließlich des Auslesens der Rechnung erfolgt in Ihrem Browser — es werden keine Zahlungsdaten übertragen oder gespeichert.</p></details>
+      <details><summary>Funktioniert der QR-Code in meiner Banking-App?</summary><p>GiroCode/EPC-Codes werden von gängigen deutschen und europäischen Banking-Apps gelesen. Für Zahlungen in Tschechien oder der Slowakei erzeugt das Tool das SPAYD-Format.</p></details>
+      <details><summary>Was ist der Unterschied zwischen GiroCode und SPAYD?</summary><p>GiroCode (EPC) ist der europäische Standard für SEPA-Überweisungen in Euro. SPAYD ist der tschechische und slowakische Standard. Das Tool wählt das Format automatisch nach dem Land der IBAN.</p></details>
+      <details><summary>Welche Daten brauche ich?</summary><p>Mindestens die IBAN und — für GiroCode — den Namen des Empfängers. Betrag und Verwendungszweck sind optional, machen die Überweisung aber bequemer.</p></details>
+  </section>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "inLanguage": "de",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Was ist ein GiroCode?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Ein GiroCode ist ein QR-Code nach dem europäischen EPC-Standard. Er enthält die Zahlungsdaten (IBAN, Betrag, Verwendungszweck). Ihre Banking-App liest ihn und füllt die Überweisung automatisch aus."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Wie erstelle ich einen QR-Code aus einer Rechnung?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Ziehen Sie ein Foto oder einen Screenshot der Rechnung in das Tool. Der Text wird direkt in Ihrem Browser erkannt und IBAN sowie Betrag werden übernommen. Prüfen Sie die Daten und laden Sie den QR-Code herunter."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Ist das Tool kostenlos und sicher?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Es ist kostenlos und werbefrei. Die gesamte Verarbeitung einschließlich des Auslesens der Rechnung erfolgt in Ihrem Browser — es werden keine Zahlungsdaten übertragen oder gespeichert."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Funktioniert der QR-Code in meiner Banking-App?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "GiroCode/EPC-Codes werden von gängigen deutschen und europäischen Banking-Apps gelesen. Für Zahlungen in Tschechien oder der Slowakei erzeugt das Tool das SPAYD-Format."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Was ist der Unterschied zwischen GiroCode und SPAYD?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "GiroCode (EPC) ist der europäische Standard für SEPA-Überweisungen in Euro. SPAYD ist der tschechische und slowakische Standard. Das Tool wählt das Format automatisch nach dem Land der IBAN."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Welche Daten brauche ich?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Mindestens die IBAN und — für GiroCode — den Namen des Empfängers. Betrag und Verwendungszweck sind optional, machen die Überweisung aber bequemer."
+      }
+    }
+  ]
+}
+  </script>
   <footer><span data-i18n="footerPrefix">A free tool by</span> <a href="https://cz-agents.dev">cz-agents</a> · <span data-i18n="footerSuffix">no tracking</span></footer>
 </div>
 
@@ -306,7 +375,7 @@
       disclaimer: '⚠ Než zaplatíte, zkontrolujte všechny údaje proti zdroji — platba je na vaši zodpovědnost.'
     },
     de: {
-      title: 'Generator für europäische Zahlungs-QR-Codes',
+      title: 'QR-Code für Überweisung erstellen',
       intro: 'Kostenloser Generator für SEPA-Zahlungs-QR-Codes (EPC/GiroCode) und tschechische SPAYD-Codes. Geben Sie Ihre IBAN ein oder ziehen Sie einen Zahlungsscreenshot oder QR-Code hierher — alles läuft in Ihrem Browser, es werden keine Daten übertragen.',
       subtitle: 'SEPA · SPAYD · EPC — läuft in Ihrem Browser, Ihr Bild verlässt niemals Ihr Gerät',
       dropText: 'Zahlungs-Screenshot oder QR-Code hier ablegen — lokal im Browser gelesen', pickImage: 'Bild auswählen',
@@ -334,13 +403,8 @@
       disclaimer: '⚠ Prüfen Sie vor der Zahlung alle Angaben gegen Ihre Quelle — die Zahlung erfolgt auf eigene Verantwortung.'
     }
   };
-  let L = localStorage.qrLang;
-  if (!L) {
-    if (navigator.language.startsWith('cs')) L = 'cs';
-    else if (navigator.language.startsWith('de')) L = 'de';
-    else L = 'en';
-  }
-  if (!I[L]) L = 'en';
+  let L = localStorage.qrLang || 'de';
+  if (!I[L]) L = 'de';
 
   const SEPA_COUNTRIES = new Set([
     'AD', 'AT', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB',

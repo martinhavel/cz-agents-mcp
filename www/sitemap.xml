@@ -29,12 +29,32 @@
   </url>
   <url>
     <loc>https://qr.cz-agents.dev/</loc>
-    <lastmod>2026-06-01</lastmod>
+    <lastmod>2026-06-04</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="en" href="https://qr.cz-agents.dev/"/>
-    <xhtml:link rel="alternate" hreflang="cs" href="https://qr.cz-agents.dev/"/>
-    <xhtml:link rel="alternate" hreflang="de" href="https://qr.cz-agents.dev/"/>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://qr.cz-agents.dev/cs/"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://qr.cz-agents.dev/de/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://qr.cz-agents.dev/"/>
+  </url>
+  <url>
+    <loc>https://qr.cz-agents.dev/cs/</loc>
+    <lastmod>2026-06-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://qr.cz-agents.dev/"/>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://qr.cz-agents.dev/cs/"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://qr.cz-agents.dev/de/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://qr.cz-agents.dev/"/>
+  </url>
+  <url>
+    <loc>https://qr.cz-agents.dev/de/</loc>
+    <lastmod>2026-06-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://qr.cz-agents.dev/"/>
+    <xhtml:link rel="alternate" hreflang="cs" href="https://qr.cz-agents.dev/cs/"/>
+    <xhtml:link rel="alternate" hreflang="de" href="https://qr.cz-agents.dev/de/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://qr.cz-agents.dev/"/>
   </url>
   <url>

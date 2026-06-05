@@ -1,20 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="cs">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SEPA QR Code Generator — EPC/GiroCode &amp; SPAYD | Free, browser-only</title>
-  <meta name="description" content="Free online generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste IBAN or drop a screenshot — everything runs in your browser.">
+  <title>QR platba: generátor QR kódu zdarma (SPAYD i SEPA)</title>
+  <meta name="description" content="Vytvořte QR kód k platbě z čísla účtu (IBAN) nebo z vyfocené faktury. Český SPAYD i evropský SEPA (EPC/GiroCode). Vše běží ve vašem prohlížeči — žádné údaje neodesíláme.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://qr.cz-agents.dev/">
+  <link rel="canonical" href="https://qr.cz-agents.dev/cs/">
   <link rel="alternate" hreflang="x-default" href="https://qr.cz-agents.dev/">
   <link rel="alternate" hreflang="en" href="https://qr.cz-agents.dev/">
   <link rel="alternate" hreflang="cs" href="https://qr.cz-agents.dev/cs/">
   <link rel="alternate" hreflang="de" href="https://qr.cz-agents.dev/de/">
-  <meta property="og:title" content="SEPA QR Code Generator — EPC/GiroCode &amp; SPAYD | Free, browser-only">
-  <meta property="og:description" content="Free online generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste IBAN or drop a screenshot — everything runs in your browser.">
+  <meta property="og:title" content="QR platba: generátor QR kódu zdarma (SPAYD i SEPA)">
+  <meta property="og:description" content="Vytvořte QR kód k platbě z IBANu nebo z vyfocené faktury. Český SPAYD i evropský SEPA. Vše běží ve vašem prohlížeči.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://qr.cz-agents.dev/">
+  <meta property="og:url" content="https://qr.cz-agents.dev/cs/">
+  <meta property="og:locale" content="cs_CZ">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,14 +26,15 @@
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      "name": "SEPA QR Code Generator",
-      "description": "Free browser-based generator for SEPA EPC/GiroCode and Czech SPAYD payment QR codes.",
-      "url": "https://qr.cz-agents.dev/",
+      "name": "Generátor QR platby",
+      "description": "Bezplatný generátor QR plateb (SPAYD i SEPA/EPC) běžící přímo v prohlížeči.",
+      "url": "https://qr.cz-agents.dev/cs/",
+      "inLanguage": "cs",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Any",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
     }
-  </script>
+    </script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -151,9 +153,9 @@
 <div class="container">
   <header>
     <button type="button" class="lang-toggle" id="lang-toggle" aria-label="CS | EN | DE">CS | EN | DE</button>
-    <h1 data-i18n="title">European Payment QR Generator</h1>
-    <p class="subtitle" data-i18n="intro">Free generator for SEPA payment QR codes (EPC/GiroCode) and Czech SPAYD codes. Paste your IBAN, fill in the details, or drop a payment screenshot — everything runs in your browser, nothing is sent to any server.</p>
-    <p class="subtitle" data-i18n="subtitle">SEPA · SPAYD · EPC — runs in your browser, your image never leaves your device</p>
+    <h1 data-i18n="title">Generátor QR platby zdarma</h1>
+    <p class="subtitle" data-i18n="intro">Zadejte číslo účtu (IBAN) a částku, nebo přetáhněte snímek faktury — QR kód k platbě vytvoříte během chvilky. Vznikne český SPAYD i evropský SEPA QR (EPC/GiroCode). Vše se počítá přímo ve vašem prohlížeči, žádné údaje neopouštějí vaše zařízení.</p>
+    <p class="subtitle" data-i18n="subtitle">SEPA · SPAYD · EPC — běží ve vašem prohlížeči, váš obrázek nikdy neopustí vaše zařízení</p>
   </header>
 
   <main class="workspace" id="workspace">
@@ -241,6 +243,73 @@
     </section>
   </main>
 
+  <style>.faq{max-width:680px;margin:30px auto 0;padding:0 16px}.faq h2{font-size:18px;margin:0 0 8px}.faq details{border-top:1px solid #e5e7eb;padding:11px 0}.faq summary{cursor:pointer;font-weight:600;font-size:14.5px}.faq p{margin:8px 0 0;color:#555;font-size:14px;line-height:1.55}</style>
+  <section class="faq" aria-labelledby="faq-h">
+    <h2 id="faq-h">Časté dotazy</h2>
+      <details><summary>Co je QR platba?</summary><p>QR platba je čtvercový kód, který obsahuje platební údaje — číslo účtu, částku a variabilní symbol. Naskenujete ho v mobilní bankovní aplikaci a platba se předvyplní, takže nic nepřepisujete ručně.</p></details>
+      <details><summary>Co je SPAYD?</summary><p>SPAYD (Short Payment Descriptor) je český standard QR platby. Přečtou ho běžné české a slovenské bankovní aplikace. Pro platby v eurech v rámci SEPA slouží formát EPC (GiroCode).</p></details>
+      <details><summary>Jak vytvořím QR kód k platbě z faktury?</summary><p>Přetáhněte snímek faktury do nástroje. Text se rozpozná přímo ve vašem prohlížeči a předvyplní číslo účtu (IBAN) i částku. Údaje pak zkontrolujte a QR kód stáhněte nebo rovnou naskenujte v bankovní aplikaci.</p></details>
+      <details><summary>Je nástroj zdarma a bezpečný?</summary><p>Je zdarma a bez reklam. Veškeré zpracování včetně čtení faktury probíhá ve vašem prohlížeči — žádné platební údaje se nikam neodesílají ani neukládají.</p></details>
+      <details><summary>Funguje QR kód v mojí bankovní aplikaci?</summary><p>Český SPAYD kód přečtou běžné mobilní bankovní aplikace v ČR i na Slovensku. Pro platbu v eurech vytvořte variantu SEPA (EPC/GiroCode).</p></details>
+      <details><summary>Jaký je rozdíl mezi SPAYD a SEPA QR?</summary><p>SPAYD je český formát (částky v korunách, variabilní a konstantní symbol). SEPA/EPC je evropský formát pro platby v eurech v rámci jednotné oblasti SEPA. Nástroj zvolí formát automaticky podle země účtu.</p></details>
+  </section>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "inLanguage": "cs",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Co je QR platba?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "QR platba je čtvercový kód, který obsahuje platební údaje — číslo účtu, částku a variabilní symbol. Naskenujete ho v mobilní bankovní aplikaci a platba se předvyplní, takže nic nepřepisujete ručně."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Co je SPAYD?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "SPAYD (Short Payment Descriptor) je český standard QR platby. Přečtou ho běžné české a slovenské bankovní aplikace. Pro platby v eurech v rámci SEPA slouží formát EPC (GiroCode)."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Jak vytvořím QR kód k platbě z faktury?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Přetáhněte snímek faktury do nástroje. Text se rozpozná přímo ve vašem prohlížeči a předvyplní číslo účtu (IBAN) i částku. Údaje pak zkontrolujte a QR kód stáhněte nebo rovnou naskenujte v bankovní aplikaci."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Je nástroj zdarma a bezpečný?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Je zdarma a bez reklam. Veškeré zpracování včetně čtení faktury probíhá ve vašem prohlížeči — žádné platební údaje se nikam neodesílají ani neukládají."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Funguje QR kód v mojí bankovní aplikaci?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Český SPAYD kód přečtou běžné mobilní bankovní aplikace v ČR i na Slovensku. Pro platbu v eurech vytvořte variantu SEPA (EPC/GiroCode)."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Jaký je rozdíl mezi SPAYD a SEPA QR?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "SPAYD je český formát (částky v korunách, variabilní a konstantní symbol). SEPA/EPC je evropský formát pro platby v eurech v rámci jednotné oblasti SEPA. Nástroj zvolí formát automaticky podle země účtu."
+      }
+    }
+  ]
+}
+  </script>
   <footer><span data-i18n="footerPrefix">A free tool by</span> <a href="https://cz-agents.dev">cz-agents</a> · <span data-i18n="footerSuffix">no tracking</span></footer>
 </div>
 
@@ -278,7 +347,7 @@
       disclaimer: '⚠ Check every detail against your source before paying — the payment is your own responsibility.'
     },
     cs: {
-      title: 'Generátor evropských platebních QR kódů',
+      title: 'Generátor QR platby zdarma',
       intro: 'Bezplatný generátor platebních QR kódů pro SEPA (EPC/GiroCode) a české SPAYD kódy. Zadejte IBAN, vyplňte údaje nebo přetáhněte screenshot platby či QR kód — vše běží ve vašem prohlížeči, nic se nikam neposílá.',
       subtitle: 'SEPA · SPAYD · EPC — běží ve vašem prohlížeči, váš obrázek nikdy neopustí vaše zařízení',
       dropText: 'Přetáhněte sem screenshot platby nebo QR kód — přečteme lokálně v prohlížeči', pickImage: 'Vybrat obrázek',
@@ -334,13 +403,8 @@
       disclaimer: '⚠ Prüfen Sie vor der Zahlung alle Angaben gegen Ihre Quelle — die Zahlung erfolgt auf eigene Verantwortung.'
     }
   };
-  let L = localStorage.qrLang;
-  if (!L) {
-    if (navigator.language.startsWith('cs')) L = 'cs';
-    else if (navigator.language.startsWith('de')) L = 'de';
-    else L = 'en';
-  }
-  if (!I[L]) L = 'en';
+  let L = localStorage.qrLang || 'cs';
+  if (!I[L]) L = 'cs';
 
   const SEPA_COUNTRIES = new Set([
     'AD', 'AT', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB',
