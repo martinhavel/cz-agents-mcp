@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHint } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks } from '@czagents/shared';
 import { AresClient } from './client.js';
 
 /**
@@ -47,14 +47,14 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Žádný subjekt s IČO ${clean} v ARES nenalezen.` },
-            { type: 'text', text: getCTAHint(clean) },
+            ...getCTAHintBlocks(clean),
           ],
         };
       }
       return {
         content: [
           { type: 'text', text: JSON.stringify(subject, null, 2) },
-          { type: 'text', text: getCTAHint(clean) },
+          ...getCTAHintBlocks(clean),
         ],
       };
     },
@@ -221,7 +221,7 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Subjekt ${clean} nemá záznam ve Veřejném rejstříku.` },
-            { type: 'text', text: getCTAHint(clean) },
+            ...getCTAHintBlocks(clean),
           ],
         };
       }
@@ -230,7 +230,7 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Subjekt ${clean} (${vr.obchodniJmeno ?? '-'}) nemá aktuální statutární orgán.` },
-            { type: 'text', text: getCTAHint(clean) },
+            ...getCTAHintBlocks(clean),
           ],
         };
       }
@@ -343,14 +343,14 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Žádná historie pro IČO ${clean} není v ARES k dispozici.` },
-            { type: 'text', text: getCTAHint(clean) },
+            ...getCTAHintBlocks(clean),
           ],
         };
       }
       return {
         content: [
           { type: 'text', text: JSON.stringify(history, null, 2) },
-          { type: 'text', text: getCTAHint(clean) },
+          ...getCTAHintBlocks(clean),
         ],
       };
     },

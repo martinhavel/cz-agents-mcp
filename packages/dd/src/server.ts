@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, getCTAHint } from '@czagents/shared';
+import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildChain } from './chain.js';
 import { detectNomineeDirector } from './patterns/nominee-director.js';
@@ -334,7 +334,7 @@ function wrapWithCTAHint(text: string, ico: string) {
   return {
     content: [
       { type: 'text' as const, text },
-      { type: 'text' as const, text: getCTAHint(ico) },
+      ...getCTAHintBlocks(ico),
     ],
   };
 }

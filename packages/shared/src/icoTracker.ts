@@ -14,8 +14,6 @@ const MAX_ICOS_PER_IP = 5_000;
 const MAX_ICO_COUNTER_ENTRIES = 50_000;
 const MAX_SEARCH_COUNTER_ENTRIES = 5_000;
 const DEFAULT_CTA_ESCALATION_THRESHOLD = 3;
-const DEFAULT_CTA_HINT_TEMPLATE =
-  "💡 watch_entity('{ico}') ohlídá změny (statutár, adresa, vlastník, insolvence) za vás — 1 firma zdarma.";
 const CTA_ESCALATION_HINT =
   '💡 Tahle firma se vám asi hodí hlídat — ať ji nemusíte kontrolovat ručně. watch_entity, 1 zdarma.';
 
@@ -110,7 +108,17 @@ export function getCTAHint(ico: string): string {
   }
 
   ctaHintCounter.set(key, state);
-  return DEFAULT_CTA_HINT_TEMPLATE.replace('{ico}', ico);
+  // Silent on casual / one-off lookups — nudge only on genuine repeated interest.
+  return '';
+}
+
+// Tool-response helper: returns 0 or 1 text blocks. The watch_entity nudge fires
+// at most once per (IP, IČO), only when the same IP repeatedly looks up the same
+// company (= a real monitoring candidate). Never on casual one-off lookups — keeps
+// responses clean and avoids an aggressive pricing funnel on free users.
+export function getCTAHintBlocks(ico: string): Array<{ type: 'text'; text: string }> {
+  const hint = getCTAHint(ico);
+  return hint ? [{ type: 'text', text: hint }] : [];
 }
 
 export function resetCTAHintState(): void {
