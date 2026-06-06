@@ -38,7 +38,7 @@ export function buildAresServer(): McpServer {
         .describe('Czech IČO — 7 or 8 digits. Examples: "11122234", "87654326". Auto-validated with MOD11 checksum.'),
     },
     { title: 'Look Up Czech Company by IČO', readOnlyHint: true, openWorldHint: true },
-    async ({ ico }) => {
+    async ({ ico }, extra) => {
       logToolCall('ares', 'lookup_by_ico', { ico });
       const clean = validateIcoInput(ico);
       trackIco(clean);
@@ -47,14 +47,14 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Žádný subjekt s IČO ${clean} v ARES nenalezen.` },
-            ...getCTAHintBlocks(clean),
+            ...getCTAHintBlocks(clean, extra?.sessionId),
           ],
         };
       }
       return {
         content: [
           { type: 'text', text: JSON.stringify(subject, null, 2) },
-          ...getCTAHintBlocks(clean),
+          ...getCTAHintBlocks(clean, extra?.sessionId),
         ],
       };
     },
@@ -212,7 +212,7 @@ export function buildAresServer(): McpServer {
       ico: z.string().describe('Czech IČO (7-8 digits).'),
     },
     { title: 'Get Statutory Body', readOnlyHint: true, openWorldHint: true },
-    async ({ ico }) => {
+    async ({ ico }, extra) => {
       logToolCall('ares', 'get_statutaries', { ico });
       const clean = validateIcoInput(ico);
       trackIco(clean);
@@ -221,7 +221,7 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Subjekt ${clean} nemá záznam ve Veřejném rejstříku.` },
-            ...getCTAHintBlocks(clean),
+            ...getCTAHintBlocks(clean, extra?.sessionId),
           ],
         };
       }
@@ -230,7 +230,7 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Subjekt ${clean} (${vr.obchodniJmeno ?? '-'}) nemá aktuální statutární orgán.` },
-            ...getCTAHintBlocks(clean),
+            ...getCTAHintBlocks(clean, extra?.sessionId),
           ],
         };
       }
@@ -334,7 +334,7 @@ export function buildAresServer(): McpServer {
       ico: z.string().describe('Czech IČO (7-8 digits).'),
     },
     { title: 'Get Company History', readOnlyHint: true, openWorldHint: true },
-    async ({ ico }) => {
+    async ({ ico }, extra) => {
       logToolCall('ares', 'get_history', { ico });
       const clean = validateIcoInput(ico);
       trackIco(clean);
@@ -343,14 +343,14 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Žádná historie pro IČO ${clean} není v ARES k dispozici.` },
-            ...getCTAHintBlocks(clean),
+            ...getCTAHintBlocks(clean, extra?.sessionId),
           ],
         };
       }
       return {
         content: [
           { type: 'text', text: JSON.stringify(history, null, 2) },
-          ...getCTAHintBlocks(clean),
+          ...getCTAHintBlocks(clean, extra?.sessionId),
         ],
       };
     },

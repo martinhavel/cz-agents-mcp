@@ -69,12 +69,12 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
         .describe('basic = ARES + sanctions only; full = + ISIR insolvency + virtual-address probe.'),
     },
     { title: 'Get Czech Company Due-Diligence Report', readOnlyHint: true, openWorldHint: true },
-    async ({ ico, depth }) => {
+    async ({ ico, depth }, extra) => {
       logToolCall('dd', 'get_dd_report', { ico, depth });
       const clean = validateIcoInput(ico);
       trackIco(clean);
       const report = await buildReport(clean, clients, { depth });
-      return wrapWithCTAHint(JSON.stringify(report, null, 2), clean);
+      return wrapWithCTAHint(JSON.stringify(report, null, 2), clean, extra?.sessionId);
     },
   );
 
@@ -330,11 +330,11 @@ function wrap(text: string) {
   return { content: [{ type: 'text' as const, text }] };
 }
 
-function wrapWithCTAHint(text: string, ico: string) {
+function wrapWithCTAHint(text: string, ico: string, scopeId?: string) {
   return {
     content: [
       { type: 'text' as const, text },
-      ...getCTAHintBlocks(ico),
+      ...getCTAHintBlocks(ico, scopeId),
     ],
   };
 }

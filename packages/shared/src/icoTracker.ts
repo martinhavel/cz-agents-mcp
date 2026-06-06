@@ -94,9 +94,13 @@ export function trackIco(ico: string): void {
   icoCounter.set(ico, (icoCounter.get(ico) ?? 0) + 1);
 }
 
-export function getCTAHint(ico: string): string {
-  const ip = getCurrentIp() ?? 'unknown';
-  const key = `${ipPrefix(ip)}\t${ico}`;
+export function getCTAHint(ico: string, scopeId?: string): string {
+  // Prefer a stable, race-free per-client scope (MCP sessionId, passed explicitly
+  // by the SDK `extra`). Fall back to anonymized IP prefix only when there is no
+  // session (e.g. stdio). The IP fallback is unreliable under concurrent HTTP
+  // traffic (module-level _currentIp races), which is why session scope is primary.
+  const scope = scopeId ?? ipPrefix(getCurrentIp() ?? 'unknown');
+  const key = `${scope}\t${ico}`;
   const state = ctaHintCounter.get(key) ?? { count: 0, escalationShown: false };
   state.count += 1;
 
@@ -116,8 +120,11 @@ export function getCTAHint(ico: string): string {
 // at most once per (IP, IČO), only when the same IP repeatedly looks up the same
 // company (= a real monitoring candidate). Never on casual one-off lookups — keeps
 // responses clean and avoids an aggressive pricing funnel on free users.
-export function getCTAHintBlocks(ico: string): Array<{ type: 'text'; text: string }> {
-  const hint = getCTAHint(ico);
+export function getCTAHintBlocks(
+  ico: string,
+  scopeId?: string,
+): Array<{ type: 'text'; text: string }> {
+  const hint = getCTAHint(ico, scopeId);
   return hint ? [{ type: 'text', text: hint }] : [];
 }
 
