@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHint } from '@czagents/shared';
 import { AresClient } from './client.js';
 
 /**
@@ -47,11 +47,15 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Žádný subjekt s IČO ${clean} v ARES nenalezen.` },
+            { type: 'text', text: getCTAHint(clean) },
           ],
         };
       }
       return {
-        content: [{ type: 'text', text: JSON.stringify(subject, null, 2) }],
+        content: [
+          { type: 'text', text: JSON.stringify(subject, null, 2) },
+          { type: 'text', text: getCTAHint(clean) },
+        ],
       };
     },
   );
@@ -217,6 +221,7 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Subjekt ${clean} nemá záznam ve Veřejném rejstříku.` },
+            { type: 'text', text: getCTAHint(clean) },
           ],
         };
       }
@@ -225,6 +230,7 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Subjekt ${clean} (${vr.obchodniJmeno ?? '-'}) nemá aktuální statutární orgán.` },
+            { type: 'text', text: getCTAHint(clean) },
           ],
         };
       }
@@ -337,14 +343,43 @@ export function buildAresServer(): McpServer {
         return {
           content: [
             { type: 'text', text: `Žádná historie pro IČO ${clean} není v ARES k dispozici.` },
+            { type: 'text', text: getCTAHint(clean) },
           ],
         };
       }
       return {
-        content: [{ type: 'text', text: JSON.stringify(history, null, 2) }],
+        content: [
+          { type: 'text', text: JSON.stringify(history, null, 2) },
+          { type: 'text', text: getCTAHint(clean) },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'watch_entity',
+    'Start onboarding for free monitoring of one Czech company by IČO. Stub only; does not persist a watchlist entry yet.',
+    {
+      ico: z.string().describe('Czech IČO (7-8 digits).'),
+    },
+    { title: 'Watch Czech Company', readOnlyHint: false, openWorldHint: true },
+    async ({ ico }) => {
+      logToolCall('ares', 'watch_entity', { ico });
+      const clean = ico.trim();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: getWatchEntityText(clean),
+          },
+        ],
       };
     },
   );
 
   return server;
+}
+
+function getWatchEntityText(ico: string): string {
+  return `Hlídání 1 firmy zdarma. Dokončete onboarding + souhlas se zpracováním: https://app-stage.cz-agents.dev/monitoring/start?ico=${encodeURIComponent(ico)}  ·  SOLO do 25 firem 490 Kč/m  ·  TÝM do 100 firem 1490 Kč/m`;
 }

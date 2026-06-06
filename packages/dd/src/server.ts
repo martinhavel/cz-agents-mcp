@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall } from '@czagents/shared';
+import { validateIcoInput, trackIco, logToolCall, getCTAHint } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildChain } from './chain.js';
 import { detectNomineeDirector } from './patterns/nominee-director.js';
@@ -74,7 +74,21 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
       const clean = validateIcoInput(ico);
       trackIco(clean);
       const report = await buildReport(clean, clients, { depth });
-      return wrap(JSON.stringify(report, null, 2));
+      return wrapWithCTAHint(JSON.stringify(report, null, 2), clean);
+    },
+  );
+
+  server.tool(
+    'watch_entity',
+    'Start onboarding for free monitoring of one Czech company by IČO. Stub only; does not persist a watchlist entry yet.',
+    {
+      ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
+    },
+    { title: 'Watch Czech Company', readOnlyHint: false, openWorldHint: true },
+    async ({ ico }) => {
+      logToolCall('dd', 'watch_entity', { ico });
+      const clean = ico.trim();
+      return wrap(getWatchEntityText(clean));
     },
   );
 
@@ -314,4 +328,17 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
 
 function wrap(text: string) {
   return { content: [{ type: 'text' as const, text }] };
+}
+
+function wrapWithCTAHint(text: string, ico: string) {
+  return {
+    content: [
+      { type: 'text' as const, text },
+      { type: 'text' as const, text: getCTAHint(ico) },
+    ],
+  };
+}
+
+function getWatchEntityText(ico: string): string {
+  return `Hlídání 1 firmy zdarma. Dokončete onboarding + souhlas se zpracováním: https://app-stage.cz-agents.dev/monitoring/start?ico=${encodeURIComponent(ico)}  ·  SOLO do 25 firem 490 Kč/m  ·  TÝM do 100 firem 1490 Kč/m`;
 }

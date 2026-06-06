@@ -13,6 +13,11 @@ const MAX_IPS_PER_DATE = 50_000;
 const MAX_ICOS_PER_IP = 5_000;
 const MAX_ICO_COUNTER_ENTRIES = 50_000;
 const MAX_SEARCH_COUNTER_ENTRIES = 5_000;
+const DEFAULT_CTA_ESCALATION_THRESHOLD = 3;
+const DEFAULT_CTA_HINT_TEMPLATE =
+  "💡 watch_entity('{ico}') ohlídá změny (statutár, adresa, vlastník, insolvence) za vás — 1 firma zdarma.";
+const CTA_ESCALATION_HINT =
+  '💡 Tahle firma se vám asi hodí hlídat — ať ji nemusíte kontrolovat ručně. watch_entity, 1 zdarma.';
 
 const seen = new TtlMap<string, TtlMap<string, Set<string>>>({
   ttlMs: RETENTION_MS,
@@ -31,6 +36,8 @@ const searchCounter = new TtlMap<string, number>({
   maxSize: MAX_SEARCH_COUNTER_ENTRIES,
   sweepIntervalMs: 60 * 60_000,
 });
+
+const ctaHintCounter = new Map<string, { count: number; escalationShown: boolean }>();
 
 // Fallback for MCP SDK transports that break AsyncLocalStorage chain.
 // Known limitation: module-level state has a race condition under concurrent requests
@@ -87,6 +94,27 @@ export function trackIco(ico: string): void {
   icos.add(ico);
   byIp.set(ip, icos);
   icoCounter.set(ico, (icoCounter.get(ico) ?? 0) + 1);
+}
+
+export function getCTAHint(ico: string): string {
+  const ip = getCurrentIp() ?? 'unknown';
+  const key = `${ipPrefix(ip)}\t${ico}`;
+  const state = ctaHintCounter.get(key) ?? { count: 0, escalationShown: false };
+  state.count += 1;
+
+  const threshold = getCTAEscalationThreshold();
+  if (state.count >= threshold && !state.escalationShown) {
+    state.escalationShown = true;
+    ctaHintCounter.set(key, state);
+    return CTA_ESCALATION_HINT;
+  }
+
+  ctaHintCounter.set(key, state);
+  return DEFAULT_CTA_HINT_TEMPLATE.replace('{ico}', ico);
+}
+
+export function resetCTAHintState(): void {
+  ctaHintCounter.clear();
 }
 
 const toolCallCounter = new Map<string, number>();
@@ -203,6 +231,11 @@ function ipPrefix(ip: string): string {
     return octets.slice(0, 3).join('.');
   }
   return normalized.split(':').filter(Boolean).slice(0, 3).join(':') || 'unknown';
+}
+
+function getCTAEscalationThreshold(): number {
+  const parsed = Number.parseInt(process.env.CTA_ESCALATION_THRESHOLD ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_CTA_ESCALATION_THRESHOLD;
 }
 
 function escapeLabel(value: string): string {
