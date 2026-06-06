@@ -43,6 +43,7 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
         return wrap(JSON.stringify(result, null, 2));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        if (isUpstreamUnavailable(msg)) return unavailableResponse('lookup podle IČO');
         return {
           content: [{ type: 'text', text: `ISIR query failed: ${msg}` }],
           isError: true,
@@ -70,6 +71,7 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
         return wrap(JSON.stringify({ query: { name, dob, only_active }, matches: matches.length, results: matches }, null, 2));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        if (isUpstreamUnavailable(msg)) return unavailableResponse('vyhledávání osob');
         return { content: [{ type: 'text', text: `ISIR person search failed: ${msg}` }], isError: true };
       }
     },
@@ -114,4 +116,31 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
 
 function wrap(text: string) {
   return { content: [{ type: 'text' as const, text }] };
+}
+
+// The by-IČO / by-person ISIR lookup depends on justice.cz IsirWsCuzkService,
+// an external SOAP endpoint. When it is unreachable (HTTP 4xx/5xx or a network
+// error) we must NEVER imply a clean "no insolvency" result — return an explicit
+// "temporarily unavailable, verify manually" so DD callers never read silence as
+// a clean screen.
+function isUpstreamUnavailable(msg: string): boolean {
+  return /CUZK HTTP \d|HTTP [45]\d\d|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|aborted|fetch failed|network|socket hang/i.test(
+    msg,
+  );
+}
+
+function unavailableResponse(scope: string) {
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text:
+          `⚠️ ISIR ${scope} je dočasně nedostupný — justice.cz webová služba ` +
+          `IsirWsCuzkService neodpovídá. POZOR: toto NENÍ výsledek „bez insolvence", ` +
+          `dotaz se neprovedl. Ověř ručně na https://isir.justice.cz/isir/common/index.do ` +
+          `nebo zkus později.`,
+      },
+    ],
+    isError: true,
+  };
 }
