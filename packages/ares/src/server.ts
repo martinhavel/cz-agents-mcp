@@ -35,7 +35,7 @@ export function buildAresServer(): McpServer {
     {
       ico: z
         .string()
-        .describe('Czech IČO — 7 or 8 digits. Examples: "27074358", "61388581". Auto-validated with MOD11 checksum.'),
+        .describe('Czech IČO — 7 or 8 digits. Examples: "11122234", "87654326". Auto-validated with MOD11 checksum.'),
     },
     { title: 'Look Up Czech Company by IČO', readOnlyHint: true, openWorldHint: true },
     async ({ ico }) => {

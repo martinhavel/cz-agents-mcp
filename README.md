@@ -135,7 +135,7 @@ Use a single-source server when you need just one dataset; use the due-diligence
 
 Example prompts the aggregator handles well:
 
-- **KYC pre-invoice** — *"Before we send a 350 000 Kč invoice to IČO 27074358, flag any insolvency, sanctions, unreliable-VAT-payer status, or nominee-director red flags."*
+- **KYC pre-invoice** — *"Before we send a 350 000 Kč invoice to IČO 11122234, flag any insolvency, sanctions, unreliable-VAT-payer status, or nominee-director red flags."*
 - **Vendor onboarding** — *"Run KYC on this prospective supplier and tell me if anything looks off. Use the full statutory chain."*
 - **M&A pre-due-diligence** — *"Generate a DD report on the acquisition target and walk the statutory body two levels deep — flag any insolvent firms in the network."*
 

@@ -6,7 +6,7 @@ const SUBJECT_V2_SAMPLE = `<?xml version='1.0' encoding='UTF-8'?>
   <soap:Body>
     <ns:StatusNespolehlivySubjektRozsirenyResponse xmlns:ns="http://adis.mfcr.cz/rozhraniCRPDPH/">
       <ns:status odpovedGenerovana="2026-04-27" statusCode="0" statusText="OK"/>
-      <ns:statusSubjektu dic="CZ27074358" nespolehlivyPlatce="NE" cisloFu="009" typSubjektu="PLATCE_DPH">
+      <ns:statusSubjektu dic="CZ11122234" nespolehlivyPlatce="NE" cisloFu="009" typSubjektu="PLATCE_DPH">
         <ns:nazevSubjektu>Alza.cz a.s.</ns:nazevSubjektu>
         <ns:adresa>
           <ns:uliceCislo>Jankovcova 1522/53</ns:uliceCislo>
@@ -32,7 +32,7 @@ const BASIC_SAMPLE = `<?xml version='1.0' encoding='UTF-8'?>
   <soap:Body>
     <ns:StatusNespolehlivyPlatceResponse xmlns:ns="http://adis.mfcr.cz/rozhraniCRPDPH/">
       <ns:status odpovedGenerovana="2026-04-27" statusCode="0" statusText="OK"/>
-      <ns:statusPlatceDPH dic="CZ27074358" nespolehlivyPlatce="NE" cisloFu="009"/>
+      <ns:statusPlatceDPH dic="CZ11122234" nespolehlivyPlatce="NE" cisloFu="009"/>
       <ns:statusPlatceDPH dic="CZ12345678" nespolehlivyPlatce="ANO" datumZverejneniNespolehlivosti="2024-03-15"/>
     </ns:StatusNespolehlivyPlatceResponse>
   </soap:Body>
@@ -50,12 +50,12 @@ const FAULT_SAMPLE = `<?xml version='1.0' encoding='UTF-8'?>
 
 describe('AdisClient — IČO/DIČ helpers', () => {
   it('icoToDic prepends CZ for plain IČOs', () => {
-    expect(icoToDic('27074358')).toBe('CZ27074358');
+    expect(icoToDic('11122234')).toBe('CZ11122234');
     expect(icoToDic('  12345678  ')).toBe('CZ12345678');
   });
   it('icoToDic accepts already-prefixed DIČ unchanged', () => {
-    expect(icoToDic('CZ27074358')).toBe('CZ27074358');
-    expect(icoToDic('cz27074358')).toBe('CZ27074358');
+    expect(icoToDic('CZ11122234')).toBe('CZ11122234');
+    expect(icoToDic('cz11122234')).toBe('CZ11122234');
   });
   it('icoToDic rejects garbage', () => {
     expect(() => icoToDic('not-a-number')).toThrow();
@@ -65,16 +65,16 @@ describe('AdisClient — IČO/DIČ helpers', () => {
 
 describe('AdisClient — envelope builders', () => {
   it('buildBasicEnvelope contains all DIČs and right namespace', () => {
-    const xml = buildBasicEnvelope(['CZ27074358', 'CZ12345678']);
+    const xml = buildBasicEnvelope(['CZ11122234', 'CZ12345678']);
     expect(xml).toContain('xmlns:adis="http://adis.mfcr.cz/rozhraniCRPDPH/"');
-    expect(xml).toContain('<adis:dic>CZ27074358</adis:dic>');
+    expect(xml).toContain('<adis:dic>CZ11122234</adis:dic>');
     expect(xml).toContain('<adis:dic>CZ12345678</adis:dic>');
     expect(xml).toContain('StatusNespolehlivyPlatceRequest');
   });
   it('buildSubjectV2Envelope uses V2 request element', () => {
-    const xml = buildSubjectV2Envelope(['CZ27074358']);
+    const xml = buildSubjectV2Envelope(['CZ11122234']);
     expect(xml).toContain('StatusNespolehlivySubjektRozsirenyV2Request');
-    expect(xml).toContain('<adis:dic>CZ27074358</adis:dic>');
+    expect(xml).toContain('<adis:dic>CZ11122234</adis:dic>');
   });
   it('buildListEnvelope is empty (no input)', () => {
     const xml = buildListEnvelope();
@@ -94,8 +94,8 @@ describe('AdisClient — response parsing', () => {
     expect(result.results).toHaveLength(3);
 
     const alza = result.results[0]!;
-    expect(alza.dic).toBe('CZ27074358');
-    expect(alza.ico).toBe('27074358');
+    expect(alza.dic).toBe('CZ11122234');
+    expect(alza.ico).toBe('11122234');
     expect(alza.reliability).toBe('NE');
     expect(alza.subject_type).toBe('PLATCE_DPH');
     expect(alza.subject_name).toBe('Alza.cz a.s.');
@@ -137,12 +137,12 @@ describe('AdisClient — response parsing', () => {
 describe('AdisClient — stub mode', () => {
   it('checkPayer returns null in stub mode', async () => {
     const c = new AdisClient({ stub: true });
-    const result = await c.checkPayer({ ico: '27074358' });
+    const result = await c.checkPayer({ ico: '11122234' });
     expect(result).toBeNull();
   });
   it('checkBulk returns NENALEZEN entries in stub mode', async () => {
     const c = new AdisClient({ stub: true });
-    const result = await c.checkBulk({ icos: ['27074358', '12345678'] });
+    const result = await c.checkBulk({ icos: ['11122234', '12345678'] });
     expect(result.results).toHaveLength(2);
     expect(result.results[0]!.reliability).toBe('NENALEZEN');
     expect(result.results[1]!.reliability).toBe('NENALEZEN');

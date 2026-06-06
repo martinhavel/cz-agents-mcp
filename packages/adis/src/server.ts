@@ -30,7 +30,7 @@ export function buildAdisServer(client: AdisClient = new AdisClient()): McpServe
       'VAT registry.',
     {
       ico: z.string().optional().describe('Czech IČO — 7 or 8 digits. The client converts to DIČ as "CZ${ico}". Provide either ico or dic.'),
-      dic: z.string().optional().describe('Czech DIČ, e.g. "CZ27074358". Provide either ico or dic.'),
+      dic: z.string().optional().describe('Czech DIČ, e.g. "CZ11122234". Provide either ico or dic.'),
     },
     { title: 'Check Czech VAT Payer Reliability', readOnlyHint: true, openWorldHint: true },
     async ({ ico, dic }) => {
@@ -62,7 +62,7 @@ export function buildAdisServer(client: AdisClient = new AdisClient()): McpServe
       'indicate the subject is not in the VAT registry.',
     {
       icos: z.array(z.string()).optional().describe('List of Czech IČOs. Will be converted to DIČ ("CZ${ico}").'),
-      dics: z.array(z.string()).optional().describe('List of Czech DIČs (e.g. ["CZ27074358", "CZ12345678"]). At least one of icos/dics is required.'),
+      dics: z.array(z.string()).optional().describe('List of Czech DIČs (e.g. ["CZ11122234", "CZ12345678"]). At least one of icos/dics is required.'),
     },
     { title: 'Bulk Check Czech VAT Payer Reliability', readOnlyHint: true, openWorldHint: true },
     async ({ icos, dics }) => {

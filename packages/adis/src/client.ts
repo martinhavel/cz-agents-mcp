@@ -85,7 +85,7 @@ export class AdisClient {
 
   /**
    * Single-DIČ extended check. Returns reliability + subject type + name + address + accounts.
-   * Pass either `dic` (e.g. "CZ27074358") or `ico` (will be converted to DIČ "CZ${ico}").
+   * Pass either `dic` (e.g. "CZ11122234") or `ico` (will be converted to DIČ "CZ${ico}").
    *
    * Returns null when the DIČ is not in the VAT registry (reliability would be 'NENALEZEN').
    * Throws on network or SOAP errors.
