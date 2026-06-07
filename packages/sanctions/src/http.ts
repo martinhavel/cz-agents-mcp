@@ -31,6 +31,7 @@ import {
   handleStripeWebhook,
   WebhookError,
   createSessionRegistry,
+  registerSession,
 } from '@czagents/shared';
 import { SanctionsDb } from './db.js';
 import { SanctionsSearch } from './search.js';
@@ -169,6 +170,7 @@ async function main() {
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
     } else {
+      const clientIpEarly = getClientIp(req);
       const newSessionId = randomUUID();
       const server = buildSanctionsServer({ db, search });
       transport = new StreamableHTTPServerTransport({
@@ -176,6 +178,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/sanctions] new session: ${id} (tier=${auth.token.tier})`);
+          registerSession(id, clientIpEarly);
           transports.set(id, transport);
         },
       });

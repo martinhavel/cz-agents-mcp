@@ -16,6 +16,7 @@ import {
   clearRequestIp,
   TtlMap,
   createSessionRegistry,
+  registerSession,
 } from '@czagents/shared';
 import { buildEuRegistryServer } from './server.js';
 
@@ -167,6 +168,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/eu-registry] new session: ${id} ip=${clientIpEarly}`);
+          registerSession(id, clientIpEarly);
           transports.set(id, transport);
         },
       });

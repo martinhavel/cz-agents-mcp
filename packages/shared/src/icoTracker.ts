@@ -13,6 +13,8 @@ const MAX_IPS_PER_DATE = 50_000;
 const MAX_ICOS_PER_IP = 5_000;
 const MAX_ICO_COUNTER_ENTRIES = 50_000;
 const MAX_SEARCH_COUNTER_ENTRIES = 5_000;
+const SESSION_IP_TTL_MS = 6 * 60 * 60_000;
+const MAX_SESSION_IPS = 50_000;
 const DEFAULT_CTA_ESCALATION_THRESHOLD = 3;
 const CTA_ESCALATION_HINT =
   '💡 Tahle firma se vám asi hodí hlídat — ať ji nemusíte kontrolovat ručně. watch_entity, 1 zdarma.';
@@ -34,15 +36,22 @@ const searchCounter = new TtlMap<string, number>({
   maxSize: MAX_SEARCH_COUNTER_ENTRIES,
   sweepIntervalMs: 60 * 60_000,
 });
+const sessionIpMap = new TtlMap<string, string>({
+  ttlMs: SESSION_IP_TTL_MS,
+  maxSize: MAX_SESSION_IPS,
+  sweepIntervalMs: 60 * 60_000,
+});
 
 const ctaHintCounter = new Map<string, { count: number; escalationShown: boolean }>();
 
-// Fallback for MCP SDK transports that break AsyncLocalStorage chain.
-// Known limitation: module-level state has a race condition under concurrent requests
-// (request B can overwrite before request A's tool handler reads it). Acceptable for
-// analytics-only use at current traffic scale; proper fix requires per-session Map
-// keyed on transport.sessionId when SDK exposes it to tool handlers.
+// Legacy fallback for non-MCP or older call paths. MCP HTTP tool handlers should
+// resolve IP by session id via wrapServerTools(), then enter an ALS scope.
 let _currentIp: string | undefined;
+
+type ToolHandlerExtra = { sessionId?: string };
+type ToolHandler = (args: unknown, extra?: ToolHandlerExtra) => unknown;
+type ToolRegistrar = (...args: unknown[]) => unknown;
+const wrappedServers = new WeakSet<object>();
 
 export function setRequestIp(ip: string): void {
   _currentIp = ip;
@@ -60,11 +69,43 @@ export function getCurrentIp(): string | undefined {
   return ipStorage.getStore()?.ip ?? _currentIp;
 }
 
+export function registerSession(sessionId: string, ip: string): void {
+  if (!sessionId.trim() || !ip.trim()) return;
+  sessionIpMap.set(sessionId, ip);
+}
+
+export function resolveClientIp(sessionId?: string): string {
+  if (sessionId) {
+    const sessionIp = sessionIpMap.get(sessionId);
+    if (sessionIp) return sessionIp;
+  }
+  return ipStorage.getStore()?.ip ?? _currentIp ?? 'unknown';
+}
+
+export function wrapServerTools(server: { tool: unknown }): void {
+  if (wrappedServers.has(server)) return;
+  wrappedServers.add(server);
+
+  const toolHost = server as { tool: ToolRegistrar };
+  const originalTool = toolHost.tool.bind(server);
+  toolHost.tool = (...args: unknown[]) => {
+    const handler = args.at(-1);
+    if (typeof handler !== 'function') return originalTool(...args);
+
+    const wrappedHandler = (toolArgs: unknown, extra?: ToolHandlerExtra) =>
+      ipStorage.run({ ip: resolveClientIp(extra?.sessionId) }, () =>
+        (handler as ToolHandler)(toolArgs, extra),
+      );
+
+    return originalTool(...args.slice(0, -1), wrappedHandler);
+  };
+}
+
 export function trackIco(ico: string): void {
   if (!isValidIco(ico)) return;
 
-  const ip = ipStorage.getStore()?.ip ?? _currentIp;
-  if (!ip) return;
+  const ip = resolveClientIp();
+  if (ip === 'unknown') return;
 
   const date = today();
   let byIp = seen.get(date);

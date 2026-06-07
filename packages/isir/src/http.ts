@@ -21,6 +21,7 @@ import {
   setRequestIp,
   clearRequestIp,
   createSessionRegistry,
+  registerSession,
 } from '@czagents/shared';
 import { IsirClient } from './client.js';
 import { buildIsirServer } from './server.js';
@@ -108,6 +109,7 @@ async function main() {
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
     } else {
+      const clientIpEarly = getClientIp(req);
       const newSessionId = randomUUID();
       const server = buildIsirServer(client);
       transport = new StreamableHTTPServerTransport({
@@ -115,6 +117,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/isir] new session: ${id}`);
+          registerSession(id, clientIpEarly);
           transports.set(id, transport);
         },
       });

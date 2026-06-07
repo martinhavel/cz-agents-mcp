@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { PayqrClient, type QrResult, type PaymentInput } from './client.js';
 import { putQr, putPrefill } from './qr-store.js';
-import { logToolCall } from '@czagents/shared';
+import { logToolCall, wrapServerTools } from '@czagents/shared';
 
 // Set only on the hosted HTTP server (compose env). When present, generated QRs are
 // exposed as short temporary URLs the client can render inline; absent (npx/stdio) we
@@ -73,6 +73,7 @@ export function buildPayqrServer(): McpServer {
         'to the wrong account.',
     },
   );
+  wrapServerTools(server);
 
   const payqr = new PayqrClient();
 

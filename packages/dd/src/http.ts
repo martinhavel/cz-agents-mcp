@@ -31,6 +31,7 @@ import {
   handleStripeWebhook,
   WebhookError,
   createSessionRegistry,
+  registerSession,
 } from '@czagents/shared';
 import { AresClient } from '@czagents/ares';
 import { SanctionsDb, SanctionsSearch } from '@czagents/sanctions';
@@ -198,6 +199,7 @@ async function main() {
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
     } else {
+      const clientIpEarly = getClientIp(req);
       const newSessionId = randomUUID();
       // Map token tier → DD server tier kind. 'pro' (API Compliance €99) and
       // 'agency' (Agency €199) both unlock pattern detectors; 'agency' adds
@@ -218,6 +220,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/dd] new session: ${id} (tier=${auth.token.tier})`);
+          registerSession(id, clientIpEarly);
           transports.set(id, transport);
         },
       });

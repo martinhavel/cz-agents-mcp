@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall } from '@czagents/shared';
+import { validateIcoInput, trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
 import { AdisClient, MAX_DIC_PER_REQUEST } from './client.js';
 
 export function buildAdisServer(client: AdisClient = new AdisClient()): McpServer {
@@ -20,6 +20,7 @@ export function buildAdisServer(client: AdisClient = new AdisClient()): McpServe
         'Free tier rate-limited; higher limits at https://cz-agents.dev/pricing.html.',
     },
   );
+  wrapServerTools(server);
 
   server.tool(
     'check_dph_payer',

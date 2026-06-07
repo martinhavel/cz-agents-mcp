@@ -15,7 +15,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { logToolCall } from '@czagents/shared';
+import { logToolCall, wrapServerTools } from '@czagents/shared';
 import { getDistrictAggregate } from './tools/get_district_aggregate.js';
 
 export type RealEstateTier = 'free';
@@ -39,6 +39,7 @@ export function buildRealEstateServer(_tier: RealEstateTier = 'free'): McpServer
         'realestate-pro endpoint (https://realestate-pro.cz-agents.dev/mcp) — see https://cz-agents.dev/pricing.html.',
     },
   );
+  wrapServerTools(server);
 
   // Free tier — k≥3 aggregate, no PII
   server.tool(

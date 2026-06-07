@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks } from '@czagents/shared';
+import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildChain } from './chain.js';
 import { detectNomineeDirector } from './patterns/nominee-director.js';
@@ -57,6 +57,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
         'Free tier (basic report) rate-limited; Compliance and Agency tiers (more tools, higher quotas) at https://cz-agents.dev/pricing.html.',
     },
   );
+  wrapServerTools(server);
 
   server.tool(
     'get_dd_report',

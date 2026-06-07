@@ -2,7 +2,7 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics } from '@czagents/shared';
+import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics, registerSession } from '@czagents/shared';
 import { buildCnbServer } from './server.js';
 
 const PORT = Number(process.env.PORT ?? 3031);
@@ -73,12 +73,16 @@ async function main() {
       transport = transports.get(sessionId)!;
     } else {
       // New session — fresh McpServer instance (SDK limitation)
+      const clientIpEarly = getClientIp(req);
       const newSessionId = randomUUID();
       const server = buildCnbServer();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,
-        onsessioninitialized: (id) => { transports.set(id, transport); },
+        onsessioninitialized: (id) => {
+          registerSession(id, clientIpEarly);
+          transports.set(id, transport);
+        },
       });
       transport.onclose = () => {
         if (transport.sessionId) transports.delete(transport.sessionId);

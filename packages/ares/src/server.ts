@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools } from '@czagents/shared';
 import { AresClient } from './client.js';
 
 /**
@@ -26,6 +26,7 @@ export function buildAresServer(): McpServer {
         'Free tier rate-limited; higher limits at https://cz-agents.dev/pricing.html.',
     },
   );
+  wrapServerTools(server);
 
   const ares = new AresClient();
 

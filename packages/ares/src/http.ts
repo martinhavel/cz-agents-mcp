@@ -24,6 +24,7 @@ import {
   clearRequestIp,
   TtlMap,
   createSessionRegistry,
+  registerSession,
 } from '@czagents/shared';
 import { AresClient } from './client.js';
 import { checkSandboxLimit, getSandboxIp, getSandboxMeta } from './sandbox.js';
@@ -200,6 +201,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/ares] new session: ${id} ip=${clientIpEarly}`);
+          registerSession(id, clientIpEarly);
           transports.set(id, transport);
         },
       });

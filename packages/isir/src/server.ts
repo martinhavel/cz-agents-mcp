@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall } from '@czagents/shared';
+import { validateIcoInput, trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
 import { IsirClient } from './client.js';
 
 export function buildIsirServer(client: IsirClient = new IsirClient()): McpServer {
@@ -23,6 +23,7 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
         'Free tier rate-limited; higher limits at https://cz-agents.dev/pricing.html.',
     },
   );
+  wrapServerTools(server);
 
   server.tool(
     'check_ico_insolvency',

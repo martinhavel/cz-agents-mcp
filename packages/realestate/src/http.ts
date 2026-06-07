@@ -21,6 +21,7 @@ import {
   TokenStore,
   createQuotaGuard,
   createSessionRegistry,
+  registerSession,
 } from '@czagents/shared';
 import { buildRealEstateServer } from './server.js';
 
@@ -94,6 +95,7 @@ async function main() {
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
     } else {
+      const clientIpEarly = getClientIp(req);
       const newSessionId = randomUUID();
       // Always free tier — paid tools are at realestate-pro.cz-agents.dev
       const server = buildRealEstateServer('free');
@@ -102,6 +104,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/realestate] new session: ${id} (tier=free)`);
+          registerSession(id, clientIpEarly);
           transports.set(id, transport);
         },
       });

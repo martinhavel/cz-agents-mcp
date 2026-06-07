@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { trackIco, logToolCall } from '@czagents/shared';
+import { trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
 import { SanctionsDb } from './db.js';
 import { SanctionsSearch } from './search.js';
 
@@ -32,6 +32,7 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
         'Free tier rate-limited; higher limits and commercial AML use at https://cz-agents.dev/pricing.html.',
     },
   );
+  wrapServerTools(server);
 
   const { db, search } = deps;
 

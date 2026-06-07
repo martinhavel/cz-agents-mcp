@@ -8,7 +8,7 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics } from '@czagents/shared';
+import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics, registerSession } from '@czagents/shared';
 import { AdisClient } from './client.js';
 import { buildAdisServer } from './server.js';
 
@@ -90,6 +90,7 @@ async function main() {
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
     } else {
+      const clientIpEarly = getClientIp(req);
       const newSessionId = randomUUID();
       const server = buildAdisServer(client);
       transport = new StreamableHTTPServerTransport({
@@ -97,6 +98,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/adis] new session: ${id}`);
+          registerSession(id, clientIpEarly);
           transports.set(id, transport);
         },
       });

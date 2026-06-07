@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { logToolCall } from '@czagents/shared';
+import { logToolCall, wrapServerTools } from '@czagents/shared';
 import { UkCompaniesHouseAdapter } from './adapters/uk-companies-house.js';
 import { SkOrsrAdapter } from './adapters/sk-orsr.js';
 import { PlKrsAdapter } from './adapters/pl-krs.js';
@@ -29,6 +29,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
         'This server does not handle Czech registry lookups.',
     },
   );
+  wrapServerTools(server);
 
   const gleifCache = buildGleifCache();
   const adapters = options.adapters ?? {

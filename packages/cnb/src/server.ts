@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { logToolCall } from '@czagents/shared';
+import { logToolCall, wrapServerTools } from '@czagents/shared';
 import { CnbClient } from './client.js';
 
 export function buildCnbServer(): McpServer {
@@ -21,6 +21,7 @@ export function buildCnbServer(): McpServer {
         'Free tier rate-limited; higher limits at https://cz-agents.dev/pricing.html.',
     },
   );
+  wrapServerTools(server);
 
   const cnb = new CnbClient();
 
