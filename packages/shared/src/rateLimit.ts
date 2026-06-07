@@ -78,20 +78,36 @@ export function createRateLimiter(opts: RateLimiterOptions = {}) {
 }
 
 /**
- * Extract client IP, preferring Cloudflare/Apache proxy headers.
- * Checks (in order): CF-Connecting-IP, X-Forwarded-For, X-Real-IP, socket.
+ * Resolve the real client IP behind the Cloudflare → cloudflared → apache chain.
+ *
+ * The single source of truth for client-IP extraction across every cz-agents MCP
+ * server (rate limiting, session limiting, logging, lead attribution).
+ *
+ * We read the LAST element of X-Forwarded-For: apache (mod_remoteip + ProxyPass)
+ * appends the resolved client as the final hop, so that element is proxy-trusted
+ * and spoof-safe — a client-supplied X-Forwarded-For only ever lands earlier in
+ * the list. We deliberately IGNORE CF-Connecting-IP: the apache vhost overwrites
+ * it with a literal "%a" (a broken ap_expr) in this topology, so it carries no
+ * usable value. Verified empirically 2026-06-07 via a header-dump on ares behind
+ * the production tunnel (XFF arrived as "realIP, realIP"; cf-connecting-ip "%a").
  */
-function defaultGetIp(req: IncomingMessage): string {
-  const cf = req.headers['cf-connecting-ip'];
-  if (typeof cf === 'string' && cf.length > 0) return cf;
+export function getClientIp(req: IncomingMessage): string {
   const xff = req.headers['x-forwarded-for'];
   if (typeof xff === 'string' && xff.length > 0) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
+    const parts = xff.split(',');
+    const last = parts[parts.length - 1]?.trim();
+    if (last) return stripV4MappedPrefix(last);
   }
-  const xr = req.headers['x-real-ip'];
-  if (typeof xr === 'string' && xr.length > 0) return xr;
-  return req.socket.remoteAddress ?? 'unknown';
+  return stripV4MappedPrefix(req.socket.remoteAddress ?? 'unknown');
+}
+
+/** Normalize IPv4-mapped IPv6 (::ffff:1.2.3.4) down to plain IPv4 for stable keys. */
+function stripV4MappedPrefix(ip: string): string {
+  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+}
+
+function defaultGetIp(req: IncomingMessage): string {
+  return getClientIp(req);
 }
 
 /**

@@ -8,7 +8,9 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics, registerSession } from '@czagents/shared';
+import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics, registerSession,
+  getClientIp,
+} from '@czagents/shared';
 import { AdisClient } from './client.js';
 import { buildAdisServer } from './server.js';
 
@@ -126,18 +128,6 @@ async function main() {
   });
 }
 
-function getClientIp(req: import('node:http').IncomingMessage): string {
-  const cf = req.headers['cf-connecting-ip'];
-  if (typeof cf === 'string' && cf.length > 0) return cf;
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length > 0) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  const xr = req.headers['x-real-ip'];
-  if (typeof xr === 'string' && xr.length > 0) return xr;
-  return req.socket.remoteAddress ?? 'unknown';
-}
 
 main().catch((err) => {
   console.error('[cz-agents/adis] fatal:', err);

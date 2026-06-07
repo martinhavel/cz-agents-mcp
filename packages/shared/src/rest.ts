@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { validateIcoInput } from './ico.js';
-import { createRateLimiter, type RateLimiterOptions } from './rateLimit.js';
+import { createRateLimiter, getClientIp, type RateLimiterOptions } from './rateLimit.js';
 
 export function parseIco(req: IncomingMessage, res: ServerResponse): string | null {
   const url = new URL(req.url ?? '/', 'http://localhost');
@@ -35,17 +35,9 @@ export function jsonErr(res: ServerResponse, status: number, code: string, detai
   }));
 }
 
+/** @deprecated Use getClientIp. Kept as an alias for existing REST call sites. */
 export function getRestIp(req: IncomingMessage): string {
-  const cf = req.headers['cf-connecting-ip'];
-  if (typeof cf === 'string' && cf.length > 0) return cf;
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length > 0) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  const xr = req.headers['x-real-ip'];
-  if (typeof xr === 'string' && xr.length > 0) return xr;
-  return req.socket.remoteAddress ?? 'unknown';
+  return getClientIp(req);
 }
 
 export function createRestRateLimiter(opts: RateLimiterOptions = {}) {

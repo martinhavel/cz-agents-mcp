@@ -80,29 +80,29 @@ describe('createRateLimiter', () => {
     }
   });
 
-  it('prefers CF-Connecting-IP over socket address', () => {
+  it('ignores CF-Connecting-IP (apache poisons it to "%a") and falls back to socket', () => {
     const check = createRateLimiter({ max: 1 });
+    // Different cf-connecting-ip but same socket and no XFF → SAME bucket: cf is not used.
     const reqCfA = mockReq({
       headers: { 'cf-connecting-ip': '203.0.113.1' },
       remoteAddress: '10.0.0.99',
     });
     const reqCfB = mockReq({
       headers: { 'cf-connecting-ip': '203.0.113.2' },
-      remoteAddress: '10.0.0.99', // same socket, different CF IP
+      remoteAddress: '10.0.0.99', // same socket, different (ignored) CF IP
     });
 
     expect(check(reqCfA, mockRes().res)).toBe(true);
-    expect(check(reqCfB, mockRes().res)).toBe(true); // different bucket
-    expect(check(reqCfA, mockRes().res)).toBe(false); // A's bucket full
+    expect(check(reqCfB, mockRes().res)).toBe(false); // same socket bucket — cf-connecting-ip ignored
   });
 
-  it('uses first entry of X-Forwarded-For', () => {
+  it('uses the LAST entry of X-Forwarded-For (apache-appended, spoof-safe)', () => {
     const check = createRateLimiter({ max: 1 });
-    const req = mockReq({
-      headers: { 'x-forwarded-for': '203.0.113.5, 10.0.0.1' },
-    });
-    expect(check(req, mockRes().res)).toBe(true);
-    expect(check(req, mockRes().res)).toBe(false);
+    // Same trusted last hop (apache-appended) but different client-spoofed first entry → SAME bucket.
+    const spoof1 = mockReq({ headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.5' } });
+    const spoof2 = mockReq({ headers: { 'x-forwarded-for': '7.7.7.7, 203.0.113.5' } });
+    expect(check(spoof1, mockRes().res)).toBe(true);
+    expect(check(spoof2, mockRes().res)).toBe(false); // last element identical → same bucket; spoofed first ignored
   });
 
   it('supports custom getIp', () => {

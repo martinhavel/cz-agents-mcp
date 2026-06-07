@@ -22,6 +22,7 @@ import {
   createQuotaGuard,
   createSessionRegistry,
   registerSession,
+  getClientIp,
 } from '@czagents/shared';
 import { buildRealEstateServer } from './server.js';
 
@@ -143,18 +144,6 @@ async function main() {
   });
 }
 
-function getClientIp(req: import('node:http').IncomingMessage): string {
-  const cf = req.headers['cf-connecting-ip'];
-  if (typeof cf === 'string' && cf.length > 0) return cf;
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length > 0) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  const xr = req.headers['x-real-ip'];
-  if (typeof xr === 'string' && xr.length > 0) return xr;
-  return req.socket.remoteAddress ?? 'unknown';
-}
 
 main().catch((err) => {
   console.error('[cz-agents/realestate] fatal:', err);
