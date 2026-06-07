@@ -13,6 +13,9 @@ services:
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
       - SANDBOX_HMAC_SECRET=${SANDBOX_HMAC_SECRET}
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
+    volumes:
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
@@ -35,6 +38,9 @@ services:
       - PORT=3031
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
+    volumes:
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3031/health"]
       interval: 30s
@@ -61,9 +67,11 @@ services:
       - SANCTIONS_EU_URL=${SANCTIONS_EU_URL:-https://webgate.ec.europa.eu/fsd/fsf/public/files/xmlFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET_SANCTIONS:-}
       - RATE_LIMIT_MAX=600
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions
       - tokens-data:/var/lib/czagents-tokens
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
@@ -92,9 +100,11 @@ services:
       # requests (initialize + tools/list + multiple tool calls + notifications)
       # in seconds. The 30/min default routinely hits 429 in single chat turn.
       - RATE_LIMIT_MAX=600
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions:ro
       - tokens-data:/var/lib/czagents-tokens
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
@@ -118,6 +128,9 @@ services:
       - NODE_ENV=production
       - ISIR_SOAP_ENABLED=1
       - RATE_LIMIT_MAX=600
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
+    volumes:
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
@@ -141,6 +154,9 @@ services:
       - NODE_ENV=production
       - ADIS_SOAP_ENABLED=1
       - RATE_LIMIT_MAX=600
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
+    volumes:
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
@@ -180,9 +196,11 @@ services:
       - REALESTATE_DB_PATH=/data/webapp.db
       - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - RATE_LIMIT_MAX=30
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - cz-agents-webapp_webapp-data:/data:ro
       - tokens-data:/var/lib/czagents-tokens
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3036/health"]
       interval: 30s
@@ -209,8 +227,10 @@ services:
 
       - GLEIF_CACHE_PATH=/var/lib/czagents-gleif-cache/cache.db
       - GLEIF_CACHE_TTL_DAYS=7
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - gleif-cache:/var/lib/czagents-gleif-cache
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/v1/health"]
       interval: 30s
@@ -233,6 +253,9 @@ services:
       - PORT=3040
       - NODE_ENV=production
       - RATE_LIMIT_MAX=120
+      - TOOL_EVENTS_DIR=/var/lib/czagents-events
+    volumes:
+      - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3040/v1/health"]
       interval: 30s
@@ -249,6 +272,7 @@ networks:
     name: apache_default
 
 volumes:
+  tool-events:
   sanctions-data:
   tokens-data:
   gleif-cache:

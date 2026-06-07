@@ -1,9 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { appendFile, readdir, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
 import { isValidIco } from './ico.js';
 import { TtlMap } from './cache.js';
 
 interface IpContext {
   ip: string;
+  sessionId?: string;
 }
 
 const ipStorage = new AsyncLocalStorage<IpContext>();
@@ -69,6 +72,10 @@ export function getCurrentIp(): string | undefined {
   return ipStorage.getStore()?.ip ?? _currentIp;
 }
 
+export function getCurrentSessionId(): string | undefined {
+  return ipStorage.getStore()?.sessionId;
+}
+
 export function registerSession(sessionId: string, ip: string): void {
   if (!sessionId.trim() || !ip.trim()) return;
   sessionIpMap.set(sessionId, ip);
@@ -93,7 +100,7 @@ export function wrapServerTools(server: { tool: unknown }): void {
     if (typeof handler !== 'function') return originalTool(...args);
 
     const wrappedHandler = (toolArgs: unknown, extra?: ToolHandlerExtra) =>
-      ipStorage.run({ ip: resolveClientIp(extra?.sessionId) }, () =>
+      ipStorage.run({ ip: resolveClientIp(extra?.sessionId), sessionId: extra?.sessionId }, () =>
         (handler as ToolHandler)(toolArgs, extra),
       );
 
@@ -181,15 +188,19 @@ export function logToolCall(service: string, tool: string, args: Record<string, 
   const tcKey = `${service}\t${tool}`;
   toolCallCounter.set(tcKey, (toolCallCounter.get(tcKey) ?? 0) + 1);
   const ip = getCurrentIp() ?? 'unknown';
+  const sessionId = getCurrentSessionId();
   const parts = [`service=${service}`, `tool=${tool}`];
   const paramKeys: string[] = [];
+  const safeFields: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(args)) {
     if (value === undefined || value === null) continue;
     paramKeys.push(key);
 
     if (isSafeLogValue(key, value)) {
-      parts.push(`${key}=${formatLogValue(value)}`);
+      const formatted = formatLogValue(value);
+      safeFields[key] = formatted;
+      parts.push(`${key}=${formatted}`);
     }
   }
 
@@ -199,6 +210,16 @@ export function logToolCall(service: string, tool: string, args: Record<string, 
   parts.push(`ip=${ip}`);
 
   console.error(`[tool] ${parts.join(' ')}`);
+  writeToolEventJsonl({
+    ts: new Date().toISOString(),
+    service,
+    tool,
+    status: 'ok',
+    ip_prefix: process.env.TOOL_EVENTS_FULL_IP === '1' ? ip : ipPrefix(ip),
+    ...(sessionId ? { session: sessionId } : {}),
+    param_keys: paramKeys,
+    ...safeFields,
+  });
 
   if (tool === 'search_companies' || tool === 'search_by_address') {
     const q = String(args['query'] ?? '').slice(0, 60).replace(/\s+/g, '_') || '-';
@@ -271,6 +292,7 @@ export function cleanup(): void {
 
   icoCounter.sweep();
   searchCounter.sweep();
+  pruneToolEventFiles();
 }
 
 const cleanupTimer = setInterval(cleanup, 60 * 60 * 1000);
@@ -278,6 +300,33 @@ cleanupTimer.unref();
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function writeToolEventJsonl(record: Record<string, unknown>): void {
+  const dir = process.env.TOOL_EVENTS_DIR?.trim();
+  if (!dir) return;
+
+  const file = join(dir, `tool-events-${today()}.jsonl`);
+  void appendFile(file, `${JSON.stringify(record)}\n`, 'utf8').catch(() => {});
+}
+
+function pruneToolEventFiles(): void {
+  const dir = process.env.TOOL_EVENTS_DIR?.trim();
+  if (!dir) return;
+
+  const retentionDays = getToolEventsRetentionDays();
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
+  const cutoffDate = cutoff.toISOString().slice(0, 10);
+
+  void readdir(dir).then((entries) => {
+    for (const entry of entries) {
+      const match = /^tool-events-(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(entry);
+      const fileDate = match?.[1];
+      if (!fileDate || fileDate >= cutoffDate) continue;
+      void unlink(join(dir, entry)).catch(() => {});
+    }
+  }).catch(() => {});
 }
 
 function ipPrefix(ip: string): string {
@@ -294,6 +343,11 @@ function getCTAEscalationThreshold(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_CTA_ESCALATION_THRESHOLD;
 }
 
+function getToolEventsRetentionDays(): number {
+  const parsed = Number.parseInt(process.env.TOOL_EVENTS_RETENTION_DAYS ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 90;
+}
+
 function escapeLabel(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/"/g, '\\"');
 }
@@ -301,8 +355,13 @@ function escapeLabel(value: string): string {
 function isSafeLogValue(key: string, value: unknown): boolean {
   if (key === 'ico' || key === 'dic') return true;
   if (key === 'icos' || key === 'dics') return Array.isArray(value);
-  if (['depth', 'max_depth', 'since_id', 'limit', 'threshold', 'only_active'].includes(key)) return true;
-  if (['query', 'city', 'street', 'nace', 'psc'].includes(key)) return typeof value === 'string' || typeof value === 'number';
+  // `depth` is a string enum (z.enum(['basic','full'])), not a number — keep it logged.
+  if (key === 'depth') return value === 'basic' || value === 'full';
+  if (['max_depth', 'since_id', 'limit', 'threshold'].includes(key)) {
+    return typeof value === 'number';
+  }
+  if (key === 'nace') return typeof value === 'string' && /^[A-Za-z0-9_.:-]{1,32}$/.test(value);
+  if (key === 'only_active') return typeof value === 'boolean';
   return false;
 }
 
