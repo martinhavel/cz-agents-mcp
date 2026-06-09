@@ -12,6 +12,8 @@ describe('getWatchEntityResponse', () => {
     expect(response.next_step.url).toContain('app.cz-agents.dev');
     expect(response.next_step.url).not.toContain('app-stage');
     expect(response.message).not.toMatch(/Kč|490|1490|Dokončete|Zapni|Dokonči/);
+    // Text block has no visible link -> message must not dangle a reference to one ("na odkazu výše" regrese).
+    expect(response.message).not.toMatch(/výše|above|níže|below/);
     expect(response.pricing.solo).toBeTruthy();
   });
 });

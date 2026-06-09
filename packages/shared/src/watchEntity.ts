@@ -51,6 +51,6 @@ export function getWatchEntityResponse(ico: string): WatchEntityResponse {
     pricing: { solo: '490 CZK/mo, up to 25', team: '1490 CZK/mo, up to 100' },
     // TODO: Add an English message variant for non-Czech clients.
     message:
-      'Hlídání není aktivní. Pro spuštění bezplatného hlídání 1 firmy je třeba dokončit onboarding a udělit souhlas se zpracováním — to provede uživatel na odkazu výše.',
+      'Hlídání není aktivní. Pro spuštění bezplatného hlídání 1 firmy je třeba dokončit onboarding a udělit souhlas se zpracováním — to provede uživatel přes přiložený onboarding odkaz.',
   };
 }
