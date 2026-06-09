@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools } from '@czagents/shared';
+import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildChain } from './chain.js';
 import { detectNomineeDirector } from './patterns/nominee-director.js';
@@ -85,11 +85,12 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
     {
       ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
     },
-    { title: 'Watch Czech Company', readOnlyHint: false, openWorldHint: true },
+    { title: 'Watch Czech Company', readOnlyHint: true, openWorldHint: false },
     async ({ ico }) => {
       logToolCall('dd', 'watch_entity', { ico });
       const clean = ico.trim();
-      return wrap(getWatchEntityText(clean));
+      const r = getWatchEntityResponse(clean);
+      return { structuredContent: r, content: [{ type: 'text' as const, text: r.message }] };
     },
   );
 
@@ -338,8 +339,4 @@ function wrapWithCTAHint(text: string, ico: string, scopeId?: string) {
       ...getCTAHintBlocks(ico, scopeId),
     ],
   };
-}
-
-function getWatchEntityText(ico: string): string {
-  return `Hlídání 1 firmy zdarma. Dokončete onboarding + souhlas se zpracováním: https://app-stage.cz-agents.dev/monitoring/start?ico=${encodeURIComponent(ico)}  ·  SOLO do 25 firem 490 Kč/m  ·  TÝM do 100 firem 1490 Kč/m`;
 }

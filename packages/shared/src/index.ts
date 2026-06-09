@@ -8,3 +8,4 @@ export * from './cache.js';
 export * from './sessionRegistry.js';
 export * from './origin.js';
 export * from './billing/index.js';
+export * from './watchEntity.js';

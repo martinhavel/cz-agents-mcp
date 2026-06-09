@@ -8,7 +8,7 @@ import {
 } from '../icoTracker.js';
 
 const ESCALATED_HINT =
-  '💡 Tahle firma se vám asi hodí hlídat — ať ji nemusíte kontrolovat ručně. watch_entity, 1 zdarma.';
+  '💡 Tuhle firmu si u nás můžeš nechat hlídat — použij nástroj watch_entity.';
 
 describe('getCTAHint', () => {
   beforeEach(() => {

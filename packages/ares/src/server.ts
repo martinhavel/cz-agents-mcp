@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
 import { AresClient } from './client.js';
 
 /**
@@ -363,24 +363,17 @@ export function buildAresServer(): McpServer {
     {
       ico: z.string().describe('Czech IČO (7-8 digits).'),
     },
-    { title: 'Watch Czech Company', readOnlyHint: false, openWorldHint: true },
+    { title: 'Watch Czech Company', readOnlyHint: true, openWorldHint: false },
     async ({ ico }) => {
       logToolCall('ares', 'watch_entity', { ico });
       const clean = ico.trim();
+      const r = getWatchEntityResponse(clean);
       return {
-        content: [
-          {
-            type: 'text',
-            text: getWatchEntityText(clean),
-          },
-        ],
+        structuredContent: r,
+        content: [{ type: 'text', text: r.message }],
       };
     },
   );
 
   return server;
-}
-
-function getWatchEntityText(ico: string): string {
-  return `Hlídání 1 firmy zdarma. Dokončete onboarding + souhlas se zpracováním: https://app-stage.cz-agents.dev/monitoring/start?ico=${encodeURIComponent(ico)}  ·  SOLO do 25 firem 490 Kč/m  ·  TÝM do 100 firem 1490 Kč/m`;
 }

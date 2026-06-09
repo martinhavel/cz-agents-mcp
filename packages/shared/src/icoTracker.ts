@@ -20,7 +20,7 @@ const SESSION_IP_TTL_MS = 6 * 60 * 60_000;
 const MAX_SESSION_IPS = 50_000;
 const DEFAULT_CTA_ESCALATION_THRESHOLD = 3;
 const CTA_ESCALATION_HINT =
-  '💡 Tahle firma se vám asi hodí hlídat — ať ji nemusíte kontrolovat ručně. watch_entity, 1 zdarma.';
+  '💡 Tuhle firmu si u nás můžeš nechat hlídat — použij nástroj watch_entity.';
 
 const seen = new TtlMap<string, TtlMap<string, Set<string>>>({
   ttlMs: RETENTION_MS,
