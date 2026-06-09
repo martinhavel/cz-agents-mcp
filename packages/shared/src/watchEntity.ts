@@ -26,6 +26,7 @@ export interface WatchEntityResponse extends Record<string, unknown> {
     team: string;
   };
   message: string;
+  locale: 'cs';
 }
 
 export function getWatchEntityResponse(ico: string): WatchEntityResponse {
@@ -49,8 +50,9 @@ export function getWatchEntityResponse(ico: string): WatchEntityResponse {
     agent_guidance:
       'Surface the URL to the user. Do NOT open it, enter personal data, or accept consent on their behalf.',
     pricing: { solo: '490 CZK/mo, up to 25', team: '1490 CZK/mo, up to 100' },
-    // TODO: Add an English message variant for non-Czech clients.
+    // TODO: Add an English message variant for non-Czech clients (see locale field).
     message:
-      'Hlídání není aktivní. Pro spuštění bezplatného hlídání 1 firmy je třeba dokončit onboarding a udělit souhlas se zpracováním — to provede uživatel přes přiložený onboarding odkaz.',
+      'Hlídání není aktivní. Pro spuštění bezplatného hlídání 1 firmy je třeba dokončit onboarding a udělit souhlas se zpracováním osobních údajů pro účely zasílání notifikací o sledované firmě — to provede uživatel přes přiložený onboarding odkaz.',
+    locale: 'cs',
   };
 }

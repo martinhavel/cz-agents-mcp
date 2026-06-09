@@ -81,7 +81,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
 
   server.tool(
     'watch_entity',
-    'Start onboarding for free monitoring of one Czech company by IČO. Stub only; does not persist a watchlist entry yet.',
+    'Start onboarding for free monitoring of one Czech company by IČO. Stub only — persists nothing yet. Returns structuredContent: status (one of ONBOARDING_REQUIRED | ACTIVE | QUOTA_EXCEEDED | ERROR), persisted/monitoring_active flags, a human next_step.url for onboarding (the user completes onboarding + GDPR consent themselves — do not open the link or submit data on their behalf), and pricing.',
     {
       ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
     },

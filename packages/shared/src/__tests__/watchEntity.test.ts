@@ -15,5 +15,6 @@ describe('getWatchEntityResponse', () => {
     // Text block has no visible link -> message must not dangle a reference to one ("na odkazu výše" regrese).
     expect(response.message).not.toMatch(/výše|above|níže|below/);
     expect(response.pricing.solo).toBeTruthy();
+    expect(response.locale).toBe('cs');
   });
 });
