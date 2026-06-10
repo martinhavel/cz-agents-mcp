@@ -366,7 +366,9 @@ export function buildAresServer(): McpServer {
       inputSchema: {
         ico: z.string().describe('Czech IČO (7-8 digits).'),
       },
-      outputSchema: watchEntityOutputShape,
+      // outputSchema ZÁMĚRNĚ odebráno 2026-06-10: SDK ho generuje jako draft-07 s
+      // type:null + const, což Anthropic MCP tool-ingest odmítá (req_011C… selhání bez tool callu).
+      // structuredContent se vrací dál a funguje i bez deklarovaného schématu.
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async ({ ico }) => {
