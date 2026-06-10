@@ -12,9 +12,13 @@ describe('getWatchEntityResponse', () => {
     expect(response.next_step.actor).toBe('human');
     expect(response.next_step.url).toContain('app.cz-agents.dev');
     expect(response.next_step.url).not.toContain('app-stage');
-    expect(response.message).not.toMatch(/Kč|490|1490|Dokončete|Zapni|Dokonči/);
-    // Text block has no visible link -> message must not dangle a reference to one ("na odkazu výše" regrese).
-    expect(response.message).not.toMatch(/výše|above|níže|below/);
+    // No pricing/monetization in the human message — pricing lives in structuredContent.pricing only.
+    expect(response.message).not.toMatch(/Kč|490|1490|SOLO|TÝM|Dokončete|Zapni|Dokonči/);
+    // The onboarding URL is inlined so content-only clients (no structuredContent) get the action link;
+    // and it must NOT dangle a reference to a link shown "elsewhere" (the "výše"/"přiložený" regrese).
+    expect(response.message).toContain('app.cz-agents.dev');
+    expect(response.message).toContain(response.next_step.url);
+    expect(response.message).not.toMatch(/výše|above|níže|below|přiložený/);
     expect(response.pricing.solo).toBeTruthy();
     expect(response.locale).toBe('cs');
     expect(() => z.object(watchEntityOutputShape).parse(getWatchEntityResponse('28244532'))).not.toThrow();

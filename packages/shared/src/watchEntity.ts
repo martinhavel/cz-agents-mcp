@@ -53,6 +53,9 @@ export const watchEntityOutputShape: ZodRawShape = {
 };
 
 export function getWatchEntityResponse(ico: string): WatchEntityResponse {
+  // Single source for the onboarding URL: used in next_step.url AND inlined into the
+  // human message, so content-only clients (no structuredContent) still get the action link.
+  const onboardingUrl = `${BASE}/monitoring/start?ico=${encodeURIComponent(ico)}`;
   return {
     schema_version: 1,
     status: 'ONBOARDING_REQUIRED',
@@ -67,7 +70,7 @@ export function getWatchEntityResponse(ico: string): WatchEntityResponse {
     next_step: {
       actor: 'human',
       action: 'complete_onboarding',
-      url: `${BASE}/monitoring/start?ico=${encodeURIComponent(ico)}`,
+      url: onboardingUrl,
       requires: ['notification_channel', 'gdpr_consent'],
     },
     agent_guidance:
@@ -75,7 +78,7 @@ export function getWatchEntityResponse(ico: string): WatchEntityResponse {
     pricing: { solo: '490 CZK/mo, up to 25', team: '1490 CZK/mo, up to 100' },
     // TODO: Add an English message variant for non-Czech clients (see locale field).
     message:
-      'Hlídání není aktivní. Pro spuštění bezplatného hlídání 1 firmy je třeba dokončit onboarding a udělit souhlas se zpracováním osobních údajů pro účely zasílání notifikací o sledované firmě — to provede uživatel přes přiložený onboarding odkaz.',
+      `Hlídání není aktivní. Pro spuštění bezplatného hlídání jedné firmy je třeba dokončit onboarding a udělit souhlas se zpracováním osobních údajů pro účely zasílání notifikací o sledované firmě. Onboarding provede uživatel na adrese ${onboardingUrl}.`,
     locale: 'cs',
   };
 }
