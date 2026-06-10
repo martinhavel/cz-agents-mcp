@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
 import { AresClient } from './client.js';
 
 /**
@@ -357,13 +357,18 @@ export function buildAresServer(): McpServer {
     },
   );
 
-  server.tool(
+  server.registerTool(
     'watch_entity',
-    'Start onboarding for free monitoring of one Czech company by IČO. Stub only — persists nothing yet. Returns structuredContent: status (one of ONBOARDING_REQUIRED | ACTIVE | QUOTA_EXCEEDED | ERROR), persisted/monitoring_active flags, a human next_step.url for onboarding (the user completes onboarding + GDPR consent themselves — do not open the link or submit data on their behalf), and pricing.',
     {
-      ico: z.string().describe('Czech IČO (7-8 digits).'),
+      title: 'Watch Czech Company',
+      description:
+        'Start onboarding for free monitoring of one Czech company by IČO. Stub only — persists nothing yet. Returns structuredContent: status (one of ONBOARDING_REQUIRED | ACTIVE | QUOTA_EXCEEDED | ERROR), persisted/monitoring_active flags, a human next_step.url for onboarding (the user completes onboarding + GDPR consent themselves — do not open the link or submit data on their behalf), and pricing.',
+      inputSchema: {
+        ico: z.string().describe('Czech IČO (7-8 digits).'),
+      },
+      outputSchema: watchEntityOutputShape,
+      annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    { title: 'Watch Czech Company', readOnlyHint: true, openWorldHint: false },
     async ({ ico }) => {
       logToolCall('ares', 'watch_entity', { ico });
       const clean = ico.trim();

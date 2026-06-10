@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getWatchEntityResponse } from '../watchEntity.js';
+import { z } from 'zod';
+import { getWatchEntityResponse, watchEntityOutputShape } from '../watchEntity.js';
 
 describe('getWatchEntityResponse', () => {
   it('returns a safe onboarding stub response for watch_entity', () => {
@@ -16,5 +17,6 @@ describe('getWatchEntityResponse', () => {
     expect(response.message).not.toMatch(/výše|above|níže|below/);
     expect(response.pricing.solo).toBeTruthy();
     expect(response.locale).toBe('cs');
+    expect(() => z.object(watchEntityOutputShape).parse(getWatchEntityResponse('28244532'))).not.toThrow();
   });
 });

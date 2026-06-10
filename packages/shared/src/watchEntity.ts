@@ -1,3 +1,5 @@
+import { z, type ZodRawShape } from 'zod';
+
 const BASE = process.env.MONITORING_APP_URL ?? 'https://app.cz-agents.dev';
 
 export type WatchEntityStatus = 'ONBOARDING_REQUIRED' | 'ACTIVE' | 'QUOTA_EXCEEDED' | 'ERROR';
@@ -28,6 +30,27 @@ export interface WatchEntityResponse extends Record<string, unknown> {
   message: string;
   locale: 'cs';
 }
+
+export const watchEntityOutputShape: ZodRawShape = {
+  schema_version: z.literal(1),
+  status: z.enum(['ONBOARDING_REQUIRED', 'ACTIVE', 'QUOTA_EXCEEDED', 'ERROR']),
+  persisted: z.boolean(),
+  monitoring_active: z.boolean(),
+  ico: z.string(),
+  tier: z.literal('free'),
+  free_quota: z.object({ limit: z.number(), used: z.number() }),
+  delivery_channel: z.null(),
+  next_step: z.object({
+    actor: z.literal('human'),
+    action: z.literal('complete_onboarding'),
+    url: z.string(),
+    requires: z.array(z.enum(['notification_channel', 'gdpr_consent'])),
+  }),
+  agent_guidance: z.string(),
+  pricing: z.object({ solo: z.string(), team: z.string() }),
+  message: z.string(),
+  locale: z.literal('cs'),
+};
 
 export function getWatchEntityResponse(ico: string): WatchEntityResponse {
   return {
