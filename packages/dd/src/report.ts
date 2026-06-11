@@ -16,6 +16,7 @@ import { evaluateFlags, scoreFromFlags } from './score.js';
 import { detectGovtAddress } from './govtAddress.js';
 import type {
   DdReport,
+  DdSanctions,
   SanctionMatchSummary,
   StatutoryMember,
 } from './types.js';
@@ -43,7 +44,8 @@ export async function buildReport(
 
   const { members, mostRecentStatutoryChange } = extractStatutoryMembers(vr);
 
-  const screenedMembers = await screenStatutory(members, clients.sanctions);
+  const statutoryScreening = await screenStatutory(members, clients.sanctions);
+  const screenedMembers = statutoryScreening.members;
 
   // Govt-address detection on each statutory FO (úřad bydliště = bílý kůň indicator).
   // Cheap heuristic — runs even in basic depth.
@@ -138,7 +140,9 @@ export async function buildReport(
     );
   }
 
-  const companyMatch = screenCompany(ico, subject?.obchodniJmeno, clients.sanctions);
+  const companyScreening = screenCompany(ico, subject?.obchodniJmeno, clients.sanctions);
+  const companyMatch = companyScreening.match;
+  const sanctionsUnavailable = statutoryScreening.error === 'sanctions_unavailable' || companyScreening.error === 'sanctions_unavailable';
 
   const insolvency = !basicOnly && clients.isir
     ? await checkCompanyInsolvency(clients.isir, ico)
@@ -152,9 +156,8 @@ export async function buildReport(
   // VAT-group members (§ 5a ZDPH): ARES returns dicSkDph for the group's DIČ.
   // ADIS only knows the group DIČ, not the member's own DIČ — use dicSkDph when present.
   const adisDic = subject?.dicSkDph ?? subject?.dic ?? undefined;
-  const adisStatus = clients.adis
-    ? await safe(() => clients.adis!.checkPayer(adisDic ? { dic: adisDic } : { ico }))
-    : null;
+  const adisResult = await checkAdisPayer(clients.adis, adisDic ? { dic: adisDic } : { ico });
+  const adisStatus = adisResult.status;
 
   const isVirtualAddress = !basicOnly
     ? await checkVirtualAddress(clients.ares, subject)
@@ -215,6 +218,7 @@ export async function buildReport(
       reliability: adisStatus?.reliability,
       unreliable_since: adisStatus?.unreliable_since,
       subject_type: adisStatus?.subject_type,
+      ...(adisResult.error ? { checked: false as const, error: adisResult.error } : {}),
     },
     statutory_body: screenedMembers,
     insolvency: insolvency.error
@@ -228,10 +232,11 @@ export async function buildReport(
       : !basicOnly && clients.isir
         ? { has_active_proceeding: false, note: 'No record found' }
         : undefined,
-    sanctions: {
+    sanctions: buildSanctionsReport({
       company_match: companyMatch ? toSummary(companyMatch) : undefined,
       any_statutory_match: screenedMembers.some((m) => m.sanctions_match),
-    },
+      unavailable: sanctionsUnavailable,
+    }),
     red_flags: flags,
     risk_score: scoreFromFlags(flags),
   };
@@ -347,46 +352,86 @@ async function checkCompanyInsolvency(
 async function screenStatutory(
   members: StatutoryExtract['members'],
   sanctions: SanctionsLike | undefined,
-): Promise<StatutoryMember[]> {
+): Promise<{ members: StatutoryMember[]; error: 'sanctions_unavailable' | null }> {
+  const unscreenedMembers = () => members.map((m) => ({
+    name: m.name,
+    role: m.role,
+    since: m.since,
+    is_person: m.is_person,
+    datumNarozeni: m.dob,
+    legal_entity_ico: m.legal_entity_ico,
+  }));
+
   if (!sanctions) {
-    return members.map((m) => ({
-      name: m.name,
-      role: m.role,
-      since: m.since,
-      is_person: m.is_person,
-      datumNarozeni: m.dob,
-      legal_entity_ico: m.legal_entity_ico,
-    }));
+    return { members: unscreenedMembers(), error: 'sanctions_unavailable' };
   }
 
-  return members.map((m) => {
-    const matches = m.is_person
-      ? sanctions.searchByName(m.name, { typeFilter: 'person', threshold: 80, limit: 1, dob: m.dob })
-      : m.legal_entity_ico
-        ? sanctions.searchByIco(m.legal_entity_ico, m.name)
-        : sanctions.searchByName(m.name, { typeFilter: 'entity', threshold: 80, limit: 1 });
-
-    const top = matches[0];
+  try {
     return {
-      name: m.name,
-      role: m.role,
-      since: m.since,
-      is_person: m.is_person,
-      datumNarozeni: m.dob,
-      legal_entity_ico: m.legal_entity_ico,
-      sanctions_match: top ? toSummary(top) : undefined,
+      members: members.map((m) => {
+        const matches = m.is_person
+          ? sanctions.searchByName(m.name, { typeFilter: 'person', threshold: 80, limit: 1, dob: m.dob })
+          : m.legal_entity_ico
+            ? sanctions.searchByIco(m.legal_entity_ico, m.name)
+            : sanctions.searchByName(m.name, { typeFilter: 'entity', threshold: 80, limit: 1 });
+
+        const top = matches[0];
+        return {
+          name: m.name,
+          role: m.role,
+          since: m.since,
+          is_person: m.is_person,
+          datumNarozeni: m.dob,
+          legal_entity_ico: m.legal_entity_ico,
+          sanctions_match: top ? toSummary(top) : undefined,
+        };
+      }),
+      error: null,
     };
-  });
+  } catch {
+    return { members: unscreenedMembers(), error: 'sanctions_unavailable' };
+  }
 }
 
 function screenCompany(
   ico: string,
   name: string | undefined,
   sanctions: SanctionsLike | undefined,
-): SanctionsMatch | null {
-  if (!sanctions) return null;
-  const matches = sanctions.searchByIco(ico, name);
-  return matches[0] ?? null;
+): { match: SanctionsMatch | null; error: 'sanctions_unavailable' | null } {
+  if (!sanctions) return { match: null, error: 'sanctions_unavailable' };
+  try {
+    const matches = sanctions.searchByIco(ico, name);
+    return { match: matches[0] ?? null, error: null };
+  } catch {
+    return { match: null, error: 'sanctions_unavailable' };
+  }
+}
+
+async function checkAdisPayer(
+  adis: DdClients['adis'],
+  input: { ico?: string; dic?: string },
+): Promise<{
+  status: Awaited<ReturnType<NonNullable<DdClients['adis']>['checkPayer']>>;
+  error: 'adis_unavailable' | null;
+}> {
+  if (!adis) return { status: null, error: 'adis_unavailable' };
+  try {
+    return { status: await adis.checkPayer(input), error: null };
+  } catch {
+    return { status: null, error: 'adis_unavailable' };
+  }
+}
+
+function buildSanctionsReport(input: {
+  company_match?: SanctionMatchSummary;
+  any_statutory_match: boolean;
+  unavailable: boolean;
+}): DdSanctions {
+  return {
+    company_match: input.company_match,
+    any_statutory_match: input.any_statutory_match,
+    ...(input.unavailable ? { checked: false as const, error: 'sanctions_unavailable' as const } : {}),
+  };
 }
 
 function toSummary(match: SanctionsMatch): SanctionMatchSummary {

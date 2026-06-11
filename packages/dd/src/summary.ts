@@ -8,11 +8,13 @@ export interface RiskScoreSummaryPayload {
   level: RiskLevel;
   top_flags: RedFlag[];
   retrieved_at?: string;
+  unavailable_sources?: SourceAvailability[];
 }
 
 export function buildDdSummaryMarkdown(report: DdReport): string {
   const name = report.company.name ?? 'Nenalezeno';
-  const verdict = verdictFor(report.risk_score.level);
+  const unavailableSources = getUnavailableReferencedSources(report);
+  const verdict = verdictFor(report.risk_score.level, unavailableSources);
   const lines = [
     `**${name}** · IČO ${report.ico} — ${verdict.icon} ${verdict.text}. Riziko ${report.risk_score.value}/100 (${report.risk_score.level}).`,
     buildStatusLine(report),
@@ -27,7 +29,7 @@ export function buildDdSummaryMarkdown(report: DdReport): string {
 }
 
 export function buildRiskScoreSummaryMarkdown(payload: RiskScoreSummaryPayload): string {
-  const verdict = verdictFor(payload.level);
+  const verdict = verdictFor(payload.level, payload.unavailable_sources ?? []);
   const lines = [
     `**${payload.company_name ?? 'Nenalezeno'}** · IČO ${payload.ico} — ${verdict.icon} ${verdict.text}. Riziko ${payload.value}/100 (${payload.level}).`,
     ...buildFlagLines(payload.top_flags),
@@ -36,9 +38,10 @@ export function buildRiskScoreSummaryMarkdown(payload: RiskScoreSummaryPayload):
   return lines.filter(Boolean).join('\n');
 }
 
-function verdictFor(level: RiskLevel): { icon: string; text: string } {
+function verdictFor(level: RiskLevel, unavailableSources: SourceAvailability[] = []): { icon: string; text: string } {
   if (level === 'high') return { icon: '🔴', text: 'RIZIKO' };
   if (level === 'medium') return { icon: '⚠', text: 'POZOR' };
+  if (unavailableSources.length > 0) return { icon: '⚠', text: 'ČÁSTEČNĚ PROVĚŘENO' };
   return { icon: '✅', text: 'ČISTÉ' };
 }
 
@@ -55,10 +58,16 @@ function buildStatusLine(report: DdReport): string {
   }
 
   const sanctionsMatches = report.statutory_body.filter((m) => m.sanctions_match).length;
-  const sanctionsText = report.sanctions.company_match || report.sanctions.any_statutory_match
-    ? `sankční shoda (${sanctionsMatches}/${report.statutory_body.length} statutárů)`
-    : `bez sankcí (${sanctionsMatches}/${report.statutory_body.length} statutárů)`;
+  const sanctionsText = report.sanctions.checked === false && report.sanctions.error === 'sanctions_unavailable'
+    ? 'sankce neprověřeny (sankce nedostupný)'
+    : report.sanctions.company_match || report.sanctions.any_statutory_match
+      ? `sankční shoda (${sanctionsMatches}/${report.statutory_body.length} statutárů)`
+      : `bez sankcí (${sanctionsMatches}/${report.statutory_body.length} statutárů)`;
   parts.push(sanctionsText);
+
+  if (report.vat.checked === false && report.vat.error === 'adis_unavailable') {
+    parts.push('ADIS nedostupný — DPH spolehlivost neověřena');
+  }
   return parts.join(' · ');
 }
 
@@ -76,10 +85,14 @@ function buildBasicDataLine(report: DdReport): string {
 
 function buildSourcesLine(report: DdReport): string {
   const sources = ['ARES', 'EU+OFAC sankce'];
-  if (report.vat.reliability || report.vat.subject_type || report.vat.unreliable_since) sources.push('ADIS');
+  if (report.vat.checked === false || report.vat.reliability || report.vat.subject_type || report.vat.unreliable_since) sources.push('ADIS');
   if (report.insolvency) sources.push('ISIR');
   if (!report.basic_only || report.red_flags.some((f) => f.code === 'VIRTUAL_ADDRESS')) sources.push('test virt.adresy');
-  return `${sources.length} zdrojů: ${sources.join(' · ')}.`;
+  const unavailable = getUnavailableReferencedSources(report);
+  const suffix = unavailable.length > 0
+    ? ` — ${unavailable.map((source) => `${source.label} nedostupný`).join(' · ')}`
+    : '';
+  return `${sources.length} zdrojů: ${sources.join(' · ')}${suffix}.`;
 }
 
 function buildStatutoryLine(report: DdReport): string {
@@ -92,6 +105,25 @@ function buildStatutoryLine(report: DdReport): string {
 function buildFlagLines(flags: RedFlag[]): string[] {
   if (flags.length === 0) return ['Žádné nálezy v prověřených zdrojích.'];
   return flags.map((flag) => `${severityIcon(flag.severity)} ${flag.description} ${gloss(flag.severity)}`);
+}
+
+export interface SourceAvailability {
+  id: 'isir' | 'sanctions' | 'adis';
+  label: string;
+}
+
+export function getUnavailableReferencedSources(report: DdReport): SourceAvailability[] {
+  const unavailable: SourceAvailability[] = [];
+  if (report.insolvency?.checked === false && report.insolvency.error === 'isir_unavailable') {
+    unavailable.push({ id: 'isir', label: 'ISIR' });
+  }
+  if (report.sanctions.checked === false && report.sanctions.error === 'sanctions_unavailable') {
+    unavailable.push({ id: 'sanctions', label: 'sankce' });
+  }
+  if (report.vat.checked === false && report.vat.error === 'adis_unavailable') {
+    unavailable.push({ id: 'adis', label: 'ADIS' });
+  }
+  return unavailable;
 }
 
 function severityIcon(severity: RedFlag['severity']): string {

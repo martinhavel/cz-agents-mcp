@@ -106,6 +106,9 @@ export interface DdVat {
   unreliable_since?: string;
   /** ADIS subject classification (V2). */
   subject_type?: VatSubjectType;
+  /** False when ADIS was referenced but could not be queried. */
+  checked?: boolean;
+  error?: 'adis_unavailable';
 }
 
 export interface DdInsolvency {
@@ -121,6 +124,9 @@ export interface DdSanctions {
   company_match?: SanctionMatchSummary;
   /** True if any statutory member matched a list (details on each member). */
   any_statutory_match: boolean;
+  /** False when sanctions screening was referenced but could not be queried. */
+  checked?: boolean;
+  error?: 'sanctions_unavailable';
 }
 
 export interface DdRiskScore {
