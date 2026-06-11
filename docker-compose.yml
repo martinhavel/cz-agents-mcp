@@ -179,8 +179,10 @@ services:
     command: ["node", "packages/sanctions/dist/cli-refresh.js"]
 
   # 2026-05-08 — Reality MCP server (distress real estate intelligence).
-  # Read-only access to cz-agents-webapp SQLite database (mounted from
-  # webapp-data volume defined in cz-agents-webapp/docker-compose.yml).
+  # Reads the live reality-webapp SQLite database (external volume
+  # czagents_reality_webapp_data, owned by the reality webapp compose).
+  # Mount is rw because the DB runs in WAL mode (readers need write access
+  # to the -shm file); the MCP itself opens the DB readonly (db.ts).
   realestate:
     build:
       context: .
@@ -198,7 +200,7 @@ services:
       - RATE_LIMIT_MAX=30
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
-      - cz-agents-webapp_webapp-data:/data:ro
+      - czagents_reality_webapp_data:/data
       - tokens-data:/var/lib/czagents-tokens
       - tool-events:/var/lib/czagents-events
     healthcheck:
@@ -276,5 +278,5 @@ volumes:
   sanctions-data:
   tokens-data:
   gleif-cache:
-  cz-agents-webapp_webapp-data:
+  czagents_reality_webapp_data:
     external: true
