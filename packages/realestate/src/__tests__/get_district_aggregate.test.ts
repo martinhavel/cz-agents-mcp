@@ -83,7 +83,8 @@ function insertLead(opts: {
     `INS-${opts.id}`,
     'KSPH',
     opts.ingestedAt ?? new Date().toISOString(),
-    opts.status ?? 'pending_vision',
+    // Aggregates count status='scored' only — default test leads to that.
+    opts.status ?? 'scored',
     opts.kuMatchedName ?? 'Praha',
     opts.okresSlug,
   );
@@ -127,14 +128,16 @@ describe('getDistrictAggregate', () => {
     expect(result.low_activity).toBe(true);
   });
 
-  it('excludes archived leads from distress count', () => {
+  it('counts only scored leads — archived/pending/discarded excluded', () => {
     for (let i = 0; i < 6; i++) {
       insertLead({ id: `active-${i}`, sourceType: 'isir', kuMatchedName: 'Praha' });
     }
     insertLead({ id: 'arch-1', sourceType: 'isir', kuMatchedName: 'Praha', status: 'archived' });
+    insertLead({ id: 'pend-1', sourceType: 'isir', kuMatchedName: 'Praha', status: 'pending_vision' });
+    insertLead({ id: 'disc-1', sourceType: 'isir', kuMatchedName: 'Praha', status: 'discarded' });
 
     const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
-    // active 6 >= k=3 → not suppressed
+    // scored 6 >= k=3 → not suppressed; non-scored rows don't inflate it
     expect(result.distress_lead_count).toBe(6);
   });
 

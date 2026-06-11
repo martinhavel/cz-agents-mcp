@@ -62,12 +62,15 @@ export function getDistrictAggregate(params: {
       OR (l.okresSlug IS NULL AND l.kuMatchedName = @okres)
     )
     AND l.ingestedAt >= @since
-    AND l.status != 'archived'
+    AND l.status = 'scored'
   `;
 
   // Prefer RealEstateLead.okresSlug (canonical district key). Existing
   // production rows may predate that backfill, so null-slug rows fall back to
   // kuMatchedName when it exactly matches the requested okres name.
+  // status='scored' only — pending leads aren't confirmed distress yet and
+  // discarded ones have no property; counting them inflated the public
+  // aggregates (previously only 'archived' was excluded).
   const distressCount = (db
     .prepare(`
       SELECT COUNT(*) AS c
