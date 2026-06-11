@@ -7,8 +7,10 @@ describe('resolveLegalForm', () => {
     expect(resolveLegalForm('121')).toBe('a.s.');
   });
 
-  it('passes through unknown numeric codes', () => {
-    expect(resolveLegalForm('999')).toBe('999');
+  it('resolves numeric codes present in codebook', () => {
+    expect(resolveLegalForm('999')).toBe('Ostatní');
+    // truly unknown code falls back to the code itself
+    expect(resolveLegalForm('998')).toBe('998');
   });
 
   it('passes through non-numeric values', () => {

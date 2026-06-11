@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resolveLegalForm } from '@czagents/shared';
 import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown } from '../summary.js';
 import { buildDdServer } from '../server.js';
@@ -105,9 +105,10 @@ describe('summary markdown', () => {
     expect(text).toContain('bez sankcí (0/0 statutárů)');
   });
 
-  it('resolves legal form known, unknown, and non-numeric values', () => {
+  it('resolves legal form known, numeric-in-codebook, unknown, and non-numeric values', () => {
     expect(resolveLegalForm('112')).toBe('s.r.o.');
-    expect(resolveLegalForm('999')).toBe('999');
+    expect(resolveLegalForm('999')).toBe('Ostatní');
+    expect(resolveLegalForm('998')).toBe('998'); // truly unknown
     expect(resolveLegalForm('spolek')).toBe('spolek');
   });
 
@@ -143,6 +144,154 @@ describe('summary markdown', () => {
       expect(response.content[1]?.text).toBe(JSON.stringify(expected, null, 2));
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('verdict degradation — unavailable sources', () => {
+  it('ISIR down + otherwise clean → ⚠ ČÁSTEČNĚ PROVĚŘENO, not ✅', () => {
+    const text = buildDdSummaryMarkdown(report({
+      insolvency: { checked: false, error: 'isir_unavailable' },
+      risk_score: { value: 0, level: 'low' },
+    }));
+    expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅');
+    expect(text).toContain('ISIR nedostupný');
+  });
+
+  it('sanctions down + otherwise clean → ⚠ ČÁSTEČNĚ PROVĚŘENO, not "bez sankcí"', () => {
+    const text = buildDdSummaryMarkdown(report({
+      sanctions: { any_statutory_match: false, checked: false, error: 'sanctions_unavailable' },
+      risk_score: { value: 0, level: 'low' },
+    }));
+    expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅');
+    expect(text).toContain('sankce neprověřeny');
+    expect(text).not.toContain('bez sankcí');
+  });
+
+  it('ADIS down + otherwise clean → ⚠ ČÁSTEČNĚ PROVĚŘENO, not ✅', () => {
+    const text = buildDdSummaryMarkdown(report({
+      vat: { is_payer: false, bank_accounts: [], checked: false, error: 'adis_unavailable' },
+      risk_score: { value: 0, level: 'low' },
+    }));
+    expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅');
+    expect(text).toContain('ADIS nedostupný');
+  });
+
+  it('critical flag + source down → 🔴 RIZIKO wins over ⚠ ČÁSTEČNĚ', () => {
+    const text = buildDdSummaryMarkdown(report({
+      insolvency: { checked: false, error: 'isir_unavailable' },
+      red_flags: [flag({ code: 'INSOLVENCY_ACTIVE', severity: 'critical', weight: 50, description: 'Aktivní insolvenční řízení.', source: 'isir' })],
+      risk_score: { value: 50, level: 'high' },
+    }));
+    expect(text).toContain('🔴 RIZIKO');
+    expect(text).not.toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅');
+  });
+
+  it('all sources OK + no flags → ✅ ČISTÉ', () => {
+    const text = buildDdSummaryMarkdown(report());
+    expect(text).toContain('✅ ČISTÉ');
+    expect(text).not.toContain('ČÁSTEČNĚ');
+  });
+
+  it('risk-score summary with unavailable sources shows ⚠ ČÁSTEČNĚ PROVĚŘENO', () => {
+    const text = buildRiskScoreSummaryMarkdown({
+      ico: '12345679',
+      company_name: 'Test Co. s.r.o.',
+      value: 0,
+      level: 'low',
+      top_flags: [],
+      retrieved_at: NOW,
+      unavailable_sources: [{ id: 'isir', label: 'ISIR' }],
+    });
+    expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅');
+  });
+});
+
+describe('audit wiring', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('tool succeeds even when audit POST fails (fire-and-forget)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (typeof url === 'string' && url.includes('mcp-audit')) {
+        throw new Error('audit endpoint unreachable');
+      }
+      // Pass through — should not be reached in unit test with mocked ares
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    // Provide a real token so audit is attempted
+    process.env.MCP_AUDIT_URL = 'https://app.cz-agents.dev';
+    process.env.MCP_AUDIT_KEY = 'test-key';
+    try {
+      const ares = mockAres();
+      const server = buildDdServer({ ares }, 'free', { audit: { tokenId: 'tok_test123' } });
+      const tool = (server as unknown as { _registeredTools: Record<string, { handler: (args: unknown, extra?: unknown) => Promise<{ content: Array<{ text: string }> }> }> })
+        ._registeredTools.get_risk_score;
+
+      // Stub ares fetch to bypass network; the audit fetch mock throws — tool must still return.
+      vi.spyOn(ares, 'getByIco').mockResolvedValue({
+        ico: '12345679',
+        obchodniJmeno: 'Test Co. s.r.o.',
+        pravniForma: '112',
+        datumVzniku: '2010-01-01',
+        dic: 'CZ12345679',
+        sidlo: { textovaAdresa: 'Testovací 1, Praha' },
+      });
+      vi.spyOn(ares, 'getBankAccounts').mockResolvedValue([]);
+      vi.spyOn(ares, 'getVrRecord').mockResolvedValue(null);
+      vi.spyOn(ares, 'search').mockResolvedValue({ pocetCelkem: 0, ekonomickeSubjekty: [] });
+
+      // fetch is only called for audit (fire-and-forget) — mock above will throw but tool must succeed
+      const response = await tool.handler({ ico: '12345679' });
+      expect(response.content[0]?.text).toBeTruthy();
+      // Audit was attempted (fetchSpy called with audit URL)
+      await new Promise((r) => setTimeout(r, 10)); // let void promise settle
+      const auditCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes('mcp-audit'));
+      expect(auditCalls.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      delete process.env.MCP_AUDIT_URL;
+      delete process.env.MCP_AUDIT_KEY;
+    }
+  });
+
+  it('no audit call when tokenId absent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('should not be called'));
+    process.env.MCP_AUDIT_URL = 'https://app.cz-agents.dev';
+    process.env.MCP_AUDIT_KEY = 'test-key';
+    try {
+      const ares = mockAres();
+      vi.spyOn(ares, 'getByIco').mockResolvedValue({
+        ico: '12345679',
+        obchodniJmeno: 'Test Co. s.r.o.',
+        pravniForma: '112',
+        datumVzniku: '2010-01-01',
+        dic: 'CZ12345679',
+        sidlo: { textovaAdresa: 'Testovací 1, Praha' },
+      });
+      vi.spyOn(ares, 'getBankAccounts').mockResolvedValue([]);
+      vi.spyOn(ares, 'getVrRecord').mockResolvedValue(null);
+      vi.spyOn(ares, 'search').mockResolvedValue({ pocetCelkem: 0, ekonomickeSubjekty: [] });
+
+      // No audit context → no tokenId → fetch must NOT be called
+      const server = buildDdServer({ ares }, 'free');
+      const tool = (server as unknown as { _registeredTools: Record<string, { handler: (args: unknown, extra?: unknown) => Promise<{ content: Array<{ text: string }> }> }> })
+        ._registeredTools.get_risk_score;
+
+      const response = await tool.handler({ ico: '12345679' });
+      expect(response.content[0]?.text).toBeTruthy();
+      await new Promise((r) => setTimeout(r, 10));
+      const auditCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes('mcp-audit'));
+      expect(auditCalls.length).toBe(0);
+    } finally {
+      delete process.env.MCP_AUDIT_URL;
+      delete process.env.MCP_AUDIT_KEY;
     }
   });
 });
