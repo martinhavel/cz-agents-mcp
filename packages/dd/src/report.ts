@@ -141,8 +141,8 @@ export async function buildReport(
   const companyMatch = screenCompany(ico, subject?.obchodniJmeno, clients.sanctions);
 
   const insolvency = !basicOnly && clients.isir
-    ? await safe(() => clients.isir!.checkActiveInsolvency(ico))
-    : null;
+    ? await checkCompanyInsolvency(clients.isir, ico)
+    : { status: null, error: null };
 
   // ADIS unreliable-VAT-payer check. Cheap (~1s) and runs even in basic depth
   // because joint-liability under § 109 ZDPH is one of the more material risks
@@ -173,7 +173,7 @@ export async function buildReport(
         name: m.name,
         match: rebuildSanctionsMatch(m.sanctions_match!),
       })),
-    insolvency: insolvency ?? null,
+    insolvency: insolvency.status ?? null,
     isVirtualAddress,
     mostRecentStatutoryChange,
     statutoryPersonalInsolvencies: screenedMembers
@@ -217,11 +217,13 @@ export async function buildReport(
       subject_type: adisStatus?.subject_type,
     },
     statutory_body: screenedMembers,
-    insolvency: insolvency
+    insolvency: insolvency.error
+      ? { checked: false, error: 'isir_unavailable' }
+      : insolvency.status
       ? {
-          has_active_proceeding: insolvency.has_active,
-          spisova_znacka: insolvency.spisova_znacka,
-          started_on: insolvency.started_on,
+          has_active_proceeding: insolvency.status.has_active,
+          spisova_znacka: insolvency.status.spisova_znacka,
+          started_on: insolvency.status.started_on,
         }
       : !basicOnly && clients.isir
         ? { has_active_proceeding: false, note: 'No record found' }
@@ -311,6 +313,20 @@ function mapMember(raw: AresStatutoryMember): StatutoryExtract['members'][number
     };
   }
   return null;
+}
+
+async function checkCompanyInsolvency(
+  isir: NonNullable<DdClients['isir']>,
+  ico: string,
+): Promise<{
+  status: Awaited<ReturnType<NonNullable<DdClients['isir']>['checkActiveInsolvency']>>;
+  error: 'isir_unavailable' | null;
+}> {
+  try {
+    return { status: await isir.checkActiveInsolvency(ico), error: null };
+  } catch {
+    return { status: null, error: 'isir_unavailable' };
+  }
 }
 
 async function screenStatutory(

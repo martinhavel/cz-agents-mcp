@@ -109,10 +109,12 @@ export interface DdVat {
 }
 
 export interface DdInsolvency {
-  has_active_proceeding: boolean;
+  has_active_proceeding?: boolean;
   spisova_znacka?: string;
   started_on?: string;
   note?: string;
+  checked?: boolean;
+  error?: 'isir_unavailable';
 }
 
 export interface DdSanctions {

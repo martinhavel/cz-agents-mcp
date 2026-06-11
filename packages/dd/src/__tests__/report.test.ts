@@ -46,6 +46,14 @@ function mockIsir(active: boolean): IsirLike {
   };
 }
 
+function mockUnavailableIsir(): IsirLike {
+  return {
+    checkActiveInsolvency: async () => {
+      throw new Error('ISIR unavailable');
+    },
+  };
+}
+
 describe('buildReport', () => {
   it('builds basic report from ARES alone (no sanctions client)', async () => {
     const ares = mockAres({
@@ -167,6 +175,18 @@ describe('buildReport', () => {
     const report = await buildReport('12345678', { ares, isir }, { depth: 'basic' });
     expect(report.basic_only).toBe(true);
     expect(report.insolvency).toBeUndefined();
+    expect(report.red_flags.find((f) => f.code === 'INSOLVENCY_ACTIVE')).toBeUndefined();
+  });
+
+  it('does not map ISIR errors to inactive insolvency', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345679', obchodniJmeno: 'Test Co. s.r.o.' },
+    });
+
+    const report = await buildReport('12345679', { ares, isir: mockUnavailableIsir() }, { depth: 'full' });
+
+    expect(report.insolvency).toEqual({ checked: false, error: 'isir_unavailable' });
+    expect(report.insolvency?.has_active_proceeding).toBeUndefined();
     expect(report.red_flags.find((f) => f.code === 'INSOLVENCY_ACTIVE')).toBeUndefined();
   });
 
