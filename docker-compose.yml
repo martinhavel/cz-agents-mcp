@@ -101,6 +101,8 @@ services:
       # in seconds. The 30/min default routinely hits 429 in single chat turn.
       - RATE_LIMIT_MAX=600
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
+      - MCP_AUDIT_URL=${MCP_AUDIT_URL:-}
+      - MCP_AUDIT_KEY=${MCP_AUDIT_KEY:-}
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions:ro
       - tokens-data:/var/lib/czagents-tokens
