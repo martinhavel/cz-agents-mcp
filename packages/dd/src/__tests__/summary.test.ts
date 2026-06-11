@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resolveLegalForm } from '@czagents/shared';
 import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown } from '../summary.js';
+import { buildDdServer } from '../server.js';
+import { buildReport } from '../report.js';
 import type { DdReport, RedFlag } from '../types.js';
+import type { AresLike } from '../clients.js';
 
 const NOW = '2026-06-11T18:00:00.000Z';
 
@@ -122,4 +125,49 @@ describe('summary markdown', () => {
     expect(text).toContain('*Snapshot 2026-06-11T18:00:00.000Z · cz-agents.dev*');
     expect(text).not.toContain('placená úroveň');
   });
+
+  it('returns summary first and byte-stable raw JSON second from get_dd_report', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(NOW));
+    try {
+      const ares = mockAres();
+      const expected = await buildReport('12345679', { ares }, { depth: 'basic' });
+      const server = buildDdServer({ ares });
+      const tool = (server as unknown as { _registeredTools: Record<string, { handler: (args: unknown, extra?: unknown) => Promise<{ content: Array<{ text: string }> }> }> })
+        ._registeredTools.get_dd_report;
+
+      const response = await tool.handler({ ico: '12345679', depth: 'basic' }, { sessionId: 'summary-contract' });
+
+      expect(response.content[0]?.text.startsWith('**')).toBe(true);
+      expect(JSON.parse(response.content[1]!.text)).toEqual(expected);
+      expect(response.content[1]?.text).toBe(JSON.stringify(expected, null, 2));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
+
+function mockAres(): AresLike {
+  return {
+    getByIco: async () => ({
+      ico: '12345679',
+      obchodniJmeno: 'Test Co. s.r.o.',
+      pravniForma: '112',
+      datumVzniku: '2010-01-01',
+      dic: 'CZ12345679',
+      sidlo: { textovaAdresa: 'Testovací 1, Praha' },
+    }),
+    getBankAccounts: async () => [{ cisloUctu: '123', kodBanky: '0100' }],
+    getVrRecord: async () => ({
+      ico: '12345679',
+      statutarniOrgany: [{
+        nazevOrganu: 'Jednatelé',
+        clenoveOrganu: [{
+          fyzickaOsoba: { jmeno: 'Jan', prijmeni: 'Test' },
+          datumZapisu: '2020-01-01',
+        }],
+      }],
+    }),
+    search: async () => ({ pocetCelkem: 0, ekonomickeSubjekty: [] }),
+  };
+}

@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
 import { buildReport } from './report.js';
+import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown } from './summary.js';
 import { buildChain } from './chain.js';
 import { detectNomineeDirector } from './patterns/nominee-director.js';
 import { buildTimeline } from './patterns/risk-timeline.js';
@@ -75,7 +76,12 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
       const clean = validateIcoInput(ico);
       trackIco(clean);
       const report = await buildReport(clean, clients, { depth });
-      return wrapWithCTAHint(JSON.stringify(report, null, 2), clean, extra?.sessionId);
+      return wrapWithCTAHint(
+        buildDdSummaryMarkdown(report),
+        JSON.stringify(report, null, 2),
+        clean,
+        extra?.sessionId,
+      );
     },
   );
 
@@ -114,13 +120,18 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
       trackIco(clean);
       const report = await buildReport(clean, clients, { depth: 'basic' });
       const top = report.red_flags.slice().sort((a, b) => b.weight - a.weight).slice(0, 5);
-      return wrap(JSON.stringify({
+      const payload = {
         ico: clean,
         company_name: report.company.name,
         value: report.risk_score.value,
         level: report.risk_score.level,
         top_flags: top,
-      }, null, 2));
+        retrieved_at: report.retrieved_at,
+      };
+      return wrapBlocks(
+        buildRiskScoreSummaryMarkdown(payload),
+        JSON.stringify(payload, null, 2),
+      );
     },
   );
 
@@ -339,10 +350,15 @@ function wrap(text: string) {
   return { content: [{ type: 'text' as const, text }] };
 }
 
-function wrapWithCTAHint(text: string, ico: string, scopeId?: string) {
+function wrapBlocks(...blocks: string[]) {
+  return { content: blocks.map((text) => ({ type: 'text' as const, text })) };
+}
+
+function wrapWithCTAHint(summary: string, rawJson: string, ico: string, scopeId?: string) {
   return {
     content: [
-      { type: 'text' as const, text },
+      { type: 'text' as const, text: summary },
+      { type: 'text' as const, text: rawJson },
       ...getCTAHintBlocks(ico, scopeId),
     ],
   };
