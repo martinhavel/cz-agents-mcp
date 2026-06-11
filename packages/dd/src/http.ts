@@ -8,6 +8,8 @@
  *   TOKEN_DB             — billing tokens SQLite (default ./tokens.db)
  *   STRIPE_WEBHOOK_SECRET
  *   ADIS_SOAP_ENABLED    — set to 1 to enable live ADIS unreliable-VAT-payer lookup
+ *   MCP_AUDIT_URL        — webapp base URL for internal MCP audit ingestion
+ *   MCP_AUDIT_KEY        — internal key sent to MCP audit ingestion
  *   PORT, MCP_PATH, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS, MAX_BODY_BYTES
  */
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -211,7 +213,10 @@ async function main() {
         tokenTier === 'pro' || tokenTier === 're_pro' ? 'compliance' as const :
         tokenTier === 'enterprise' ? 'enterprise' as const :
         'free' as const;
-      const server = buildDdServer(clients, ddTier);
+      const audit = auth.token.token === '__anonymous__'
+        ? undefined
+        : { tokenId: auth.token.token, userId: auth.token.stripe_customer_id || undefined };
+      const server = buildDdServer(clients, ddTier, { audit });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         // Allow plain application/json responses for clients (e.g. Anthropic

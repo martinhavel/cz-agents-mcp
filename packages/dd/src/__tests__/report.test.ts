@@ -46,6 +46,14 @@ function mockIsir(active: boolean): IsirLike {
   };
 }
 
+function mockUnavailableIsir(): IsirLike {
+  return {
+    checkActiveInsolvency: async () => {
+      throw new Error('ISIR unavailable');
+    },
+  };
+}
+
 describe('buildReport', () => {
   it('builds basic report from ARES alone (no sanctions client)', async () => {
     const ares = mockAres({
@@ -121,6 +129,46 @@ describe('buildReport', () => {
     expect(report.risk_score.level).toBe('high');
   });
 
+  it('falls back to jednatel from s.r.o. statutory organ name', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345679', obchodniJmeno: 'Test Co. s.r.o.' },
+      vr: {
+        ico: '12345679',
+        statutarniOrgany: [{
+          nazevOrganu: 'Jednatelé',
+          clenoveOrganu: [{
+            fyzickaOsoba: { jmeno: 'Jan', prijmeni: 'Test' },
+            datumZapisu: '2024-01-01',
+          }],
+        }],
+      },
+    });
+
+    const report = await buildReport('12345679', { ares });
+
+    expect(report.statutory_body[0]?.role).toBe('jednatel');
+  });
+
+  it('falls back to předseda představenstva from a.s. statutory organ name', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345679', obchodniJmeno: 'Test Co. s.r.o.' },
+      vr: {
+        ico: '12345679',
+        statutarniOrgany: [{
+          nazevOrganu: 'Předseda představenstva',
+          clenoveOrganu: [{
+            fyzickaOsoba: { jmeno: 'Jana', prijmeni: 'Testová' },
+            datumZapisu: '2024-01-01',
+          }],
+        }],
+      },
+    });
+
+    const report = await buildReport('12345679', { ares });
+
+    expect(report.statutory_body[0]?.role).toBe('předseda představenstva');
+  });
+
   it('flags directly-sanctioned company via IČO', async () => {
     const ares = mockAres({
       subject: { ico: '12345678', obchodniJmeno: 'Bank Rossiya', dic: 'CZ12345678' },
@@ -167,6 +215,18 @@ describe('buildReport', () => {
     const report = await buildReport('12345678', { ares, isir }, { depth: 'basic' });
     expect(report.basic_only).toBe(true);
     expect(report.insolvency).toBeUndefined();
+    expect(report.red_flags.find((f) => f.code === 'INSOLVENCY_ACTIVE')).toBeUndefined();
+  });
+
+  it('does not map ISIR errors to inactive insolvency', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345679', obchodniJmeno: 'Test Co. s.r.o.' },
+    });
+
+    const report = await buildReport('12345679', { ares, isir: mockUnavailableIsir() }, { depth: 'full' });
+
+    expect(report.insolvency).toEqual({ checked: false, error: 'isir_unavailable' });
+    expect(report.insolvency?.has_active_proceeding).toBeUndefined();
     expect(report.red_flags.find((f) => f.code === 'INSOLVENCY_ACTIVE')).toBeUndefined();
   });
 
