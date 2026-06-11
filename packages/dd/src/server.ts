@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
 import { buildReport } from './report.js';
-import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown } from './summary.js';
+import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown, getUnavailableReferencedSources } from './summary.js';
 import { buildChain } from './chain.js';
 import { detectNomineeDirector } from './patterns/nominee-director.js';
 import { buildTimeline } from './patterns/risk-timeline.js';
@@ -20,6 +20,15 @@ import type { DdClients } from './clients.js';
  * 'enterprise' = treated as 'agency' for tool discovery.
  */
 export type DdTier = 'free' | 'compliance' | 'agency' | 'enterprise';
+
+export interface McpAuditContext {
+  tokenId: string;
+  userId?: string;
+}
+
+export interface DdServerOptions {
+  audit?: McpAuditContext;
+}
 
 /** Tool gating — returns 403 JSON-RPC error when caller lacks tier. */
 function requireTier(currentTier: DdTier, required: DdTier, toolName: string) {
@@ -43,7 +52,7 @@ function requireTier(currentTier: DdTier, required: DdTier, toolName: string) {
   };
 }
 
-export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpServer {
+export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: DdServerOptions = {}): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/dd',
@@ -71,7 +80,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
         .describe('basic = ARES + sanctions only; full = + ISIR insolvency + virtual-address probe.'),
     },
     { title: 'Get Czech Company Due-Diligence Report', readOnlyHint: true, openWorldHint: true },
-    async ({ ico, depth }, extra) => {
+    async ({ ico, depth }, extra) => auditTool(opts.audit, 'get_dd_report', ico, async () => {
       logToolCall('dd', 'get_dd_report', { ico, depth });
       const clean = validateIcoInput(ico);
       trackIco(clean);
@@ -82,7 +91,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
         clean,
         extra?.sessionId,
       );
-    },
+    }),
   );
 
   server.registerTool(
@@ -114,12 +123,13 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
       ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
     },
     { title: 'Get Risk Score', readOnlyHint: true, openWorldHint: true },
-    async ({ ico }) => {
+    async ({ ico }) => auditTool(opts.audit, 'get_risk_score', ico, async () => {
       logToolCall('dd', 'get_risk_score', { ico });
       const clean = validateIcoInput(ico);
       trackIco(clean);
       const report = await buildReport(clean, clients, { depth: 'basic' });
       const top = report.red_flags.slice().sort((a, b) => b.weight - a.weight).slice(0, 5);
+      const unavailableSources = getUnavailableReferencedSources(report);
       const payload = {
         ico: clean,
         company_name: report.company.name,
@@ -127,12 +137,13 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
         level: report.risk_score.level,
         top_flags: top,
         retrieved_at: report.retrieved_at,
+        ...(unavailableSources.length > 0 ? { unavailable_sources: unavailableSources } : {}),
       };
       return wrapBlocks(
         buildRiskScoreSummaryMarkdown(payload),
         JSON.stringify(payload, null, 2),
       );
-    },
+    }),
   );
 
   server.tool(
@@ -254,7 +265,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
       country: z.string().length(2).optional().describe('ISO 3166-1 alpha-2 country code — helps narrow name search, not needed for LEI lookup.'),
     },
     { title: 'EU Due-Diligence Report (GLEIF + Sanctions)', readOnlyHint: true, openWorldHint: true },
-    async ({ identifier, country }) => {
+    async ({ identifier, country }) => auditTool(opts.audit, 'get_eu_dd_report', undefined, async () => {
       logToolCall('dd', 'get_eu_dd_report', { identifier, country });
       const gate = requireTier(tier, 'compliance', 'get_eu_dd_report');
       if (gate) return gate;
@@ -309,7 +320,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
           notes: coverageNotes,
         },
       }, null, 2));
-    },
+    }),
   );
 
   server.tool(
@@ -344,6 +355,51 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free'): McpSer
   );
 
   return server;
+}
+
+async function auditTool<T>(
+  audit: McpAuditContext | undefined,
+  tool: 'get_dd_report' | 'get_risk_score' | 'get_eu_dd_report',
+  ico: string | undefined,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const started = Date.now();
+  try {
+    const result = await fn();
+    sendMcpAudit(audit, { tool, ico, status: 'success', durationMs: Date.now() - started });
+    return result;
+  } catch (err) {
+    sendMcpAudit(audit, { tool, ico, status: 'error', durationMs: Date.now() - started });
+    throw err;
+  }
+}
+
+function sendMcpAudit(
+  audit: McpAuditContext | undefined,
+  event: { tool: string; ico?: string; status: 'success' | 'error'; durationMs: number },
+): void {
+  if (!audit?.tokenId) return;
+  const baseUrl = process.env.MCP_AUDIT_URL;
+  const key = process.env.MCP_AUDIT_KEY;
+  if (!baseUrl || !key) return;
+
+  const body = {
+    tokenId: audit.tokenId,
+    tool: event.tool,
+    ...(event.ico ? { ico: event.ico } : {}),
+    ...(audit.userId ? { userId: audit.userId } : {}),
+    status: event.status,
+    durationMs: event.durationMs,
+  };
+
+  void fetch(`${baseUrl.replace(/\/$/, '')}/api/internal/mcp-audit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+    },
+    body: JSON.stringify(body),
+  }).catch(() => {});
 }
 
 function wrap(text: string) {
