@@ -270,7 +270,7 @@ function extractStatutoryMembers(vr: { statutarniOrgany?: AresStatutoryOrgan[] }
     if (organ.datumVymazu) continue;
     for (const m of organ.clenoveOrganu ?? []) {
       if (m.datumVymazu) continue;
-      const member = mapMember(m);
+      const member = mapMember(m, organ.nazevOrganu);
       if (member) out.members.push(member);
 
       const ts = m.datumZapisu ? Date.parse(m.datumZapisu) : NaN;
@@ -281,8 +281,8 @@ function extractStatutoryMembers(vr: { statutarniOrgany?: AresStatutoryOrgan[] }
   return out;
 }
 
-function mapMember(raw: AresStatutoryMember): StatutoryExtract['members'][number] | null {
-  const role = raw.funkce?.nazev ?? 'člen';
+function mapMember(raw: AresStatutoryMember, organName?: string): StatutoryExtract['members'][number] | null {
+  const role = raw.funkce?.nazev ?? inferRoleFromOrganName(organName);
   const since = raw.datumZapisu;
   if (raw.fyzickaOsoba) {
     const fo = raw.fyzickaOsoba;
@@ -313,6 +313,21 @@ function mapMember(raw: AresStatutoryMember): StatutoryExtract['members'][number
     };
   }
   return null;
+}
+
+function inferRoleFromOrganName(organName?: string): string {
+  const normalized = normalizeCzech(organName ?? '');
+  if (normalized.includes('jednatele')) return 'jednatel';
+  if (normalized.includes('predseda predstavenstva')) return 'předseda představenstva';
+  if (normalized.includes('predstavenstvo')) return 'člen představenstva';
+  return 'člen';
+}
+
+function normalizeCzech(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
 }
 
 async function checkCompanyInsolvency(
