@@ -101,7 +101,7 @@ describe('summary markdown', () => {
 
   it('renders zero statutory members', () => {
     const text = buildDdSummaryMarkdown(report({ statutory_body: [] }));
-    expect(text).toContain('Statutární orgán: 0 osob · bez statutárů');
+    expect(text).toContain('Statutární orgán: bez statutárů');
     expect(text).toContain('bez sankcí (0/0 statutárů)');
   });
 
