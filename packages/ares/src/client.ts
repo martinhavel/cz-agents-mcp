@@ -263,8 +263,8 @@ export class AresClient {
             headers: { 'User-Agent': 'cz-agents-mcp/0.1 (+https://cz-agents.dev)' },
           });
           if (!res.ok) return null;
-          const data = await res.json() as { czNacePrevazujici?: string };
-          return data.czNacePrevazujici ?? null;
+          const data = await res.json() as { zaznamy?: Array<{ czNacePrevazujici?: string }> };
+          return data.zaznamy?.[0]?.czNacePrevazujici ?? null;
         } finally {
           clearTimeout(timer);
         }
