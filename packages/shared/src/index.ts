@@ -10,3 +10,4 @@ export * from './origin.js';
 export * from './billing/index.js';
 export * from './watchEntity.js';
 export * from './legalForms.js';
+export * from './nace.js';
