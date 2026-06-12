@@ -70,22 +70,42 @@ describe('buildAresSummaryMarkdown', () => {
     expect(md).toContain('plátce DPH (CZ12345678)');
   });
 
-  it('known NACE — shows Obor line with division description', () => {
-    const subject = makeSubject({ czNace: ['62010'] });
+  // --- Obor from czNacePrevazujici (Plan A: prevailing activity from ARES RES) ---
+
+  it('czNacePrevazujici 35110 — Obor shows electricity division', () => {
+    // Smyšlená firma; 35110 = výroba a rozvod elektřiny
+    const subject = makeSubject({ czNacePrevazujici: '35110', czNace: undefined });
+    const md = buildAresSummaryMarkdown(subject);
+    expect(md).toContain('Obor:');
+    expect(md).toContain('výroba a rozvod elektřiny');
+    expect(md).toContain('(35)');
+  });
+
+  it('czNacePrevazujici 62010 — Obor shows IT division', () => {
+    const subject = makeSubject({ czNacePrevazujici: '62010', czNace: undefined });
     const md = buildAresSummaryMarkdown(subject);
     expect(md).toContain('Obor:');
     expect(md).toContain('programování');
     expect(md).toContain('(62)');
   });
 
-  it('bez NACE — no "Obor:" line', () => {
-    const subject = makeSubject({ czNace: undefined });
+  it('czNacePrevazujici missing (RES failed) — no "Obor:" line', () => {
+    // czNace populated but czNacePrevazujici absent → Obor must be absent
+    const subject = makeSubject({ czNacePrevazujici: undefined, czNace: ['62010', '35110'] });
     const md = buildAresSummaryMarkdown(subject);
     expect(md).not.toContain('Obor:');
   });
 
-  it('unknown NACE code (unknown 2-digit prefix) — no "Obor:" line', () => {
-    const subject = makeSubject({ czNace: ['04000'] });
+  it('czNacePrevazujici unknown code — no "Obor:" line', () => {
+    // Unknown 2-digit prefix → resolveNace returns undefined → Obor omitted
+    const subject = makeSubject({ czNacePrevazujici: '04000' });
+    const md = buildAresSummaryMarkdown(subject);
+    expect(md).not.toContain('Obor:');
+  });
+
+  it('czNacePrevazujici absent, czNace populated — still no "Obor:" line (czNace ignored)', () => {
+    // czNace alone must never produce an Obor line
+    const subject = makeSubject({ czNacePrevazujici: undefined, czNace: ['62010'] });
     const md = buildAresSummaryMarkdown(subject);
     expect(md).not.toContain('Obor:');
   });

@@ -53,6 +53,11 @@ export function buildAresServer(): McpServer {
           ],
         };
       }
+      // RES fetch is best-effort — gracefully undefined when endpoint unavailable
+      const czNacePrevazujici = await ares.getResNacePrevazujici(clean);
+      if (czNacePrevazujici != null) {
+        subject.czNacePrevazujici = czNacePrevazujici;
+      }
       return {
         content: [
           { type: 'text', text: buildAresSummaryMarkdown(subject) },

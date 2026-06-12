@@ -8,6 +8,7 @@ import { HttpClient, TtlCache } from '@czagents/shared';
 
 const ARES_BASE = 'https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty';
 const ARES_VR_BASE = 'https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty-vr';
+const ARES_RES_BASE = 'https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty-res';
 
 // ---- Response types (subset of ARES v3) ----
 
@@ -37,6 +38,9 @@ export interface AresSubject {
   zivnosti?: Array<{ predmetPodnikani?: string }>;
   czNace?: string[];
   primarniZdroj?: string;
+  /** CZ-NACE code of prevailing activity from ARES RES endpoint (ČSÚ statistical register).
+   *  Populated by getResNacePrevazujici(); undefined when RES is unavailable or returned nothing. */
+  czNacePrevazujici?: string;
 }
 
 export interface AresSearchResult {
@@ -163,6 +167,11 @@ export class AresClient {
     ttlMs: 24 * 60 * 60 * 1000, // 24 hours — history is immutable
     maxSize: 2000,
   });
+  // RES (ČSÚ statistical register) — prevailing activity code; cached 1h
+  private readonly resNaceCache = new TtlCache<string, string | null>({
+    ttlMs: 60 * 60 * 1000,
+    maxSize: 5000,
+  });
 
   constructor() {
     this.http = new HttpClient({
@@ -232,6 +241,38 @@ export class AresClient {
         throw e;
       }
     });
+  }
+
+  /**
+   * Returns the CZ-NACE code of the prevailing activity from the ARES RES endpoint
+   * (ČSÚ statistical register, `/ekonomicke-subjekty-res/{ico}`).
+   *
+   * GRACEFUL: uses a short 5s timeout; if the endpoint is unreachable, returns 404,
+   * or does not carry `czNacePrevazujici`, returns undefined — never throws.
+   * The caller must not let a RES failure block the main lookup.
+   */
+  async getResNacePrevazujici(ico: string): Promise<string | undefined> {
+    const cached = await this.resNaceCache.memoize(ico, async () => {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 5_000);
+        try {
+          const url = `${ARES_RES_BASE}/${ico}`;
+          const res = await fetch(url, {
+            signal: ctrl.signal,
+            headers: { 'User-Agent': 'cz-agents-mcp/0.1 (+https://cz-agents.dev)' },
+          });
+          if (!res.ok) return null;
+          const data = await res.json() as { czNacePrevazujici?: string };
+          return data.czNacePrevazujici ?? null;
+        } finally {
+          clearTimeout(timer);
+        }
+      } catch {
+        return null;
+      }
+    });
+    return cached ?? undefined;
   }
 
   /** Historical records for subject (previous names, sídlo changes). */
