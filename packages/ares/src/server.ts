@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
 import { AresClient } from './client.js';
+import { buildAresSummaryMarkdown } from './summary.js';
 
 /**
  * Build an MCP server exposing ARES (Czech Business Register) tools.
@@ -54,6 +55,7 @@ export function buildAresServer(): McpServer {
       }
       return {
         content: [
+          { type: 'text', text: buildAresSummaryMarkdown(subject) },
           { type: 'text', text: JSON.stringify(subject, null, 2) },
           ...getCTAHintBlocks(clean, extra?.sessionId),
         ],
