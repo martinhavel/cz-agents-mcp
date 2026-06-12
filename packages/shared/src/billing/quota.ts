@@ -74,8 +74,14 @@ export function createQuotaGuard(opts: QuotaOptions) {
         writeJson(res, 402, { error: 'credits_exhausted', message: 'No remaining report credits. Top up at https://cz-agents.dev/pricing.html' });
         return { ok: false, status: 402, reason: 'credits' };
       }
+      if (code === 'TOKEN_NOT_FOUND') {
+        // The token resolved via find() but was gone by consume() (e.g. deleted
+        // between the two calls) — an auth condition, not a server fault.
+        writeJson(res, 401, { error: 'unauthorized', message: 'Token unknown or for a different service.' });
+        return { ok: false, status: 401, reason: 'unknown_token' };
+      }
       writeJson(res, 500, { error: 'internal', message: 'Token consume failed.' });
-      return { ok: false, status: 401, reason: 'internal' };
+      return { ok: false, status: 500, reason: 'internal' };
     }
   };
 }

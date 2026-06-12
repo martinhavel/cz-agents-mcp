@@ -283,7 +283,9 @@ async function handleSandboxRest(
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(responseBody));
     } catch (e) {
-      jsonErr(res, 500, 'upstream_error', e instanceof Error ? e.message : 'Unexpected error');
+      // Don't leak the raw internal message to the client; log it server-side.
+      console.error('[ares] sandbox handler error:', e);
+      jsonErr(res, 500, 'upstream_error', 'Request failed.');
     }
   });
 
@@ -355,7 +357,9 @@ async function handleAresRest(
 
       jsonErr(res, 404, 'not_found', 'REST endpoint not found.');
     } catch (e) {
-      jsonErr(res, 500, 'upstream_error', e instanceof Error ? e.message : 'Unexpected REST error');
+      // Don't leak the raw internal message to the client; log it server-side.
+      console.error('[ares] REST handler error:', e);
+      jsonErr(res, 500, 'upstream_error', 'Request failed.');
     }
   });
 

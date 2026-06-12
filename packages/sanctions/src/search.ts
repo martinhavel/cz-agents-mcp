@@ -153,13 +153,19 @@ function levenshtein(a: string, b: string): number {
   return prev[n] as number;
 }
 
+function extractYear(value: string): string | null {
+  // Pull the first 4-digit run as the year, so formats like "07 Oct 1952",
+  // "1952-10-07" and "1952" all reduce to "1952" for comparison.
+  return value.match(/\d{4}/)?.[0] ?? null;
+}
+
 function dobMatches(entity: SanctionedEntity, queryDob: string): boolean {
   const dobs = entity.dobs ?? [];
   if (dobs.length === 0) return true; // no info → don't exclude
-  const queryYear = queryDob.slice(0, 4);
+  const queryYear = extractYear(queryDob);
   for (const d of dobs) {
     if (d === queryDob) return true;
-    if (d.startsWith(queryYear) || queryDob.startsWith(d)) return true;
+    if (queryYear !== null && extractYear(d) === queryYear) return true;
   }
   return false;
 }

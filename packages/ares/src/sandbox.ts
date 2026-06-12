@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { TtlMap } from '@czagents/shared';
+import { TtlMap, getClientIp } from '@czagents/shared';
 
 const sandboxHmacSecret = process.env.SANDBOX_HMAC_SECRET;
 if (!sandboxHmacSecret) {
@@ -35,22 +35,11 @@ function normalizeIp(raw: string): string {
   return raw;
 }
 
-function rawClientIp(req: IncomingMessage): string {
-  const cf = req.headers['cf-connecting-ip'];
-  if (typeof cf === 'string' && cf.length > 0) return cf;
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length > 0) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  const xr = req.headers['x-real-ip'];
-  if (typeof xr === 'string' && xr.length > 0) return xr;
-  return req.socket.remoteAddress ?? 'unknown';
-}
-
 // Exported so http.ts can use the same IP for getSandboxMeta — avoids divergence.
+// Uses the shared getClientIp (last XFF entry, spoof-safe behind the apache/CF
+// topology) instead of a divergent local parser, then applies /64 IPv6 bucketing.
 export function getSandboxIp(req: IncomingMessage): string {
-  return normalizeIp(rawClientIp(req));
+  return normalizeIp(getClientIp(req));
 }
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {

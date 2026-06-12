@@ -124,10 +124,16 @@ async function main() {
         res.writeHead(result.status, { 'Content-Type': 'application/json' });
         res.end(result.body);
       } catch (e) {
-        const status = e instanceof WebhookError ? e.status : 500;
-        const message = e instanceof Error ? e.message : 'webhook_error';
-        res.writeHead(status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'webhook_failed', message }));
+        // WebhookError carries a client-safe validation message; anything else is an
+        // internal fault whose raw message must not leak — log it, return a generic 500.
+        if (e instanceof WebhookError) {
+          res.writeHead(e.status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'webhook_failed', message: e.message }));
+        } else {
+          console.error('[sanctions] webhook handler error:', e);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'webhook_failed', message: 'Internal error.' }));
+        }
       }
       return;
     }
@@ -244,7 +250,9 @@ async function handleSanctionsRest(
 
       jsonErr(res, 404, 'not_found', 'REST endpoint not found.');
     } catch (e) {
-      jsonErr(res, 500, 'upstream_error', e instanceof Error ? e.message : 'Unexpected REST error');
+      // Don't leak the raw internal message to the client; log it server-side.
+      console.error('[sanctions] REST handler error:', e);
+      jsonErr(res, 500, 'upstream_error', 'Request failed.');
     }
   });
 

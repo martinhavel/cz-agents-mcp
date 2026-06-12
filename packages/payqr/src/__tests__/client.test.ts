@@ -141,6 +141,52 @@ describe('payment QR', () => {
   it('requires EPC recipient name', () => {
     expect(() => buildEpcPayload({ iban: DE_IBAN })).toThrow(/recipient_name/);
   });
+
+  it('rejects SPAYD currency containing the field delimiter (*) or other injection', () => {
+    expect(() => buildSpaydPayload({ iban: CZ_IBAN, currency: 'CZ*' })).toThrow(/ISO 4217/);
+    expect(() => buildSpaydPayload({ iban: CZ_IBAN, currency: 'C:K' })).toThrow(/ISO 4217/);
+    expect(() => buildSpaydPayload({ iban: CZ_IBAN, currency: 'CZK*X-VS:0' })).toThrow(/ISO 4217/);
+    expect(() => buildSpaydPayload({ iban: CZ_IBAN, currency: 'CZ' })).toThrow(/ISO 4217/);
+  });
+
+  it('rejects EPC currency injection before the EUR-only check', () => {
+    expect(() => buildEpcPayload({
+      iban: DE_IBAN,
+      recipient_name: 'Example GmbH',
+      currency: 'EU\nR',
+    })).toThrow(/ISO 4217/);
+  });
+
+  it('strips CR/LF from EPC recipient_name so it cannot inject payload lines', () => {
+    const lines = buildEpcPayload({
+      iban: DE_IBAN,
+      recipient_name: 'Evil GmbH\nDE89370400440532013000\nEUR999.99',
+      amount: 1,
+    }).split('\n');
+    // Newlines stripped → recipient stays on a single line, IBAN/amount unchanged
+    expect(lines).toHaveLength(12);
+    expect(lines[5]).toBe('Evil GmbHDE89370400440532013000EUR999.99');
+    expect(lines[6]).toBe('DE89370400440532013000');
+    expect(lines[7]).toBe('EUR1.00');
+  });
+
+  it('caps EPC recipient_name at 70 characters', () => {
+    const lines = buildEpcPayload({
+      iban: DE_IBAN,
+      recipient_name: 'A'.repeat(100),
+    }).split('\n');
+    expect(lines[5]).toHaveLength(70);
+  });
+
+  it('strips CR/LF from EPC message and variable_symbol', () => {
+    const lines = buildEpcPayload({
+      iban: DE_IBAN,
+      recipient_name: 'Example GmbH',
+      message: 'Inv\n123',
+      variable_symbol: 'VS\r456',
+    }).split('\n');
+    expect(lines[10]).toBe('Inv123 VS456');
+  });
 });
 
 describe('PayqrClient', () => {

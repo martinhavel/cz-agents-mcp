@@ -151,4 +151,32 @@ describe('SanctionsSearch', () => {
     const matches = search.searchByName('Vladimir Putin', { dob: '1952', threshold: 60 });
     expect(matches.find((m) => m.entity.id === 'eu:putin')).toBeDefined();
   });
+
+  it('dob filter matches when the year is not a prefix (e.g. "07 Oct 1952")', () => {
+    db.upsertSource('eu', [
+      makePerson({
+        id: 'eu:putin',
+        source_list_id: 'putin',
+        primary_name: 'Vladimir Vladimirovich Putin',
+        aliases: ['Владимир Путин'],
+        dobs: ['07 Oct 1952'], // year is at the END, not the start
+        nationalities: ['Russia'],
+      }),
+    ]);
+    const matches = search.searchByName('Vladimir Putin', { dob: '1952-10-07', threshold: 60 });
+    expect(matches.find((m) => m.entity.id === 'eu:putin')).toBeDefined();
+  });
+
+  it('dob filter still excludes a mismatched year with textual dob', () => {
+    db.upsertSource('eu', [
+      makePerson({
+        id: 'eu:putin',
+        source_list_id: 'putin',
+        primary_name: 'Vladimir Vladimirovich Putin',
+        dobs: ['07 Oct 1952'],
+      }),
+    ]);
+    const matches = search.searchByName('Vladimir Putin', { dob: '1999', threshold: 60 });
+    expect(matches.find((m) => m.entity.id === 'eu:putin')).toBeUndefined();
+  });
 });

@@ -84,7 +84,10 @@ export class GleifAdapter implements RegistryAdapter {
   }
 
   async getById(id: string): Promise<Company | null> {
-    const cacheKey = `lei:${id}`;
+    // Include countryCode: a shared cache is used across GLEIF jurisdictions (NL/DE),
+    // and mapRecord stamps `country` from this.countryCode — a bare `lei:${id}` key
+    // would let one jurisdiction's cached Company leak into another.
+    const cacheKey = `lei:${this.countryCode}:${id}`;
     if (this.cache) {
       const cached = this.cache.get(cacheKey);
       if (cached !== null) return cached as Company;

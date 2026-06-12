@@ -86,6 +86,26 @@ describe('SanctionsDb', () => {
     expect(cands.find((c) => c.id === 'eu:b')).toBeUndefined();
   });
 
+  it('candidatesByTokens treats LIKE wildcards in tokens as literals (no over-match)', () => {
+    db.upsertSource('eu', [ent('a', 'Alice'), ent('b', 'Bob')]);
+    // A bare '%' token, unescaped, would become '%%%' and match every alias. Escaped,
+    // it only matches aliases literally containing '%' — none here.
+    expect(db.candidatesByTokens(['%'])).toHaveLength(0);
+    // Similarly '_' must not act as a single-char wildcard.
+    expect(db.candidatesByTokens(['_'])).toHaveLength(0);
+    // A literal substring token still matches normally.
+    expect(db.candidatesByTokens(['alice']).find((c) => c.id === 'eu:a')).toBeDefined();
+  });
+
+  it('activeCountForSource counts only active rows per source', () => {
+    db.upsertSource('eu', [ent('a', 'Alice'), ent('b', 'Bob')]);
+    db.upsertSource('ofac', [{ ...ent('x', 'Xander'), id: 'ofac:x', source: 'ofac' }]);
+    expect(db.activeCountForSource('eu')).toBe(2);
+    expect(db.activeCountForSource('ofac')).toBe(1);
+    db.upsertSource('eu', [ent('a', 'Alice')]); // soft-delete b
+    expect(db.activeCountForSource('eu')).toBe(1);
+  });
+
   it('changesSince captures add/modify/remove buckets', async () => {
     db.upsertSource('eu', [ent('a', 'Alice')]);
     const t0 = Date.now() + 1;

@@ -84,7 +84,7 @@ export function buildPayqrServer(): McpServer {
       iban: z.string().describe('Recipient IBAN. Validated with the IBAN mod-97 checksum.'),
       bic: z.string().optional().describe('Optional BIC for EPC/GiroCode line 5. Ignored with a warning for SPAYD.'),
       amount: z.number().optional().describe('Optional payment amount.'),
-      currency: z.string().optional().describe('Optional ISO 4217 currency code. Defaults to CZK for SPAYD and EUR for EPC.'),
+      currency: z.string().regex(/^[A-Za-z]{3}$/, 'currency must be a 3-letter ISO 4217 code').optional().describe('Optional ISO 4217 currency code. Defaults to CZK for SPAYD and EUR for EPC.'),
       message: z.string().optional().describe('Optional payment message or EPC remittance text.'),
       variable_symbol: z.string().optional().describe('Optional reference: goes to remittance (line 11) for EPC, to X-VS for SPAYD.'),
       constant_symbol: z.string().optional().describe('Optional Czech constant symbol for SPAYD.'),

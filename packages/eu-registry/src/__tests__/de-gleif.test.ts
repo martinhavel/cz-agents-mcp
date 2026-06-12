@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DeGleifAdapter } from '../adapters/de-gleif.js';
+import { DeGleifAdapter, GleifAdapter } from '../adapters/de-gleif.js';
+import { GleifCache } from '../gleif-cache.js';
 
 type FetchArgs = Parameters<typeof fetch>;
 
@@ -116,5 +117,20 @@ describe('DeGleifAdapter', () => {
       companies: [],
       total_results: 0,
     });
+  });
+
+  it('getById cache key is namespaced per jurisdiction (no NL/DE leak)', async () => {
+    handler = () => jsonResponse({ data: RECORD });
+    const cache = new GleifCache(':memory:');
+    const de = new GleifAdapter('DE', globalThis.fetch, cache);
+    const nl = new GleifAdapter('NL', globalThis.fetch, cache);
+
+    const deCompany = await de.getById('W38RGI023J3WT1HWRP32');
+    const nlCompany = await nl.getById('W38RGI023J3WT1HWRP32'); // same LEI, shared cache
+
+    // Each adapter stamps its own country — a shared bare `lei:${id}` key would have
+    // leaked DE's cached company (country 'de') into the NL lookup.
+    expect(deCompany?.country).toBe('de');
+    expect(nlCompany?.country).toBe('nl');
   });
 });

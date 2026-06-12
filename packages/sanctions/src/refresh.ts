@@ -24,7 +24,7 @@ export async function refreshAll(db: SanctionsDb): Promise<RefreshSummary[]> {
   return summaries;
 }
 
-async function refreshSource(db: SanctionsDb, def: SourceDef): Promise<RefreshSummary> {
+export async function refreshSource(db: SanctionsDb, def: SourceDef): Promise<RefreshSummary> {
   const url = def.url();
   if (!url) {
     return {
@@ -41,6 +41,23 @@ async function refreshSource(db: SanctionsDb, def: SourceDef): Promise<RefreshSu
   try {
     const xml = await fetchXml(url);
     const entities = def.parse(xml);
+
+    // Sanity guard: a parse that returns no entities — or a sudden >50% drop versus
+    // the currently-active count — almost always means an upstream format change or a
+    // truncated download, not a real mass de-listing. Upserting it would soft-delete
+    // the entire list. Treat as a failure so last-known-good data is preserved.
+    const currentActive = db.activeCountForSource(def.source);
+    if (entities.length === 0 && currentActive > 0) {
+      throw new Error(
+        `Parse returned 0 entities for ${def.source} but ${currentActive} are active — refusing to wipe the list (likely upstream format change).`,
+      );
+    }
+    if (currentActive > 0 && entities.length < currentActive * 0.5) {
+      throw new Error(
+        `Parse returned ${entities.length} entities for ${def.source}, a >50% drop from ${currentActive} active — refusing to apply (likely truncated/changed feed).`,
+      );
+    }
+
     const diff = db.upsertSource(def.source, entities);
     return { source: def.source, ok: true, fetched: entities.length, ...diff };
   } catch (e) {

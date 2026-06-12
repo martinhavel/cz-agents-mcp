@@ -100,6 +100,32 @@ describe('detectPhoenix — basic variant (3 indicators)', () => {
     expect(ind.fired).toBe(true);
     expect(ind.available).toBe(true);
     expect(ind.detail).toContain('phoenix pattern');
+    // Founded AFTER insolvency start ⇒ "po zahájení insolvence" (was reversed).
+    expect(ind.detail).toContain('po zahájení insolvence');
+    expect(ind.detail).not.toContain('před zahájením insolvence');
+  });
+
+  it('FOUNDING_PROXIMITY labels a company founded BEFORE insolvency start correctly', () => {
+    // Company founded 6 months before insolvency start.
+    const foundedOn = new Date('2023-01-15');
+    const insolStart = new Date('2023-07-20');
+
+    const report = baseReport({
+      company: {
+        found: true,
+        name: 'Předchůdce s.r.o.',
+        registered_on: foundedOn.toISOString().slice(0, 10),
+      },
+      insolvency: {
+        has_active_proceeding: true,
+        started_on: insolStart.toISOString().slice(0, 10),
+        spisova_znacka: 'INS 600/2023',
+      },
+    });
+    const ind = detectPhoenix(report).indicators.find((i) => i.code === 'FOUNDING_PROXIMITY')!;
+    expect(ind.fired).toBe(true);
+    expect(ind.detail).toContain('před zahájením insolvence');
+    expect(ind.detail).not.toContain('po zahájení insolvence');
   });
 
   it('FOUNDING_PROXIMITY does not fire when gap exceeds 12 months', () => {

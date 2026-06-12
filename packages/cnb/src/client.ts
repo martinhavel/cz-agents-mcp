@@ -110,7 +110,12 @@ export function parseCnbDailyText(text: string): CnbRateSheet {
   // First line: "DD.MM.YYYY #N"
   const headerRe = /^(\d{2})\.(\d{2})\.(\d{4})\s*#(\d+)/;
   const m = headerRe.exec(lines[0]!);
-  if (!m) throw new Error(`Unexpected ČNB header: "${lines[0]}"`);
+  if (!m) {
+    // Don't echo the full upstream line — on an error/HTML response it can be large
+    // and carry unexpected upstream content. Sanitize to one line and cap length.
+    const snippet = lines[0]!.replace(/\s+/g, ' ').trim().slice(0, 80);
+    throw new Error(`Unexpected ČNB header: "${snippet}"`);
+  }
   const [, dd, mm, yyyy, seq] = m;
   const date = `${yyyy}-${mm}-${dd}`;
   const sequence = Number(seq);

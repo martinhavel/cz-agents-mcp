@@ -177,11 +177,14 @@ function detectFoundingProximity(r: DdReport): PhoenixIndicator {
   if (r.insolvency?.has_active_proceeding && r.insolvency.started_on) {
     const insolStart = new Date(r.insolvency.started_on);
     if (!Number.isNaN(insolStart.getTime())) {
+      // monthsBetween(insolStart, registeredDate) = (registeredDate - insolStart) in
+      // months. Positive ⇒ the firm was founded AFTER insolvency started; negative ⇒
+      // BEFORE. (The previous labels had these two branches reversed.)
       const gapMonths = monthsBetween(insolStart, registeredDate);
       if (Math.abs(gapMonths) < 12) {
         const direction = gapMonths >= 0
-          ? `${gapMonths.toFixed(1)} měs. před zahájením insolvence`
-          : `${Math.abs(gapMonths).toFixed(1)} měs. po zahájení insolvence`;
+          ? `${gapMonths.toFixed(1)} měs. po zahájení insolvence`
+          : `${Math.abs(gapMonths).toFixed(1)} měs. před zahájením insolvence`;
         return {
           code: 'FOUNDING_PROXIMITY',
           fired: true,

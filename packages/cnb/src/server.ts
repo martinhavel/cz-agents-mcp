@@ -3,6 +3,20 @@ import { z } from 'zod';
 import { logToolCall, wrapServerTools } from '@czagents/shared';
 import { CnbClient } from './client.js';
 
+// ISO date (YYYY-MM-DD) with a real calendar check — the regex alone accepts
+// impossible dates like 2026-13-45 or 2026-02-30. refine() round-trips through a
+// UTC Date and confirms the parsed components match the input.
+export const isoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((s) => {
+    const [y, m, d] = s.split('-').map(Number) as [number, number, number];
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return (
+      dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+    );
+  }, 'date is not a valid calendar date');
+
 export function buildCnbServer(): McpServer {
   const server = new McpServer(
     {
@@ -29,9 +43,7 @@ export function buildCnbServer(): McpServer {
     'get_rates',
     'Get official CZK exchange rates published by ČNB. Returns all currencies from the daily sheet (~31 majors). Optional `date` parameter (YYYY-MM-DD) for historical rates; otherwise returns latest.',
     {
-      date: z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/)
+      date: isoDateSchema
         .optional()
         .describe('Optional ISO date (YYYY-MM-DD) for historical rates. Omit for latest.'),
     },
@@ -63,9 +75,7 @@ export function buildCnbServer(): McpServer {
         .length(3)
         .describe('Source currency ISO 4217 code (e.g., "EUR", "USD", "CZK").'),
       to: z.string().length(3).describe('Target currency ISO 4217 code.'),
-      date: z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/)
+      date: isoDateSchema
         .optional()
         .describe('Optional ISO date for historical rates. Omit for latest.'),
     },
@@ -92,9 +102,7 @@ export function buildCnbServer(): McpServer {
         .string()
         .length(3)
         .describe('ISO 4217 currency code (e.g., "EUR", "USD", "GBP").'),
-      date: z
-        .string()
-        .regex(/^\d{4}-\d{2}-\d{2}$/)
+      date: isoDateSchema
         .optional()
         .describe('Optional ISO date for historical rate.'),
     },

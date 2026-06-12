@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
 import { AresClient } from './client.js';
 import { buildAresSummaryMarkdown } from './summary.js';
 
@@ -380,7 +380,7 @@ export function buildAresServer(): McpServer {
     },
     async ({ ico }) => {
       logToolCall('ares', 'watch_entity', { ico });
-      const clean = ico.trim();
+      const clean = validateIcoInput(ico);
       const r = getWatchEntityResponse(clean);
       return {
         structuredContent: r,

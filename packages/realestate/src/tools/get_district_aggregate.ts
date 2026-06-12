@@ -1,5 +1,5 @@
 /**
- * get_district_aggregate — okres-level statistics with k≥5 anonymity gate.
+ * get_district_aggregate — okres-level statistics with a k<3 low_activity flag.
  *
  * Free tier — UNLIMITED. Aggregates contain no PII (no names, no addresses,
  * no specific properties), so safe to expose without rate limit beyond

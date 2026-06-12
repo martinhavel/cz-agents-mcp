@@ -190,14 +190,22 @@ export function verifySignature(
   secret: string,
   now?: number,
 ): void {
-  const parts = header.split(',').reduce<Record<string, string>>((acc, p) => {
-    const [k, v] = p.split('=');
-    if (k && v) acc[k] = v;
-    return acc;
-  }, {});
-  const t = parts['t'];
-  const v1 = parts['v1'];
-  if (!t || !v1) throw new WebhookError('Malformed Stripe-Signature header', 400);
+  // A Stripe-Signature header can carry several `v1=` signatures (e.g. during a
+  // signing-secret rotation, both the old and new secret's signatures are sent).
+  // Collect ALL of them — taking only the last would reject valid events whenever
+  // the matching signature isn't the final one in the header.
+  let t: string | undefined;
+  const v1List: string[] = [];
+  for (const p of header.split(',')) {
+    const idx = p.indexOf('=');
+    if (idx <= 0) continue;
+    const k = p.slice(0, idx);
+    const v = p.slice(idx + 1);
+    if (!v) continue;
+    if (k === 't') t = v;
+    else if (k === 'v1') v1List.push(v);
+  }
+  if (!t || v1List.length === 0) throw new WebhookError('Malformed Stripe-Signature header', 400);
 
   const ts = Number(t);
   const nowS = Math.floor((now ?? Date.now()) / 1000);
@@ -207,8 +215,13 @@ export function verifySignature(
 
   const expected = createHmac('sha256', secret).update(`${t}.${rawBody}`).digest('hex');
   const expectedBuf = Buffer.from(expected, 'utf8');
-  const actualBuf = Buffer.from(v1, 'utf8');
-  if (expectedBuf.length !== actualBuf.length || !timingSafeEqual(expectedBuf, actualBuf)) {
+  // Compare against every supplied v1; accept if any matches. Each comparison stays
+  // constant-time; iterating a small, fixed set does not leak which one matched.
+  const matched = v1List.some((v1) => {
+    const actualBuf = Buffer.from(v1, 'utf8');
+    return expectedBuf.length === actualBuf.length && timingSafeEqual(expectedBuf, actualBuf);
+  });
+  if (!matched) {
     throw new WebhookError('Stripe signature mismatch', 400);
   }
 }

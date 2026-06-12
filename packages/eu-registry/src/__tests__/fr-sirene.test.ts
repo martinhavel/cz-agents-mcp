@@ -83,6 +83,21 @@ describe('FrSireneAdapter', () => {
     expect(company?.id).toBe('542051180');
   });
 
+  it('getById returns null when the top result is a different SIREN', async () => {
+    // Fuzzy /search can surface a near-but-wrong company; must not return it.
+    handler = () => jsonResponse({ results: [RESULT], total_results: 1 }); // siren 542051180
+    const adapter = new FrSireneAdapter();
+    const company = await adapter.getById('999999999');
+    expect(company).toBeNull();
+  });
+
+  it('getById matches ignoring SIREN formatting (spaces)', async () => {
+    handler = () => jsonResponse({ results: [RESULT], total_results: 1 });
+    const adapter = new FrSireneAdapter();
+    const company = await adapter.getById('542 051 180');
+    expect(company?.id).toBe('542051180');
+  });
+
   it('maps etat_administratif C to dissolved', async () => {
     handler = () =>
       jsonResponse({ results: [{ ...RESULT, etat_administratif: 'C' }], total_results: 1 });

@@ -157,9 +157,10 @@ export function resolveStandard(standard: PaymentStandard, iban: string): 'spayd
 export function buildSpaydPayload(input: PaymentInput, warnings: string[] = []): string {
   const iban = normalizeIban(input.iban);
   if (!isValidIban(iban)) throw new Error('Invalid IBAN checksum');
+  const currency = normalizeCurrency(input.currency ?? 'CZK');
   const fields = ['SPD*1.0', `ACC:${iban}`];
   if (input.amount !== undefined) fields.push(`AM:${formatAmount(input.amount)}`);
-  fields.push(`CC:${(input.currency ?? 'CZK').toUpperCase()}`);
+  fields.push(`CC:${currency}`);
   if (input.message) fields.push(`MSG:${toSpaydAscii(input.message)}`);
   if (input.variable_symbol) fields.push(`X-VS:${toSpaydAscii(input.variable_symbol)}`);
   if (input.constant_symbol) fields.push(`X-KS:${toSpaydAscii(input.constant_symbol)}`);
@@ -173,19 +174,25 @@ export function buildEpcPayload(input: PaymentInput, warnings: string[] = []): s
   if (!isValidIban(iban)) throw new Error('Invalid IBAN checksum');
   const country = iban.slice(0, 2);
   if (!SEPA_COUNTRIES.has(country)) throw new Error(`IBAN country ${country} is not in SEPA`);
-  const currency = (input.currency ?? 'EUR').toUpperCase();
+  const currency = normalizeCurrency(input.currency ?? 'EUR');
   if (currency !== 'EUR') throw new Error('EPC payment QR supports EUR only');
   if (!input.recipient_name) throw new Error('EPC payment QR requires recipient_name');
   const bic = input.bic ?? '';
   if (bic && !/^[A-Za-z0-9]{8}(?:[A-Za-z0-9]{3})?$/.test(bic)) {
     throw new Error('EPC BIC must be 8 or 11 alphanumeric characters');
   }
-  const remittance = [input.message, input.variable_symbol].filter(Boolean).join(' ');
+  // Strip CR/LF (EPC field delimiter is LF) and cap recipient_name to 70 chars per the
+  // EPC069-12 spec, so a value with embedded newlines cannot inject/shift payload lines.
+  const recipientName = stripEpcLine(input.recipient_name).slice(0, 70);
+  const message = input.message === undefined ? undefined : stripEpcLine(input.message);
+  const variableSymbol =
+    input.variable_symbol === undefined ? undefined : stripEpcLine(input.variable_symbol);
+  const remittance = [message, variableSymbol].filter(Boolean).join(' ');
   if (remittance.length > 140) throw new Error('EPC remittance must not exceed 140 characters');
-  if (input.message && input.variable_symbol) warnings.push('variable_symbol was appended to EPC remittance');
+  if (message && variableSymbol) warnings.push('variable_symbol was appended to EPC remittance');
   if (input.constant_symbol) warnings.push('constant_symbol is not encoded by EPC');
   const amount = input.amount === undefined ? '' : `EUR${formatAmount(input.amount)}`;
-  return ['BCD', '002', '1', 'SCT', bic, input.recipient_name, iban, amount, '', '', remittance, ''].join('\n');
+  return ['BCD', '002', '1', 'SCT', bic, recipientName, iban, amount, '', '', remittance, ''].join('\n');
 }
 
 export function classifyQr(raw: string): ReadQrResult {
@@ -231,6 +238,19 @@ function decodeImageData(imageData: string): Buffer {
   const base64 = imageData.startsWith('data:') ? imageData.slice(imageData.indexOf(',') + 1) : imageData;
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) throw new Error('image_data must be base64 or a data URI');
   return Buffer.from(base64, 'base64');
+}
+
+// ISO 4217 currency codes are exactly three uppercase letters. Reject anything else
+// (e.g. injected '*' / ':' SPAYD delimiters or CR/LF) before it reaches the payload.
+function normalizeCurrency(value: string): string {
+  const currency = value.toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error('currency must be a 3-letter ISO 4217 code');
+  return currency;
+}
+
+// Remove CR/LF so a value cannot inject or shift EPC payload lines (LF is the delimiter).
+function stripEpcLine(value: string): string {
+  return value.replace(/[\r\n]/g, '');
 }
 
 function formatAmount(amount: number): string {

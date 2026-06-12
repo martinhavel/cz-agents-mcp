@@ -67,7 +67,13 @@ export class FrSireneAdapter implements RegistryAdapter {
 
       const payload = (await response.json()) as FrSearchResponse;
       const result = payload.results?.[0];
-      return result ? mapResult(result) : null;
+      const company = result ? mapResult(result) : null;
+      // getById is a fuzzy /search under the hood; the top hit is not guaranteed to be
+      // the requested SIREN. Confirm an exact (digits-only) match before returning, else
+      // null — never return a different company than the one asked for.
+      if (!company) return null;
+      const normalize = (s: string): string => s.replace(/\D/g, '');
+      return normalize(company.id) === normalize(id) ? company : null;
     } catch (error) {
       warn('SIRENE lookup failed', error);
       return null;

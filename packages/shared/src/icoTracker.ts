@@ -16,6 +16,7 @@ const MAX_IPS_PER_DATE = 50_000;
 const MAX_ICOS_PER_IP = 5_000;
 const MAX_ICO_COUNTER_ENTRIES = 50_000;
 const MAX_SEARCH_COUNTER_ENTRIES = 5_000;
+const MAX_CTA_HINT_ENTRIES = 50_000;
 const SESSION_IP_TTL_MS = 6 * 60 * 60_000;
 const MAX_SESSION_IPS = 50_000;
 const DEFAULT_CTA_ESCALATION_THRESHOLD = 3;
@@ -45,7 +46,13 @@ const sessionIpMap = new TtlMap<string, string>({
   sweepIntervalMs: 60 * 60_000,
 });
 
-const ctaHintCounter = new Map<string, { count: number; escalationShown: boolean }>();
+// TtlMap (not a plain Map) so per-(scope, ico) CTA state is bounded and self-evicts,
+// matching the other counters above — a plain Map would grow unbounded over uptime.
+const ctaHintCounter = new TtlMap<string, { count: number; escalationShown: boolean }>({
+  ttlMs: RETENTION_MS,
+  maxSize: MAX_CTA_HINT_ENTRIES,
+  sweepIntervalMs: 60 * 60_000,
+});
 
 // Legacy fallback for non-MCP or older call paths. MCP HTTP tool handlers should
 // resolve IP by session id via wrapServerTools(), then enter an ALS scope.
@@ -292,6 +299,7 @@ export function cleanup(): void {
 
   icoCounter.sweep();
   searchCounter.sweep();
+  ctaHintCounter.sweep();
   pruneToolEventFiles();
 }
 

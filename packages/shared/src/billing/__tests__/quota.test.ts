@@ -119,6 +119,24 @@ describe('createQuotaGuard', () => {
     if (!r.ok) expect(r.status).toBe(402);
   });
 
+  it('maps TOKEN_NOT_FOUND from consume to HTTP 401 (not 500)', () => {
+    const t = store.mint({
+      service: 'sanctions', tier: 'pro', stripe_customer_id: 'c', stripe_subscription_id: 's',
+      monthly_quota: 100, credits: null,
+    });
+    // Simulate a delete between find() and consume(): the token resolves, then
+    // consume() throws TOKEN_NOT_FOUND. Must be treated as 401, not a 500.
+    (store as unknown as { consume: () => never }).consume = () => {
+      throw new Error('TOKEN_NOT_FOUND');
+    };
+    const guard = createQuotaGuard({ store, service: 'sanctions' });
+    const res = mockRes();
+    const r = guard(mockReq({ authorization: `Bearer ${t.token}` }), res);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.status).toBe(401);
+    expect(res.statusCode).toBe(401);
+  });
+
   it('handles malformed Authorization header gracefully', () => {
     const guard = createQuotaGuard({ store, service: 'sanctions', allowAnonymous: true });
     const res = mockRes();

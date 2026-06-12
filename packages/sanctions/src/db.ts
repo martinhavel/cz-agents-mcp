@@ -17,6 +17,14 @@ import { dirname } from 'node:path';
 import type { SanctionedEntity, SanctionSource } from './types.js';
 import { normalizeName } from './normalize.js';
 
+/**
+ * Escape SQL LIKE special characters so user tokens match literally. Used with
+ * `ESCAPE '\'` on the LIKE clause. Backslash must be escaped first.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS entities (
   id              TEXT PRIMARY KEY,
@@ -221,6 +229,17 @@ export class SanctionsDb {
     return { added, modified, removed };
   }
 
+  /** Count of currently-active (not soft-deleted) entities for a single source. */
+  activeCountForSource(source: SanctionSource): number {
+    return (
+      this.db
+        .prepare<[string], { c: number }>(
+          'SELECT COUNT(*) AS c FROM entities WHERE source = ? AND removed_at IS NULL',
+        )
+        .get(source)?.c ?? 0
+    );
+  }
+
   recordRefreshFailure(source: SanctionSource, error: string): void {
     this.db.prepare(`
       INSERT INTO refresh_log (source, refreshed_at, source_count, ok, error)
@@ -258,8 +277,11 @@ export class SanctionsDb {
    */
   candidatesByTokens(tokens: string[], typeFilter?: 'person' | 'entity'): SanctionedEntity[] {
     if (tokens.length === 0) return [];
-    const conditions = tokens.map(() => 'alias LIKE ?').join(' OR ');
-    const params = tokens.map((t) => `%${t}%`);
+    // Escape LIKE wildcards (% _ \) in user-supplied tokens so they match literally
+    // (a token like "a_b" or "50%" must not turn into a wildcard scan). The matching
+    // ESCAPE '\' clause is set on each LIKE condition below.
+    const conditions = tokens.map(() => "alias LIKE ? ESCAPE '\\'").join(' OR ');
+    const params = tokens.map((t) => `%${escapeLikePattern(t)}%`);
 
     let sql = `
       SELECT DISTINCT e.data

@@ -50,4 +50,4 @@ export interface TokenRecord {
 
 export type AuthOutcome =
   | { ok: true; token: TokenRecord }
-  | { ok: false; status: 401 | 402 | 429; reason: string };
+  | { ok: false; status: 401 | 402 | 429 | 500; reason: string };

@@ -2,6 +2,7 @@ import type { Company, CompanySearchResult, CompanyStatus, RegistryAdapter } fro
 
 const API_BASE = 'https://api.company-information.service.gov.uk';
 const SOURCE_BASE = 'https://find-and-update.company-information.service.gov.uk/company';
+const REQUEST_TIMEOUT_MS = 10_000;
 
 interface CompaniesHouseAddress {
   address_line_1?: string;
@@ -50,7 +51,10 @@ export class UkCompaniesHouseAdapter implements RegistryAdapter {
     url.searchParams.set('q', name);
     url.searchParams.set('items_per_page', String(limit));
 
-    const response = await this.fetchImpl(url, { headers: this.authHeaders() });
+    const response = await this.fetchImpl(url, {
+      headers: this.authHeaders(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
     if (!response.ok) {
       throw new Error(`Companies House search failed: ${response.status} ${response.statusText}`);
     }
@@ -74,6 +78,7 @@ export class UkCompaniesHouseAdapter implements RegistryAdapter {
 
     const response = await this.fetchImpl(`${API_BASE}/company/${encodeURIComponent(id)}`, {
       headers: this.authHeaders(),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (response.status === 404) return null;
     if (!response.ok) {

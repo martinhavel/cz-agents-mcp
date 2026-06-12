@@ -58,6 +58,21 @@ describe('parseCnbDailyText', () => {
     expect(() => parseCnbDailyText('garbage\nzeme|mena\n')).toThrow(/Unexpected ČNB header/);
   });
 
+  it('sanitizes and caps the echoed header snippet on a non-rate-sheet response', () => {
+    // Simulate an upstream HTML error page as the first line: error must not echo it whole.
+    const longLine = `<html><body>${'x'.repeat(500)}</body></html>`;
+    let message = '';
+    try {
+      parseCnbDailyText(`${longLine}\nsecond line\n`);
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    }
+    // Snippet capped (header prefix + max 80 chars + quotes), no newlines, no 500-char dump.
+    expect(message).toMatch(/Unexpected ČNB header/);
+    expect(message.length).toBeLessThan(130);
+    expect(message).not.toContain('\n');
+  });
+
   it('throws on too-short input', () => {
     expect(() => parseCnbDailyText('')).toThrow(/too short/);
   });

@@ -291,7 +291,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
       }
 
       const sanctionsMatches = clients.sanctions
-        ? clients.sanctions.searchByName(record.name, { typeFilter: 'entity', threshold: 0.8 })
+        ? clients.sanctions.searchByName(record.name, { typeFilter: 'entity', threshold: 80 })
         : [];
 
       const riskIndicators: string[] = [];

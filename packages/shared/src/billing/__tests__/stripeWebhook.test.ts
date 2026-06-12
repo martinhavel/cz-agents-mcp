@@ -52,6 +52,25 @@ describe('verifySignature', () => {
     const header = sign('{}', Math.floor(NOW / 1000), 'whsec_other');
     expect(() => verifySignature('{}', header, SECRET, NOW)).toThrow(/mismatch/);
   });
+
+  it('accepts when one of multiple v1 signatures matches (secret rotation)', () => {
+    const body = '{"hello":"world"}';
+    const ts = Math.floor(NOW / 1000);
+    const wrong = createHmac('sha256', 'whsec_old').update(`${ts}.${body}`).digest('hex');
+    const right = createHmac('sha256', SECRET).update(`${ts}.${body}`).digest('hex');
+    // Matching signature is NOT last — the previous "take last v1" logic would reject this.
+    const header = `t=${ts},v1=${wrong},v1=${right},v1=${wrong}`;
+    expect(() => verifySignature(body, header, SECRET, NOW)).not.toThrow();
+  });
+
+  it('rejects when no v1 signature matches', () => {
+    const body = '{"hello":"world"}';
+    const ts = Math.floor(NOW / 1000);
+    const a = createHmac('sha256', 'whsec_a').update(`${ts}.${body}`).digest('hex');
+    const b = createHmac('sha256', 'whsec_b').update(`${ts}.${body}`).digest('hex');
+    const header = `t=${ts},v1=${a},v1=${b}`;
+    expect(() => verifySignature(body, header, SECRET, NOW)).toThrow(/mismatch/);
+  });
 });
 
 describe('handleStripeWebhook', () => {

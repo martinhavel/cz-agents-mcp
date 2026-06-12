@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/realestate",
-  "description": "Czech distressed real estate \u2014 anonymized district aggregates (k\u22655). Free tier.",
+  "description": "Czech distressed real estate \u2014 anonymized district aggregates; low-volume districts flagged low_activity (k<3). Free tier.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",
