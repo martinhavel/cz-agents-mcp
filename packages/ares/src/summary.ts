@@ -60,13 +60,13 @@ export function buildAresSummaryMarkdown(subject: AresSubject): string {
     stavLine = 'aktivní';
   }
 
-  // NACE — first code from czNace array, if available
+  // NACE — derived from czNacePrevazujici (prevailing activity from ARES RES endpoint).
+  // When RES is unavailable or returned nothing, czNacePrevazujici is undefined → Obor line omitted.
   let naceLine: string | undefined;
-  const firstNace = subject.czNace?.[0];
-  if (firstNace) {
-    const naceLabel = resolveNace(firstNace);
+  if (subject.czNacePrevazujici) {
+    const naceLabel = resolveNace(subject.czNacePrevazujici);
     if (naceLabel) {
-      naceLine = `Obor: ${naceLabel} (${firstNace.slice(0, 2)})`;
+      naceLine = `Obor: ${naceLabel} (${subject.czNacePrevazujici.slice(0, 2)})`;
     }
   }
 
