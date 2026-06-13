@@ -47,13 +47,24 @@ export interface PropertyFull extends PropertyTeaser {
 export interface DistrictAggregate {
   okres: string;
   window_days: number;
+  /** null when suppressed (district has 1–4 distress leads — see `counts_band`). */
   insolvency_count: number | null;
+  /** null when suppressed (district has 1–4 distress leads — see `counts_band`). */
   auction_count: number | null;
+  /** null when suppressed (district has 1–4 distress leads — see `counts_band`). */
   distress_lead_count: number | null;
   avg_estimated_price_kc_per_m2: number | null;
   trend_yoy_pct: number | null;
-  /** Set when the district has fewer than 3 distress leads (k<3) — a caution flag for
-   *  low-volume figures. Counts are still returned, not suppressed. */
+  /** Provenance + suppression disclosure, always present. States the public registries
+   *  the figures come from and the <5 banding rule, so a reader is never misled about
+   *  what a null count means. */
+  data_source: string;
+  /** Present (`'<5'`) when the three counts are null because the district has 1–4
+   *  distress leads. The exact count is withheld to avoid singling out an individual,
+   *  but the band makes clear records DO exist — it is not zero. */
+  counts_band?: '<5';
+  /** Set when the district has fewer than 5 distress leads (k<5) — low-volume caution
+   *  flag. For 1–4 the counts are suppressed (`counts_band`); 0 is shown as 0. */
   low_activity?: true;
 }
 

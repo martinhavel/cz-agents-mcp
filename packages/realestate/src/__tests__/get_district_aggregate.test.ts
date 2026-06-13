@@ -101,15 +101,41 @@ beforeEach(() => {
 });
 
 describe('getDistrictAggregate', () => {
-  it('returns zeros and low_activity for empty district', () => {
+  it('shows 0 (not banded) and low_activity for empty district', () => {
     const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
     expect(result.okres).toBe('Praha');
     expect(result.window_days).toBe(90);
+    // 0 has nobody to protect → shown exactly, NOT suppressed to "<5".
     expect(result.distress_lead_count).toBe(0);
+    expect(result.counts_band).toBeUndefined();
     expect(result.low_activity).toBe(true);
   });
 
-  it('returns counts when >= k=3 leads in district', () => {
+  it('suppresses counts to "<5" band when 1–4 distress leads', () => {
+    insertLead({ id: 'isir-1', sourceType: 'isir', kuMatchedName: 'Praha' });
+    insertLead({ id: 'drazba-1', sourceType: 'portaldrazeb', kuMatchedName: 'Praha' });
+    insertLead({ id: 'drazba-2', sourceType: 'portaldrazeb', kuMatchedName: 'Praha' });
+    const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
+    // 3 leads (1 isir + 2 auction) — exact counts withheld so no single person is identifiable.
+    expect(result.distress_lead_count).toBeNull();
+    expect(result.insolvency_count).toBeNull();
+    expect(result.auction_count).toBeNull();
+    expect(result.counts_band).toBe('<5');
+    expect(result.low_activity).toBe(true);
+  });
+
+  it('shows exact counts at exactly k=5 (no banding)', () => {
+    for (let i = 0; i < 5; i++) {
+      insertLead({ id: `isir-${i}`, sourceType: 'isir', kuMatchedName: 'Praha' });
+    }
+    const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
+    expect(result.distress_lead_count).toBe(5);
+    expect(result.insolvency_count).toBe(5);
+    expect(result.counts_band).toBeUndefined();
+    expect(result.low_activity).toBeUndefined();
+  });
+
+  it('returns exact counts when >= k=5 leads in district', () => {
     for (let i = 0; i < 6; i++) {
       insertLead({ id: `isir-${i}`, sourceType: 'isir', kuMatchedName: 'Praha' });
     }
@@ -117,6 +143,12 @@ describe('getDistrictAggregate', () => {
     expect(result.distress_lead_count).toBe(6);
     expect(result.low_activity).toBeUndefined();
     expect(result.insolvency_count).toBe(6);
+  });
+
+  it('always discloses the public-registry source in data_source', () => {
+    const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
+    expect(result.data_source).toContain('ISIR');
+    expect(result.data_source).toContain('<5');
   });
 
   it('does not count leads from different district', () => {
@@ -142,14 +174,19 @@ describe('getDistrictAggregate', () => {
   });
 
   it('falls back to kuMatchedName when okresSlug is missing', () => {
-    insertLead({ id: 'isir-1', sourceType: 'isir', kuMatchedName: 'Praha', okresSlug: null });
+    // 5 leads (3 isir + 2 auction) so counts cross the k=5 band and stay visible —
+    // this asserts the null-okresSlug fallback path, not the suppression logic.
+    for (let i = 0; i < 3; i++) {
+      insertLead({ id: `isir-${i}`, sourceType: 'isir', kuMatchedName: 'Praha', okresSlug: null });
+    }
     insertLead({ id: 'auction-1', sourceType: 'portaldrazeb', kuMatchedName: 'Praha', okresSlug: null });
+    insertLead({ id: 'auction-2', sourceType: 'portaldrazeb', kuMatchedName: 'Praha', okresSlug: null });
 
     const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
-    expect(result.insolvency_count).toBe(1);
-    expect(result.auction_count).toBe(1);
-    expect(result.distress_lead_count).toBe(2);
-    expect(result.low_activity).toBe(true);
+    expect(result.insolvency_count).toBe(3);
+    expect(result.auction_count).toBe(2);
+    expect(result.distress_lead_count).toBe(5);
+    expect(result.low_activity).toBeUndefined();
   });
 
   it('reads latest byt price from RealEstatePriceIndex using the district kraj', () => {

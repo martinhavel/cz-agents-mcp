@@ -1,18 +1,33 @@
 /**
- * get_district_aggregate — okres-level statistics with a k<3 low_activity flag.
+ * get_district_aggregate — okres-level statistics over public-registry data.
  *
- * Free tier — UNLIMITED. Aggregates contain no PII (no names, no addresses,
- * no specific properties), so safe to expose without rate limit beyond
- * the basic IP-level free tier limit applied at HTTP layer.
+ * Free tier — UNLIMITED. The figures aggregate already-public legal records
+ * (ISIR insolvencies, portál dražeb / CEVD forced sales), so no new PII is
+ * introduced. The one residual risk is singling-out: an exact low count in a
+ * small district could point at one specific distressed person. To avoid that
+ * without lying about empty districts, counts are k-anonymity banded:
+ *   • 0 distress leads      → shown as 0 (nobody to protect; honest empty).
+ *   • 1–4 distress leads    → all three counts suppressed to null + `counts_band:'<5'`
+ *                             (records DO exist, exact figure withheld — not zero).
+ *   • ≥5 distress leads     → exact counts.
+ * Banding is applied to the whole row by total, never per-field: distress =
+ * insolvency + auction, so hiding one field while showing the other two would
+ * let the suppressed value be re-derived by subtraction.
  *
- * `low_activity` is set when the okres + window combination is below the
- * public low-activity threshold.
+ * `data_source` is always present and states both the provenance and this rule,
+ * so a reader is never misled about what a null count means.
  */
 
 import { getDb } from '../db.js';
 import type { DistrictAggregate } from '../types.js';
 
-const K_ANONYMITY_THRESHOLD = 3;
+// Below this many distress leads a district is "low activity". Exact counts in
+// the 1–4 range are withheld (banded to '<5') to avoid identifying an individual.
+const K_ANONYMITY_THRESHOLD = 5;
+
+const DATA_SOURCE_NOTE =
+  'Agregace veřejných rejstříků: ISIR (insolvence) + portál dražeb / CEVD (dražby a exekuce). ' +
+  'Počty 1–4 jsou skryté (zobrazeny jako „<5"), aby nešlo ztotožnit konkrétní osobu; 0 a 5+ se zobrazují přesně.';
 const SOURCE_PRIORITY = ['eurostat_hpi', 'csu_vdb_extrap', 'cnb_arad', 'csu_vdb', 'cuzk_kupni', 'static_fallback'];
 
 const KRAJ_SLUG_TO_PRICE_INDEX_KEY: Record<string, string> = {
@@ -143,18 +158,23 @@ export function getDistrictAggregate(params: {
       .sort((a, b) => sourceRank(a.source) - sourceRank(b.source))[0]
     : undefined;
 
-  const lowActivity = distressCount < K_ANONYMITY_THRESHOLD;
+  const lowActivity = distressCount < K_ANONYMITY_THRESHOLD; // 0–4
+  // Suppress only when there IS something to hide (1–4). 0 stays 0 — an empty
+  // district has nobody to protect and reporting "<5" there would be misleading.
+  const suppressed = distressCount > 0 && distressCount < K_ANONYMITY_THRESHOLD;
 
   return {
     okres: params.okres,
     window_days,
-    insolvency_count: insolvencyCount,
-    auction_count: auctionCount,
-    distress_lead_count: distressCount,
+    insolvency_count: suppressed ? null : insolvencyCount,
+    auction_count: suppressed ? null : auctionCount,
+    distress_lead_count: suppressed ? null : distressCount,
     avg_estimated_price_kc_per_m2: latestPrice?.kcPerM2 ?? null,
     trend_yoy_pct: latestPrice && yoyPrice
       ? Math.round(((latestPrice.kcPerM2 - yoyPrice.kcPerM2) / yoyPrice.kcPerM2) * 1000) / 10
       : null,
+    data_source: DATA_SOURCE_NOTE,
+    ...(suppressed ? { counts_band: '<5' as const } : {}),
     ...(lowActivity ? { low_activity: true as const } : {}),
   };
 }

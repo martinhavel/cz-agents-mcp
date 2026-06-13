@@ -1,6 +1,6 @@
 # @czagents/realestate
 
-**Free tier package only.** Czech distressed real estate intelligence — anonymized district-level aggregates (insolvency and forced-sale counts, price trends; low-volume districts flagged `low_activity` at k<3). No PII exposed.
+**Free tier package only.** Czech distressed real estate intelligence — district-level aggregates (insolvency and forced-sale counts, price trends) built from **public legal registries**: ISIR (insolvencies) and portál dražeb / CEVD (forced sales and executions). No per-person PII (no names, no addresses). To avoid singling out an individual, districts with **1–4 distress leads** return `null` counts plus `counts_band: "<5"` (records exist, exact figure withheld); `0` is shown as `0` and `≥5` exact. Low-volume districts are flagged `low_activity` (k&lt;5).
 
 **Paid features** (full property search, owner data, per-property details) are at the hosted endpoint:
 **[realestate-pro.cz-agents.dev](https://realestate-pro.cz-agents.dev/mcp)** — see [https://cz-agents.dev/pricing.html](https://cz-agents.dev/pricing.html).
@@ -26,7 +26,7 @@ npm install -g @czagents/realestate
 
 ## Tools (free tier)
 
-- `get_district_aggregate` — distress real-estate statistics for a Czech okres (district): counts by category (insolvency / auction) and average market data. Districts with fewer than 3 distress leads are flagged `low_activity` (k<3) to signal that low-volume figures should be read with caution; counts themselves are returned, not suppressed. Free tier — no PII exposed.
+- `get_district_aggregate` — distress real-estate statistics for a Czech okres (district): counts by category (insolvency / auction) and average market data, aggregated from the public ISIR and portál dražeb / CEVD registries. Districts with **1–4 distress leads** return `null` counts + `counts_band: "<5"` and `low_activity: true` — the exact figure is withheld so a single distressed person cannot be identified, but the band makes clear records exist (it is **not** zero). `0` is reported as `0`; `≥5` is exact. The `data_source` field always states the provenance and this rule. Free tier — no per-person PII.
 
 ## Paid tools (hosted realestate-pro only)
 
@@ -41,7 +41,7 @@ See [cz-agents.dev/pricing.html](https://cz-agents.dev/pricing.html) for subscri
 
 | Tier | Price | What you get |
 |---|---|---|
-| **Free** (this package) | 0 Kč | District aggregates with `low_activity` flag at k<3, no PII. |
+| **Free** (this package) | 0 Kč | District aggregates from public registries; 1–4 leads banded to `"<5"`, `low_activity` flag at k&lt;5, no per-person PII. |
 | **Reality Profesional** | 1 990 Kč/měs | Full property search + details, owner names, addresses, RUIAN parcel, appraisal links. Via hosted endpoint. |
 | **Reality Agency** | 5 990 Kč/měs | Multi-seat, REST API + webhooks, higher rate limits, batch search. Via hosted endpoint. |
 

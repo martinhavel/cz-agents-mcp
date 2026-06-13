@@ -2,7 +2,7 @@
  * Realestate MCP server — FREE TIER ONLY (v0.2.0+).
  *
  * Tools:
- *   - get_district_aggregate (free — k≥3 anonymity)
+ *   - get_district_aggregate (free — k<5 banding, public-registry source)
  *   - get_market_trend       (free — aggregate only)
  *
  * Paid tools (search_distress_properties, get_property_detail) have been
@@ -41,10 +41,10 @@ export function buildRealEstateServer(_tier: RealEstateTier = 'free'): McpServer
   );
   wrapServerTools(server);
 
-  // Free tier — k≥3 aggregate, no PII
+  // Free tier — aggregate of public registries (ISIR + portál dražeb/CEVD); counts of 1–4 banded to "<5"
   server.tool(
     'get_district_aggregate',
-    'Aggregate distress real estate statistics for a Czech okres (district). Returns counts by category (insolvency / auction) and average market data. Low-volume districts are marked with low_activity. Free tier — no PII exposed.',
+    'Aggregate distress real estate statistics for a Czech okres (district) from public registries (ISIR insolvencies + portál dražeb / CEVD forced sales). Returns counts by category (insolvency / auction) and average market data. To avoid identifying an individual, districts with 1–4 distress leads return null counts plus counts_band="<5" (records exist, exact figure withheld); 0 is shown as 0, ≥5 exact. low_activity flags k<5. Free tier — no per-person PII (no names/addresses).',
     {
       okres: z.string().describe('Czech okres name (e.g. "Praha", "Brno-město", "Beroun"). Case-sensitive.'),
       window_days: z.union([z.literal(30), z.literal(90), z.literal(365)])
