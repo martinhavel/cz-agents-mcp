@@ -42,7 +42,7 @@ import { IsirClient } from '@czagents/isir';
 import { AdisClient } from '@czagents/adis';
 import { buildDdServer } from './server.js';
 import type { DdClients } from './clients.js';
-import { DD_BILLING } from './billing.js';
+import { buildDdBilling } from './billing.js';
 import { buildReport } from './report.js';
 
 const PORT = Number(process.env.PORT ?? 3030);
@@ -68,6 +68,10 @@ async function main() {
   const tokenDbPath = process.env.TOKEN_DB ?? './tokens.db';
   const tokenStore = new TokenStore(tokenDbPath);
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  // Build the price→tier map only when the webhook is enabled. Fail-fast: if a
+  // required canonical price-id env var is missing, boot aborts with its name
+  // rather than silently mapping no prices (= paid checkout, no token minted).
+  const billing = webhookSecret ? buildDdBilling() : undefined;
   const quota = createQuotaGuard({ store: tokenStore, service: 'dd', allowAnonymous: true });
   const ddRestLimiter = createRestRateLimiter({ max: 60, windowMs: 60 * 60 * 1000 });
 
@@ -131,7 +135,7 @@ async function main() {
     }
 
     if (req.url === '/webhook/stripe' && req.method === 'POST') {
-      if (!webhookSecret) {
+      if (!webhookSecret || !billing) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'webhook_disabled', message: 'STRIPE_WEBHOOK_SECRET not configured.' }));
         return;
@@ -144,7 +148,7 @@ async function main() {
           signatureHeader: Array.isArray(sig) ? sig[0] : sig,
           webhookSecret,
           store: tokenStore,
-          config: DD_BILLING,
+          config: billing,
         });
         res.writeHead(result.status, { 'Content-Type': 'application/json' });
         res.end(result.body);

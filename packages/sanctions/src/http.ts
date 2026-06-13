@@ -37,7 +37,7 @@ import {
 import { SanctionsDb } from './db.js';
 import { SanctionsSearch } from './search.js';
 import { buildSanctionsServer } from './server.js';
-import { SANCTIONS_BILLING } from './billing.js';
+import { buildSanctionsBilling } from './billing.js';
 
 const PORT = Number(process.env.PORT ?? 3030);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
@@ -53,6 +53,10 @@ async function main() {
   const tokenDbPath = process.env.TOKEN_DB ?? './tokens.db';
   const tokenStore = new TokenStore(tokenDbPath);
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  // Build the price→tier map only when the webhook is enabled. Fail-fast: if a
+  // required canonical price-id env var is missing, boot aborts with its name
+  // rather than silently mapping no prices (= paid checkout, no token minted).
+  const billing = webhookSecret ? buildSanctionsBilling() : undefined;
   const quota = createQuotaGuard({ store: tokenStore, service: 'sanctions', allowAnonymous: true });
 
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
@@ -106,7 +110,7 @@ async function main() {
     }
 
     if (req.url === '/webhook/stripe' && req.method === 'POST') {
-      if (!webhookSecret) {
+      if (!webhookSecret || !billing) {
         res.writeHead(503, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'webhook_disabled', message: 'STRIPE_WEBHOOK_SECRET not configured.' }));
         return;
@@ -119,7 +123,7 @@ async function main() {
           signatureHeader: Array.isArray(sig) ? sig[0] : sig,
           webhookSecret,
           store: tokenStore,
-          config: SANCTIONS_BILLING,
+          config: billing,
         });
         res.writeHead(result.status, { 'Content-Type': 'application/json' });
         res.end(result.body);
