@@ -24,6 +24,20 @@ describe('evaluateFlags', () => {
     expect(flags).toEqual([]);
   });
 
+  it('null subject from genuine 404 → NOT_FOUND_IN_ARES (high)', () => {
+    const flags = evaluateFlags(baseInput({ subject: null }));
+    expect(flags.find((f) => f.code === 'NOT_FOUND_IN_ARES')).toBeDefined();
+    expect(flags.find((f) => f.code === 'ARES_UNAVAILABLE')).toBeUndefined();
+  });
+
+  it('null subject from ARES outage → ARES_UNAVAILABLE, NOT NOT_FOUND', () => {
+    const flags = evaluateFlags(baseInput({ subject: null, aresUnavailable: true }));
+    const av = flags.find((f) => f.code === 'ARES_UNAVAILABLE');
+    expect(av).toBeDefined();
+    expect(av!.weight).toBe(0); // availability gap, not a risk finding
+    expect(flags.find((f) => f.code === 'NOT_FOUND_IN_ARES')).toBeUndefined();
+  });
+
   it('triggers INSOLVENCY_ACTIVE on active proceeding', () => {
     const flags = evaluateFlags(baseInput({ insolvency: { has_active: true } }));
     expect(flags.find((f) => f.code === 'INSOLVENCY_ACTIVE')).toBeDefined();

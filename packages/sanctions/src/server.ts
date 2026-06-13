@@ -1,8 +1,38 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
-import { SanctionsDb } from './db.js';
+import { SanctionsDb, type DbStats } from './db.js';
 import { SanctionsSearch } from './search.js';
+
+/** Window beyond which a sanctions list is considered stale (no clean verdict). */
+export const SANCTIONS_STALE_THRESHOLD_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * Returns a degraded-state warning when the sanctions DB is empty, stale, or
+ * has no refresh record — i.e. when a "no match" result must NOT be reported
+ * as a confirmed clean screen. Returns null when the DB is healthy/fresh.
+ * Pure + exported for testability.
+ */
+export function sanctionsDbHealthWarning(stats: DbStats, now: number = Date.now()): string | null {
+  if (stats.total_active === 0) {
+    return '⚠️ Sankční seznam NENÍ načten (0 záznamů) — dotaz neproběhl proti živým datům. ' +
+      'Toto NENÍ výsledek „bez sankcí"; NELZE potvrdit čisto. Načti seznamy (EU/OFAC) a opakuj.';
+  }
+  const refreshedAt = stats.refresh_log
+    .filter((l) => l.ok)
+    .map((l) => Date.parse(l.refreshed_at))
+    .filter((t) => !Number.isNaN(t));
+  if (refreshedAt.length === 0) {
+    return '⚠️ Sankční seznam: chybí záznam o aktualizaci — stáří dat nelze ověřit, NELZE potvrdit čisto.';
+  }
+  const newest = Math.max(...refreshedAt);
+  if (now - newest > SANCTIONS_STALE_THRESHOLD_MS) {
+    const ageH = Math.floor((now - newest) / (60 * 60 * 1000));
+    return `⚠️ Sankční seznam je zastaralý (poslední aktualizace před ${ageH} h, práh 48 h) — ` +
+      'výsledek „bez sankcí" NELZE považovat za potvrzené čisto. Obnov seznamy a opakuj.';
+  }
+  return null;
+}
 
 export interface ServerDeps {
   db: SanctionsDb;
@@ -36,6 +66,21 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
 
   const { db, search } = deps;
 
+  // A "clean" (no-match) sanctions result is only trustworthy if the underlying
+  // list is actually loaded and reasonably fresh. An empty or stale DB must
+  // NOT produce a definitive "not sanctioned" verdict — prepend a degraded
+  // warning so the caller never reads silence as a clean screen.
+  function withCleanGuard(text: string) {
+    let warn: string | null;
+    try {
+      warn = sanctionsDbHealthWarning(db.stats());
+    } catch {
+      warn = '⚠️ Sankční seznam: stav databáze nelze ověřit — NELZE potvrdit „bez sankcí".';
+    }
+    if (!warn) return wrap(text);
+    return { content: [{ type: 'text' as const, text: `${warn}\n\n${text}` }], isError: true };
+  }
+
   server.tool(
     'search_person',
     'Fuzzy-search a sanctioned person by name across all loaded lists. Optional date of birth and nationality narrow results. Returns matches with confidence scores (0-100). 100 = exact ID match, 80+ = strong fuzzy match, lower = review needed.',
@@ -50,9 +95,9 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
     async ({ name, dob, nationality, threshold, limit }) => {
       logToolCall('sanctions', 'search_person', { name, dob, nationality, threshold, limit });
       const matches = search.searchByName(name, { dob, nationality, threshold, limit, typeFilter: 'person' });
-      return wrap(matches.length === 0
-        ? `Žádný match pro "${name}" (threshold ${threshold}).`
-        : formatMatches(name, matches));
+      return matches.length === 0
+        ? withCleanGuard(`Žádný match pro "${name}" (threshold ${threshold}).`)
+        : wrap(formatMatches(name, matches));
     },
   );
 
@@ -69,9 +114,9 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
     async ({ name, country, threshold, limit }) => {
       logToolCall('sanctions', 'search_entity', { name, country, threshold, limit });
       const matches = search.searchByName(name, { nationality: country, threshold, limit, typeFilter: 'entity' });
-      return wrap(matches.length === 0
-        ? `Žádný match pro "${name}" (threshold ${threshold}).`
-        : formatMatches(name, matches));
+      return matches.length === 0
+        ? withCleanGuard(`Žádný match pro "${name}" (threshold ${threshold}).`)
+        : wrap(formatMatches(name, matches));
     },
   );
 
@@ -87,9 +132,9 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
       logToolCall('sanctions', 'check_ico', { ico, name });
       trackIco(ico);
       const matches = search.searchByIco(ico, name);
-      return wrap(matches.length === 0
-        ? `IČO ${ico} se nevyskytuje na sankčních seznamech (EU+OFAC).`
-        : formatMatches(`IČO ${ico}`, matches));
+      return matches.length === 0
+        ? withCleanGuard(`IČO ${ico} se nevyskytuje na sankčních seznamech (EU+OFAC).`)
+        : wrap(formatMatches(`IČO ${ico}`, matches));
     },
   );
 

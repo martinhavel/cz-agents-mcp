@@ -230,7 +230,10 @@ describe('buildReport', () => {
     expect(report.red_flags.find((f) => f.code === 'INSOLVENCY_ACTIVE')).toBeUndefined();
   });
 
-  it('survives ARES errors gracefully (degrades, does not throw)', async () => {
+  it('ARES outage degrades to ARES_UNAVAILABLE (NOT a NOT_FOUND verdict)', async () => {
+    // getByIco THROWS (outage) — must be distinguished from a genuine 404.
+    // Reporting NOT_FOUND_IN_ARES here would be a false "this IČO does not
+    // exist" verdict derived from an unreachable upstream.
     const ares: AresLike = {
       getByIco: async () => { throw new Error('ARES timeout'); },
       getBankAccounts: async () => { throw new Error('boom'); },
@@ -239,6 +242,18 @@ describe('buildReport', () => {
     };
     const report = await buildReport('12345678', { ares });
     expect(report.company.found).toBe(false);
+    expect(report.company.checked).toBe(false);
+    expect(report.company.error).toBe('ares_unavailable');
+    expect(report.red_flags.find((f) => f.code === 'ARES_UNAVAILABLE')).toBeDefined();
+    expect(report.red_flags.find((f) => f.code === 'NOT_FOUND_IN_ARES')).toBeUndefined();
+  });
+
+  it('genuine ARES 404 (null subject, no throw) still flags NOT_FOUND_IN_ARES', async () => {
+    const ares = mockAres({ subject: null });
+    const report = await buildReport('00000000', { ares });
+    expect(report.company.found).toBe(false);
+    expect(report.company.error).toBeUndefined();
     expect(report.red_flags.find((f) => f.code === 'NOT_FOUND_IN_ARES')).toBeDefined();
+    expect(report.red_flags.find((f) => f.code === 'ARES_UNAVAILABLE')).toBeUndefined();
   });
 });

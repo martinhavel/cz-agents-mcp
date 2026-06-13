@@ -89,6 +89,10 @@ export interface DdCompany {
   dissolved_on?: string;
   nace_codes?: string[];
   found: boolean;
+  /** False when ARES was referenced but the lookup threw (outage) rather than
+   *  returning a genuine 404. Distinguishes "ARES unavailable" from "IČO not found". */
+  checked?: boolean;
+  error?: 'ares_unavailable';
 }
 
 export interface DdVat {

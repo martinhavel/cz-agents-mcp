@@ -49,6 +49,41 @@ const SOAP_NAMESPACE = 'http://adis.mfcr.cz/rozhraniCRPDPH/';
 /** ADIS hard limit per request. */
 export const MAX_DIC_PER_REQUEST = 100;
 
+/**
+ * Thrown when the ADIS client is in stub mode (no ADIS_SOAP_ENABLED). The
+ * query never hit the live VAT registry, so callers MUST NOT report
+ * "not in registry" / "reliable" — they must surface an explicit
+ * "not configured / did not run".
+ */
+export class AdisNotConfiguredError extends Error {
+  readonly code = 'ADIS_NOT_CONFIGURED';
+  constructor() {
+    super('ADIS není nakonfigurován (ADIS_SOAP_ENABLED chybí), dotaz NEPROBĚHL');
+    this.name = 'AdisNotConfiguredError';
+  }
+}
+
+/**
+ * Thrown when ADIS responds (HTTP 200) but its service status_code signals the
+ * registry could not be queried reliably:
+ *   1 = data integrity error, 2 = maintenance window, 3 = service unavailable.
+ * A degraded service must NOT collapse to a clean "reliable / not found".
+ */
+export class AdisServiceDegradedError extends Error {
+  readonly code = 'ADIS_SERVICE_DEGRADED';
+  constructor(public readonly statusCode: number, statusText: string) {
+    super(`ADIS služba nedostupná (status_code=${statusCode}${statusText ? `: ${statusText}` : ''}), dotaz se neprovedl spolehlivě`);
+    this.name = 'AdisServiceDegradedError';
+  }
+}
+
+/** Throws if the ADIS service status signals a degraded/unavailable state. */
+function assertServiceOk(service: AdisServiceStatus): void {
+  if (service.status_code !== 0) {
+    throw new AdisServiceDegradedError(service.status_code, service.status_text);
+  }
+}
+
 export interface AdisClientOptions {
   endpoint?: string;
   /** When true, the client returns canned empty/safe results without network. */
@@ -92,8 +127,9 @@ export class AdisClient {
    */
   async checkPayer(input: { ico?: string; dic?: string }): Promise<DphPayerStatus | null> {
     const dic = resolveDic(input);
-    if (this.stub) return null;
+    if (this.stub) throw new AdisNotConfiguredError();
     const result = await this.callSubjectV2([dic]);
+    assertServiceOk(result.service);
     const found = result.results.find((r) => r.dic === dic) ?? null;
     if (!found) return null;
     if (found.reliability === 'NENALEZEN') return null;
@@ -119,13 +155,10 @@ export class AdisClient {
         `ADIS request limit is ${MAX_DIC_PER_REQUEST} DIČ; received ${dics.length}. Split into batches.`,
       );
     }
-    if (this.stub) {
-      return {
-        service: { generated_on: new Date().toISOString().slice(0, 10), status_code: 0, status_text: 'OK (stub)' },
-        results: dics.map((dic) => stubResult(dic)),
-      };
-    }
-    return this.callBasic(dics);
+    if (this.stub) throw new AdisNotConfiguredError();
+    const result = await this.callBasic(dics);
+    assertServiceOk(result.service);
+    return result;
   }
 
   /**
@@ -133,15 +166,12 @@ export class AdisClient {
    * of entries). Use sparingly — typically once a day for a local mirror.
    */
   async listUnreliable(): Promise<UnreliableListResult> {
-    if (this.stub) {
-      return {
-        service: { generated_on: new Date().toISOString().slice(0, 10), status_code: 0, status_text: 'OK (stub)' },
-        unreliable: [],
-      };
-    }
+    if (this.stub) throw new AdisNotConfiguredError();
     const xml = buildListEnvelope();
     const body = await this.post(xml, 'getSeznamNespolehlivyPlatce');
-    return this.parseListResponse(body);
+    const result = this.parseListResponse(body);
+    assertServiceOk(result.service);
+    return result;
   }
 
   // ---- private SOAP plumbing ----
@@ -242,10 +272,6 @@ function resolveDic(input: { ico?: string; dic?: string }): string {
   if (input.dic) return icoToDic(input.dic);
   if (input.ico) return icoToDic(input.ico);
   throw new Error('Either `ico` or `dic` is required');
-}
-
-function stubResult(dic: string): DphPayerStatus {
-  return { dic, ico: dicToIco(dic), reliability: 'NENALEZEN', accounts: [] };
 }
 
 interface SubjectV2Tree {

@@ -74,6 +74,20 @@ export interface CuzkResult {
   synchronized_at?: string;
 }
 
+/**
+ * Thrown by IČO/person lookup methods when the client is in stub mode (no
+ * ISIR_SOAP_ENABLED). The query never hit live data, so callers MUST NOT
+ * report a clean "no insolvency" result — they should surface this as an
+ * explicit "not configured / query did not run" error.
+ */
+export class IsirNotConfiguredError extends Error {
+  readonly code = 'ISIR_NOT_CONFIGURED';
+  constructor() {
+    super('ISIR není nakonfigurován (ISIR_SOAP_ENABLED chybí), dotaz NEPROBĚHL');
+    this.name = 'IsirNotConfiguredError';
+  }
+}
+
 export interface CuzkClientOptions {
   endpoint?: string;
   stub?: boolean;
@@ -130,7 +144,11 @@ export class CuzkClient {
 
   /** Look up a CZ company by IČO. Returns first active proceeding mapped to InsolvencyStatus shape, or null. */
   async checkActiveByIco(ico: string): Promise<InsolvencyStatus | null> {
+    if (this.stub) throw new IsirNotConfiguredError();
     const r = await this.search({ ic: ico, onlyActive: true, maxResults: 1 });
+    // Upstream returned an error status (not a documented "empty result"). We
+    // must NOT read this as "no insolvency" — throw so the caller degrades.
+    if (r.status === 'ERROR') throw new Error(`CUZK upstream error: ${r.error_code ?? '?'} ${r.error_message ?? ''}`.trim());
     if (r.results.length === 0) return null;
     return mapToInsolvencyStatus(r.results[0]!, ico);
   }
@@ -141,6 +159,7 @@ export class CuzkClient {
     dob?: string;
     onlyActive?: boolean;
   }): Promise<CuzkProceeding[]> {
+    if (this.stub) throw new IsirNotConfiguredError();
     const r = await this.search({
       jmeno: opts.name,
       datumNarozeni: opts.dob,
@@ -148,6 +167,8 @@ export class CuzkClient {
       diacriticsInsensitive: true,
       maxResults: 20,
     });
+    // Same as checkActiveByIco: an ERROR status must not collapse to "no hits".
+    if (r.status === 'ERROR') throw new Error(`CUZK upstream error: ${r.error_code ?? '?'} ${r.error_message ?? ''}`.trim());
     return r.results;
   }
 

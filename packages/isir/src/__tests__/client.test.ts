@@ -86,9 +86,12 @@ describe('IsirClient (stub mode)', () => {
     expect(r.last_id).toBe(100);
   });
 
-  it('checkActiveInsolvency returns null', async () => {
+  it('checkActiveInsolvency throws IsirNotConfiguredError (no silent clean verdict)', async () => {
     const c = new IsirClient({ stub: true });
-    expect(await c.checkActiveInsolvency('12345678')).toBeNull();
+    // In stub mode the query never hits live data. It must NOT resolve to
+    // null (which a caller could read as "no insolvency") — it must throw so
+    // the caller degrades to an explicit "not configured / did not run".
+    await expect(c.checkActiveInsolvency('12345678')).rejects.toThrow(/ISIR_SOAP_ENABLED|NEPROBĚHL/);
   });
 
   it('getProceedingDetail returns null', async () => {

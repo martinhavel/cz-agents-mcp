@@ -36,8 +36,14 @@ export async function buildReport(
   const depth = opts.depth ?? 'basic';
   const basicOnly = depth === 'basic';
 
-  const [subject, bankAccounts, vr] = await Promise.all([
-    safe(() => clients.ares.getByIco(ico)),
+  // The primary ARES subject lookup distinguishes "404 → genuinely null" from
+  // "threw → ARES outage". Collapsing both to null (as plain safe() does) makes
+  // an outage indistinguishable from a non-existent IČO and yields a misleading
+  // NOT_FOUND_IN_ARES flag on a clean-looking report. Track the outage instead.
+  const subjectResult = await safeWithError(() => clients.ares.getByIco(ico));
+  const subject = subjectResult.value;
+  const aresUnavailable = subjectResult.errored;
+  const [bankAccounts, vr] = await Promise.all([
     safe(() => clients.ares.getBankAccounts(ico)),
     safe(() => clients.ares.getVrRecord(ico)),
   ]);
@@ -166,6 +172,7 @@ export async function buildReport(
   const flags = evaluateFlags({
     ico,
     subject: subject ?? null,
+    aresUnavailable,
     vr: vr ?? null,
     vatPayer: !!subject?.dic,
     bankAccountsCount: bankAccounts?.length ?? 0,
@@ -205,6 +212,7 @@ export async function buildReport(
       dissolved_on: subject?.datumZaniku,
       nace_codes: subject?.czNace,
       found: !!subject,
+      ...(aresUnavailable ? { checked: false as const, error: 'ares_unavailable' as const } : {}),
     },
     vat: {
       is_payer: !!subject?.dic,
@@ -247,6 +255,19 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | null> {
     return await fn();
   } catch {
     return null;
+  }
+}
+
+/**
+ * Like safe(), but reports whether the call threw. Used for the primary ARES
+ * lookup so a genuine 404 (value=null, errored=false) is distinguishable from
+ * an upstream outage (value=null, errored=true).
+ */
+async function safeWithError<T>(fn: () => Promise<T>): Promise<{ value: T | null; errored: boolean }> {
+  try {
+    return { value: await fn(), errored: false };
+  } catch {
+    return { value: null, errored: true };
   }
 }
 

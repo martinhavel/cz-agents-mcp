@@ -56,9 +56,15 @@ describe('summary markdown', () => {
     expect(text).not.toContain('NACE');
   });
 
-  it('renders clean basic report with full-depth insolvency hint', () => {
+  it('basic-depth report is ČÁSTEČNĚ PROVĚŘENO, not ✅ ČISTÉ (ISIR not run)', () => {
+    // depth:basic skips ISIR — an unscreened insolvency register means the
+    // subject is only partially verified. A clean-looking basic report must
+    // NOT claim a definitive clean verdict.
     const text = buildDdSummaryMarkdown(report({ basic_only: true, insolvency: undefined }));
     expect(text).toContain("Insolvence neprověřena (depth:'full' zdarma)");
+    expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅ ČISTÉ');
+    expect(text).toContain('ISIR neprověřeno');
   });
 
   it('renders active insolvency as red risk', () => {

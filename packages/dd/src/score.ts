@@ -17,6 +17,9 @@ const HIGH_CONFIDENCE_SANCTIONS = 85;
 export interface ScoreInputs {
   ico: string;
   subject: AresSubjectLike | null;
+  /** True when the ARES subject lookup threw (outage) rather than returning a
+   *  genuine 404. A null subject from an outage must NOT raise NOT_FOUND_IN_ARES. */
+  aresUnavailable?: boolean;
   vr: AresVrLike | null;
   vatPayer: boolean;
   bankAccountsCount: number;
@@ -194,13 +197,25 @@ export function evaluateFlags(input: ScoreInputs): RedFlag[] {
   }
 
   if (!input.subject) {
-    flags.push({
-      code: 'NOT_FOUND_IN_ARES',
-      severity: 'high',
-      weight: 30,
-      description: 'IČO nenalezeno v ARES.',
-      source: 'ares',
-    });
+    if (input.aresUnavailable) {
+      // ARES outage — we genuinely don't know if the IČO exists. Surface as a
+      // degraded/availability flag, NOT as a definitive "not found" verdict.
+      flags.push({
+        code: 'ARES_UNAVAILABLE',
+        severity: 'medium',
+        weight: 0,
+        description: 'ARES nedostupný — základní údaje nebyly ověřeny (dotaz se neprovedl). Existence IČO nepotvrzena.',
+        source: 'ares',
+      });
+    } else {
+      flags.push({
+        code: 'NOT_FOUND_IN_ARES',
+        severity: 'high',
+        weight: 30,
+        description: 'IČO nenalezeno v ARES.',
+        source: 'ares',
+      });
+    }
   }
 
   return flags;

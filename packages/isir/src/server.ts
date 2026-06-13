@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { validateIcoInput, trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
 import { IsirClient } from './client.js';
+import { IsirNotConfiguredError } from './cuzk.js';
 
 export function buildIsirServer(client: IsirClient = new IsirClient()): McpServer {
   // Bind tools below; intentionally stable across stub/real modes.
@@ -44,6 +45,7 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
         return wrap(JSON.stringify(result, null, 2));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        if (isNotConfigured(e)) return notConfiguredResponse('lookup podle IČO');
         if (isUpstreamUnavailable(msg)) return unavailableResponse('lookup podle IČO');
         return {
           content: [{ type: 'text', text: `ISIR query failed: ${msg}` }],
@@ -72,6 +74,7 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
         return wrap(JSON.stringify({ query: { name, dob, only_active }, matches: matches.length, results: matches }, null, 2));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        if (isNotConfigured(e)) return notConfiguredResponse('vyhledávání osob');
         if (isUpstreamUnavailable(msg)) return unavailableResponse('vyhledávání osob');
         return { content: [{ type: 'text', text: `ISIR person search failed: ${msg}` }], isError: true };
       }
@@ -124,6 +127,27 @@ function wrap(text: string) {
 // error) we must NEVER imply a clean "no insolvency" result — return an explicit
 // "temporarily unavailable, verify manually" so DD callers never read silence as
 // a clean screen.
+// Stub mode (ISIR_SOAP_ENABLED not set): the lookup never touched live data.
+// We must surface this as an explicit "did not run" — NEVER a clean verdict.
+function isNotConfigured(e: unknown): boolean {
+  return e instanceof IsirNotConfiguredError;
+}
+
+function notConfiguredResponse(scope: string) {
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text:
+          `⚠️ ISIR ${scope}: ISIR není nakonfigurován (chybí ISIR_SOAP_ENABLED), ` +
+          `dotaz NEPROBĚHL. POZOR: toto NENÍ výsledek „bez insolvence". ` +
+          `Ověř ručně na https://isir.justice.cz/isir/common/index.do.`,
+      },
+    ],
+    isError: true,
+  };
+}
+
 function isUpstreamUnavailable(msg: string): boolean {
   return /CUZK HTTP \d|HTTP [45]\d\d|ECONN|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|aborted|fetch failed|network|socket hang/i.test(
     msg,

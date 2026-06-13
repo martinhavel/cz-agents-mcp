@@ -134,27 +134,46 @@ describe('AdisClient — response parsing', () => {
   });
 });
 
-describe('AdisClient — stub mode', () => {
-  it('checkPayer returns null in stub mode', async () => {
+describe('AdisClient — stub mode (no silent clean verdict)', () => {
+  // Stub mode never hits the live VAT registry. Returning null / NENALEZEN /
+  // empty would let a caller read "reliable" or "not in registry" from a query
+  // that never ran — must throw AdisNotConfiguredError instead.
+  it('checkPayer throws AdisNotConfiguredError in stub mode', async () => {
     const c = new AdisClient({ stub: true });
-    const result = await c.checkPayer({ ico: '11122234' });
-    expect(result).toBeNull();
+    await expect(c.checkPayer({ ico: '11122234' })).rejects.toThrow(/ADIS_SOAP_ENABLED|NEPROBĚHL/);
   });
-  it('checkBulk returns NENALEZEN entries in stub mode', async () => {
+  it('checkBulk throws AdisNotConfiguredError in stub mode', async () => {
     const c = new AdisClient({ stub: true });
-    const result = await c.checkBulk({ icos: ['11122234', '12345678'] });
-    expect(result.results).toHaveLength(2);
-    expect(result.results[0]!.reliability).toBe('NENALEZEN');
-    expect(result.results[1]!.reliability).toBe('NENALEZEN');
+    await expect(c.checkBulk({ icos: ['11122234', '12345678'] })).rejects.toThrow(/ADIS_SOAP_ENABLED|NEPROBĚHL/);
   });
-  it('checkBulk rejects >100 DIČs', async () => {
+  it('checkBulk rejects >100 DIČs (limit checked before stub gate)', async () => {
     const c = new AdisClient({ stub: true });
     const dics = Array.from({ length: 101 }, (_, i) => `CZ${String(i).padStart(8, '0')}`);
     await expect(c.checkBulk({ dics })).rejects.toThrow(/limit is 100/);
   });
-  it('listUnreliable returns empty in stub mode', async () => {
+  it('listUnreliable throws AdisNotConfiguredError in stub mode', async () => {
     const c = new AdisClient({ stub: true });
-    const result = await c.listUnreliable();
-    expect(result.unreliable).toEqual([]);
+    await expect(c.listUnreliable()).rejects.toThrow(/ADIS_SOAP_ENABLED|NEPROBĚHL/);
   });
+});
+
+describe('AdisClient — degraded service status_code', () => {
+  // ADIS returns HTTP 200 even when the registry is degraded; status_code
+  // 1/2/3 must be treated as "query did not run reliably", never a clean result.
+  const degradedV2 = (code: number) => `<?xml version='1.0'?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Body>
+    <ns:StatusNespolehlivySubjektRozsirenyResponse xmlns:ns="http://adis.mfcr.cz/rozhraniCRPDPH/">
+      <ns:status odpovedGenerovana="2026-06-13" statusCode="${code}" statusText="degraded"/>
+    </ns:StatusNespolehlivySubjektRozsirenyResponse>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+
+  for (const code of [1, 2, 3]) {
+    it(`checkPayer throws on status_code=${code}`, async () => {
+      const mockFetch = (async () => new Response(degradedV2(code), { status: 200 })) as typeof fetch;
+      const c = new AdisClient({ stub: false, fetchImpl: mockFetch });
+      await expect(c.checkPayer({ dic: 'CZ11122234' })).rejects.toThrow(/status_code=/);
+    });
+  }
 });

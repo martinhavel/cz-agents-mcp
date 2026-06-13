@@ -112,7 +112,7 @@ function buildSourcesLine(report: DdReport): string {
   if (!report.basic_only || report.red_flags.some((f) => f.code === 'VIRTUAL_ADDRESS')) sources.push('ověření virtuální adresy');
   const unavailable = getUnavailableReferencedSources(report);
   const suffix = unavailable.length > 0
-    ? ` — ${unavailable.map((source) => `${source.label} nedostupný`).join(' · ')}`
+    ? ` — ${unavailable.map((source) => `${source.label} ${source.notChecked ? 'neprověřeno' : 'nedostupný'}`).join(' · ')}`
     : '';
   return `${sources.length} ${zdrojeWord(sources.length)}: ${sources.join(' · ')}${suffix}.`;
 }
@@ -172,14 +172,23 @@ function buildFlagLines(flags: RedFlag[]): string[] {
 }
 
 export interface SourceAvailability {
-  id: 'isir' | 'sanctions' | 'adis';
+  id: 'isir' | 'sanctions' | 'adis' | 'ares';
   label: string;
+  /** true = source was skipped/not run (e.g. depth:basic); false/undefined = source errored/unavailable. */
+  notChecked?: boolean;
 }
 
 export function getUnavailableReferencedSources(report: DdReport): SourceAvailability[] {
   const unavailable: SourceAvailability[] = [];
+  if (report.company.checked === false && report.company.error === 'ares_unavailable') {
+    unavailable.push({ id: 'ares', label: 'ARES' });
+  }
   if (report.insolvency?.checked === false && report.insolvency.error === 'isir_unavailable') {
     unavailable.push({ id: 'isir', label: 'ISIR' });
+  } else if (report.basic_only) {
+    // Basic depth never runs ISIR. An unchecked insolvency register means the
+    // subject is at best PARTIALLY screened — must not read as fully clean.
+    unavailable.push({ id: 'isir', label: 'ISIR', notChecked: true });
   }
   if (report.sanctions.checked === false && report.sanctions.error === 'sanctions_unavailable') {
     unavailable.push({ id: 'sanctions', label: 'sankce' });

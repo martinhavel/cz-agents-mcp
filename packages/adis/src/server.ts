@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { validateIcoInput, trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
-import { AdisClient, MAX_DIC_PER_REQUEST } from './client.js';
+import { AdisClient, MAX_DIC_PER_REQUEST, AdisNotConfiguredError, AdisServiceDegradedError } from './client.js';
 
 export function buildAdisServer(client: AdisClient = new AdisClient()): McpServer {
   const server = new McpServer(
@@ -118,6 +118,26 @@ function wrap(text: string) {
 }
 
 function error(e: unknown) {
+  // Degraded/unconfigured ADIS must NEVER read as a clean "reliable / not in
+  // registry" verdict — surface explicitly that the query did not run.
+  if (e instanceof AdisNotConfiguredError) {
+    return {
+      content: [{ type: 'text' as const, text:
+        `⚠️ ADIS není nakonfigurován (chybí ADIS_SOAP_ENABLED), dotaz NEPROBĚHL. ` +
+        `POZOR: toto NENÍ výsledek „spolehlivý plátce" ani „není v registru". ` +
+        `Ověř ručně na https://adisspr.mfcr.cz/dpr/DphReg.` }],
+      isError: true,
+    };
+  }
+  if (e instanceof AdisServiceDegradedError) {
+    return {
+      content: [{ type: 'text' as const, text:
+        `⚠️ ${e.message}. POZOR: výsledek spolehlivosti DPH nelze potvrdit — ` +
+        `dotaz se neprovedl spolehlivě. Zkus později nebo ověř ručně na ` +
+        `https://adisspr.mfcr.cz/dpr/DphReg.` }],
+      isError: true,
+    };
+  }
   const msg = e instanceof Error ? e.message : String(e);
   return { content: [{ type: 'text' as const, text: `ADIS query failed: ${msg}` }], isError: true };
 }
