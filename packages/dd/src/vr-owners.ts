@@ -125,7 +125,7 @@ SELECT
   n.cycle,
   asof.finished_at AS as_of,
   COALESCE(
-    jsonb_agg(
+    jsonb_agg(DISTINCT
       jsonb_build_object(
         'kind', CASE WHEN r.member_ico IS NULL THEN 'person' ELSE 'company' END,
         'name', COALESCE(mc.name, p.full_name),
@@ -138,7 +138,6 @@ SELECT
         'valid_from', r.valid_from,
         'namesake_flag', CASE WHEN r.member_ico IS NULL THEN COALESCE(pnc.same_name_birth_year_count, 0) > 1 ELSE false END
       )
-      ORDER BY r.member_ico NULLS LAST, COALESCE(mc.name, p.full_name), r.person_id
     ) FILTER (WHERE r.person_id IS NOT NULL),
     '[]'::jsonb
   ) AS owners
