@@ -166,9 +166,18 @@ export interface AdisLike {
   checkPayer(input: { ico?: string; dic?: string }): Promise<AdisPayerStatusLike | null>;
 }
 
+export interface VrQueryResult<T> {
+  rows: T[];
+}
+
+export interface VrLike {
+  query<T = unknown>(sql: string, params: readonly unknown[]): Promise<VrQueryResult<T>>;
+}
+
 export interface DdClients {
   ares: AresLike;
   sanctions?: SanctionsLike;
   isir?: IsirLike;
   adis?: AdisLike;
+  vr?: VrLike;
 }

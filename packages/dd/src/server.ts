@@ -10,6 +10,8 @@ import { detectPhoenix } from './patterns/phoenix.js';
 import { detectAddressCrowding } from './patterns/address-crowding.js';
 import { lookupGleifParent, getByLei } from './gleif-lookup.js';
 import type { DdClients } from './clients.js';
+import { lookupPersonCompanies } from './vr-person-companies.js';
+import { buildOwnersMarkdown, lookupOwners } from './vr-owners.js';
 
 /**
  * Tier kind — controls which tools are available to the caller.
@@ -68,6 +70,60 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
     },
   );
   wrapServerTools(server);
+
+  server.tool(
+    'person_companies',
+    'Look up Czech VR companies connected to a person by exact registry person_id -> roles -> companies joins. Free anonymous tool. Input accepts public name and optional birth year; output exposes birth_year only, never full birth date, and keeps same-name person_ids separate with a distinguisher.',
+    {
+      name: z.string().min(2).describe('Person full name as recorded in VR, e.g. "Jan Novak".'),
+      birth_year: z.number().int().min(1850).max(new Date().getFullYear()).optional().describe('Optional public birth year used to narrow same-name matches.'),
+    },
+    { title: 'Find Person Companies in VR', readOnlyHint: true, openWorldHint: true },
+    async ({ name, birth_year }) => {
+      logToolCall('dd', 'person_companies', { name, birth_year });
+      if (!clients.vr) {
+        return wrap(JSON.stringify({
+          error: 'vr_not_configured',
+          message: 'VR Postgres client is not configured for this DD server instance.',
+        }, null, 2));
+      }
+      const result = await lookupPersonCompanies(clients.vr, { name, birthYear: birth_year });
+      return wrap(JSON.stringify(result, null, 2));
+    },
+  );
+
+  server.tool(
+    'get_owners',
+    'Look up direct and upstream Czech VR owners for a company by real active shareholding roles (spolecnik/akcionar) and company-to-company member_ico edges. Free anonymous tool. Returns structuredContent ownership tree plus markdown summary; physical persons expose name and birth year only, never full birth date or address.',
+    {
+      ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
+      max_depth: z.number().int().min(1).max(5).default(5).describe('Max company-owner recursion depth through member_ico (default 5, hard cap 5).'),
+    },
+    { title: 'Get Company Owners from VR', readOnlyHint: true, openWorldHint: true },
+    async ({ ico, max_depth }) => {
+      logToolCall('dd', 'get_owners', { ico, max_depth });
+      if (!clients.vr) {
+        return wrap(JSON.stringify({
+          error: 'vr_not_configured',
+          message: 'VR Postgres client is not configured for this DD server instance.',
+        }, null, 2));
+      }
+      const clean = validateIcoInput(ico);
+      trackIco(clean);
+      try {
+        const result = await lookupOwners(clients.vr, { ico: clean, maxDepth: max_depth });
+        return {
+          structuredContent: result as unknown as Record<string, unknown>,
+          content: [{ type: 'text' as const, text: buildOwnersMarkdown(result) }],
+        };
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith('ico_not_found:')) {
+          return wrap(JSON.stringify({ error: 'ico_not_found', ico: clean }, null, 2));
+        }
+        throw err;
+      }
+    },
+  );
 
   server.tool(
     'get_dd_report',
