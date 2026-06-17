@@ -46,7 +46,7 @@
     "@czagents/sanctions": "^0.1.4",
     "@czagents/shared": "^0.1.9",
     "@modelcontextprotocol/sdk": "^1.10.0",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
