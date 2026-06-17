@@ -43,7 +43,7 @@ describe('lookupOwners', () => {
   it('uses a recursive VR query over member_ico ownership edges', () => {
     expect(OWNERS_SQL).toContain('WITH RECURSIVE');
     expect(OWNERS_SQL).toContain('r.member_ico');
-    expect(OWNERS_SQL).toContain('r.member_ico = ANY(n.path)');
+    expect(OWNERS_SQL).toContain('member_ico = ANY(n.path)');
     expect(OWNERS_SQL).toContain('vr.import_log');
   });
 
@@ -69,6 +69,28 @@ describe('lookupOwners', () => {
     expect(markdown).toContain('Bez nadřazené právnické osoby');
     expect(markdown).toContain('Zdroj: veřejný rejstřík (VR), data k 2026-06-16T12:00:00.000Z');
     expect(markdown).not.toContain('1978-');
+  });
+
+  it('parses dirty VR share percentages from live data formats', async () => {
+    const result = await lookupOwners(mockVr([
+      row({
+        ico: '12345679',
+        name: 'Shares s.r.o.',
+        owners: [
+          personOwner({ name: 'A Owner', birth_year: 1970, share: 'společník | Podíl | 100%%' }),
+          personOwner({ name: 'B Owner', birth_year: 1971, share: 'společník | Podíl | 1/3%' }),
+          personOwner({ name: 'C Owner', birth_year: 1972, share: 'společník | Podíl | 100.00%' }),
+          personOwner({ name: 'D Owner', birth_year: 1973, share: 'společník | Podíl | 50 %%' }),
+        ],
+      }),
+    ]), { ico: '12345679' });
+
+    expect(result.direct_owners.map((owner) => owner.share_percent)).toEqual([
+      100,
+      expect.closeTo(33.33, 2),
+      100,
+      50,
+    ]);
   });
 
   it('builds an upstream company ownership chain through member_ico', async () => {
@@ -207,7 +229,7 @@ function companyOwner(input: Partial<MockRow['owners'][number]> & { name: string
     kind: 'company',
     name: input.name,
     ico: input.ico,
-    person_id: null,
+    person_id: input.person_id ?? 'company-role-person-1',
     birth_year: null,
     share: input.share,
     type: input.type ?? 'SPOLECNIK_OSOBA',

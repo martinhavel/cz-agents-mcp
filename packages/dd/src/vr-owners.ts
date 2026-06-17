@@ -54,11 +54,8 @@ export const OWNERSHIP_ROLE_FILTER_SQL = `
   r.valid_to IS NULL
   AND r.share_type IS NOT NULL
   AND (
-    r.share_type IN ('SPOLECNIK_OSOBA', 'AKCIONAR')
-    OR r.share_type ILIKE 'Spole%'
-    OR r.share_type ILIKE 'Akcion%'
-    OR r.role ILIKE '%Spole%'
-    OR r.role ILIKE '%Akcion%'
+    r.share_type ILIKE '%spole%'
+    OR r.share_type ILIKE '%akcion%'
   )
 `;
 
@@ -77,18 +74,22 @@ WITH RECURSIVE owner_nodes_raw AS (
   UNION ALL
 
   SELECT
-    r.member_ico AS ico,
+    owner_edge.member_ico AS ico,
     mc.name,
     mc.source_dataset,
     n.depth + 1 AS depth,
-    n.path || r.member_ico,
-    r.member_ico = ANY(n.path) AS cycle
+    n.path || owner_edge.member_ico,
+    owner_edge.member_ico = ANY(n.path) AS cycle
   FROM owner_nodes_raw n
-  JOIN vr.roles r ON r.company_ico = n.ico
-  LEFT JOIN vr.companies mc ON mc.ico = r.member_ico
-  WHERE ${OWNERSHIP_ROLE_FILTER_SQL}
-    AND r.member_ico IS NOT NULL
-    AND n.depth < $2
+  JOIN LATERAL (
+    SELECT DISTINCT r.member_ico
+    FROM vr.roles r
+    WHERE r.company_ico = n.ico
+      AND ${OWNERSHIP_ROLE_FILTER_SQL}
+      AND r.member_ico IS NOT NULL
+  ) owner_edge ON true
+  LEFT JOIN vr.companies mc ON mc.ico = owner_edge.member_ico
+  WHERE n.depth < $2
     AND n.cycle = false
 ),
 owner_nodes AS (
@@ -102,6 +103,17 @@ person_name_counts AS (
     extract(year FROM p.birth_date)::int AS birth_year,
     count(*)::int AS same_name_birth_year_count
   FROM vr.persons p
+  JOIN (
+    SELECT DISTINCT
+      owner_person.full_name,
+      extract(year FROM owner_person.birth_date)::int AS birth_year
+    FROM owner_nodes n
+    JOIN vr.roles r ON r.company_ico = n.ico AND ${OWNERSHIP_ROLE_FILTER_SQL}
+    JOIN vr.persons owner_person ON owner_person.id = r.person_id
+    WHERE r.member_ico IS NULL
+  ) owner_names
+    ON owner_names.full_name = p.full_name
+   AND owner_names.birth_year IS NOT DISTINCT FROM extract(year FROM p.birth_date)::int
   GROUP BY p.full_name, extract(year FROM p.birth_date)::int
 )
 SELECT
@@ -329,9 +341,15 @@ function parsePath(path: string[] | string): string[] {
 }
 
 function parseSharePercent(share: string | null): number | null {
-  const match = share?.match(/([0-9]+(?:[,.][0-9]+)?)\s*%/);
+  const match = share?.match(/([0-9]+(?:[,.][0-9]+)?)(?:\s*\/\s*([0-9]+(?:[,.][0-9]+)?))?\s*%+/);
   if (!match) return null;
-  return Number(match[1]!.replace(',', '.'));
+
+  const numerator = Number(match[1]!.replace(',', '.'));
+  const denominator = match[2] === undefined ? null : Number(match[2].replace(',', '.'));
+  if (!Number.isFinite(numerator)) return null;
+  if (denominator === null) return numerator;
+  if (!Number.isFinite(denominator) || denominator === 0) return null;
+  return (numerator / denominator) * 100;
 }
 
 function formatOwnerName(owner: OwnerEntry): string {

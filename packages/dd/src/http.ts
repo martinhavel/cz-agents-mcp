@@ -44,6 +44,7 @@ import { buildDdServer } from './server.js';
 import type { DdClients } from './clients.js';
 import { buildDdBilling } from './billing.js';
 import { buildReport } from './report.js';
+import { vrClient } from './vr-client.js';
 
 const PORT = Number(process.env.PORT ?? 3030);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
@@ -63,7 +64,7 @@ async function main() {
   const isir = new IsirClient();
   const adis = new AdisClient();
 
-  const clients: DdClients = { ares, sanctions, isir, adis };
+  const clients: DdClients = { ares, sanctions, isir, adis, vr: vrClient };
 
   const tokenDbPath = process.env.TOKEN_DB ?? './tokens.db';
   const tokenStore = new TokenStore(tokenDbPath);

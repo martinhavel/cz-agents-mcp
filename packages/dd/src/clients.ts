@@ -171,7 +171,7 @@ export interface VrQueryResult<T> {
 }
 
 export interface VrLike {
-  query<T = unknown>(sql: string, params: readonly unknown[]): Promise<VrQueryResult<T>>;
+  query<T = unknown>(sql: string, params?: readonly unknown[]): Promise<VrQueryResult<T>>;
 }
 
 export interface DdClients {
