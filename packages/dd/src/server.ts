@@ -81,14 +81,40 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
     { title: 'Find Person Companies in VR', readOnlyHint: true, openWorldHint: true },
     async ({ name, birth_year }) => {
       logToolCall('dd', 'person_companies', { name, birth_year });
-      if (!clients.vr) {
+      // Person->companies needs the FULL VR base (statutory + ownership roles), which
+      // lives on the off-site base (clients.vrBase). The local hot slim (clients.vr)
+      // only holds ownership roles, so using it alone would silently miss statutory-only
+      // people — a false negative. Prefer base; fall back to slim only with an explicit
+      // partial-coverage flag; never return a silent empty result.
+      const primary = clients.vrBase ?? clients.vr;
+      if (!primary) {
         return wrap(JSON.stringify({
           error: 'vr_not_configured',
           message: 'VR Postgres client is not configured for this DD server instance.',
         }, null, 2));
       }
-      const result = await lookupPersonCompanies(clients.vr, { name, birthYear: birth_year });
-      return wrap(JSON.stringify(result, null, 2));
+      try {
+        const result = await lookupPersonCompanies(primary, { name, birthYear: birth_year });
+        if (!clients.vrBase) {
+          (result as unknown as Record<string, unknown>).coverage = 'partial_ownership_only';
+        }
+        return wrap(JSON.stringify(result, null, 2));
+      } catch (e) {
+        console.error('[dd] person_companies base query failed:', e);
+        if (clients.vrBase && clients.vr) {
+          try {
+            const fallback = await lookupPersonCompanies(clients.vr, { name, birthYear: birth_year });
+            (fallback as unknown as Record<string, unknown>).coverage = 'partial_ownership_only';
+            (fallback as unknown as Record<string, unknown>).note =
+              'Full person registry temporarily offline; showing ownership roles only.';
+            return wrap(JSON.stringify(fallback, null, 2));
+          } catch { /* fall through to honest error */ }
+        }
+        return wrap(JSON.stringify({
+          error: 'vr_base_unavailable',
+          message: 'Plný rejstřík osob je dočasně nedostupný — zkus to prosím později.',
+        }, null, 2));
+      }
     },
   );
 

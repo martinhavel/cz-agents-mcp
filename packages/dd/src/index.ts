@@ -15,7 +15,7 @@ import { SanctionsDb, SanctionsSearch } from '@czagents/sanctions';
 import { IsirClient } from '@czagents/isir';
 import { buildDdServer } from './server.js';
 import type { DdClients } from './clients.js';
-import { vrClient } from './vr-client.js';
+import { vrClient, vrBaseClient } from './vr-client.js';
 
 export { buildDdServer } from './server.js';
 export type * from './types.js';
@@ -31,7 +31,7 @@ async function main() {
 
   const isir = new IsirClient();
 
-  const clients: DdClients = { ares, sanctions, isir, vr: vrClient };
+  const clients: DdClients = { ares, sanctions, isir, vr: vrClient, vrBase: vrBaseClient };
   const server = buildDdServer(clients);
   const transport = new StdioServerTransport();
   await server.connect(transport);

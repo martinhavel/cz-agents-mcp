@@ -179,5 +179,8 @@ export interface DdClients {
   sanctions?: SanctionsLike;
   isir?: IsirLike;
   adis?: AdisLike;
+  /** Local hot slim VR (ownership only) — used by get_owners. */
   vr?: VrLike;
+  /** Off-site full VR base (all roles) over WireGuard — used by person_companies. */
+  vrBase?: VrLike;
 }
