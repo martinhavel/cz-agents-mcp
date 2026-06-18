@@ -77,7 +77,11 @@ matched_persons AS (
     END AS confidence_basis
   FROM vr.persons p
   CROSS JOIN input i
-  WHERE lower(trim(p.full_name)) = i.q_name
+  WHERE (
+        lower(trim(p.full_name)) = i.q_name
+        OR lower(trim(coalesce(p.given_name, '') || ' ' || coalesce(p.family_name, ''))) = i.q_name
+        OR lower(trim(p.family_name)) = i.q_name
+      )
     AND (
       i.q_birth_year IS NULL
       OR (

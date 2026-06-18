@@ -124,8 +124,24 @@ SELECT
   n.path,
   n.cycle,
   asof.finished_at AS as_of,
-  COALESCE(
-    jsonb_agg(DISTINCT
+  COALESCE(o.owners, '[]'::jsonb) AS owners
+FROM owner_nodes n
+LEFT JOIN LATERAL (
+  SELECT il.finished_at
+  FROM vr.import_log il
+  WHERE il.dataset = n.source_dataset
+    AND il.status = 'done'
+  ORDER BY il.finished_at DESC NULLS LAST
+  LIMIT 1
+) asof ON true
+LEFT JOIN LATERAL (
+  -- Dedup vlastníků na IDENTITU (member_ico u firem; jméno+rok u osob/cizích
+  -- entit). VR raw data mají duplicitní role řádky (re-ingest + historie) lišící
+  -- se valid_from/role → DISTINCT na celém objektu je NEsloučí. DISTINCT ON
+  -- identitu, bereme nejnovější záznam (valid_from DESC).
+  SELECT jsonb_agg(d.owner_obj) AS owners
+  FROM (
+    SELECT DISTINCT ON (COALESCE(r.member_ico, lower(trim(p.full_name)) || '|' || COALESCE(extract(year FROM p.birth_date)::text, '')))
       jsonb_build_object(
         'kind', CASE WHEN r.member_ico IS NULL THEN 'person' ELSE 'company' END,
         'name', COALESCE(mc.name, p.full_name),
@@ -137,26 +153,20 @@ SELECT
         'role', r.role,
         'valid_from', r.valid_from,
         'namesake_flag', CASE WHEN r.member_ico IS NULL THEN COALESCE(pnc.same_name_birth_year_count, 0) > 1 ELSE false END
-      )
-    ) FILTER (WHERE r.person_id IS NOT NULL),
-    '[]'::jsonb
-  ) AS owners
-FROM owner_nodes n
-LEFT JOIN LATERAL (
-  SELECT il.finished_at
-  FROM vr.import_log il
-  WHERE il.dataset = n.source_dataset
-    AND il.status = 'done'
-  ORDER BY il.finished_at DESC NULLS LAST
-  LIMIT 1
-) asof ON true
-LEFT JOIN vr.roles r ON r.company_ico = n.ico AND ${OWNERSHIP_ROLE_FILTER_SQL}
-LEFT JOIN vr.persons p ON p.id = r.person_id
-LEFT JOIN vr.companies mc ON mc.ico = r.member_ico
-LEFT JOIN person_name_counts pnc
-  ON pnc.full_name = p.full_name
- AND pnc.birth_year IS NOT DISTINCT FROM extract(year FROM p.birth_date)::int
-GROUP BY n.ico, n.name, n.source_dataset, n.depth, n.path, n.cycle, asof.finished_at
+      ) AS owner_obj
+    FROM vr.roles r
+    LEFT JOIN vr.persons p ON p.id = r.person_id
+    LEFT JOIN vr.companies mc ON mc.ico = r.member_ico
+    LEFT JOIN person_name_counts pnc
+      ON pnc.full_name = p.full_name
+     AND pnc.birth_year IS NOT DISTINCT FROM extract(year FROM p.birth_date)::int
+    WHERE r.company_ico = n.ico
+      AND ${OWNERSHIP_ROLE_FILTER_SQL}
+      AND r.person_id IS NOT NULL
+    ORDER BY COALESCE(r.member_ico, lower(trim(p.full_name)) || '|' || COALESCE(extract(year FROM p.birth_date)::text, '')),
+             r.valid_from DESC NULLS LAST
+  ) d
+) o ON true
 ORDER BY n.depth, n.path
 `;
 
