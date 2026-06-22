@@ -20,7 +20,9 @@ import psycopg2
 COPY_NULL = "\\N"
 # Depth-2 joins are N x (N - 1); very broad person keys create huge low-signal batches.
 MAX_DEPTH2_COMPANIES_PER_PERSON = 50
-STATEMENT_TIMEOUT = "120s"
+# Default 120s chrání noční inkrementální refresh před kontencí s živým dd.
+# Initial full build nad ~150M řádky na ARM ho přesáhne → override přes env.
+STATEMENT_TIMEOUT = os.environ.get("OWNERSHIP_STMT_TIMEOUT", "120s")
 REFRESH_NAME = "ownership_network"
 
 
