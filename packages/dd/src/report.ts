@@ -17,9 +17,12 @@ import { detectGovtAddress } from './govtAddress.js';
 import type {
   DdReport,
   DdSanctions,
+  EsmOnramp,
+  OwnershipNetworkTeaser,
   SanctionMatchSummary,
   StatutoryMember,
 } from './types.js';
+import { getOwnershipNetwork } from './ownership-network.js';
 
 const VIRTUAL_ADDRESS_THRESHOLD = 50;
 
@@ -200,6 +203,8 @@ export async function buildReport(
       : null,
   });
 
+  const ownershipNetworkTeaser = await buildOwnershipNetworkTeaser(ico);
+
   return {
     ico,
     retrieved_at: new Date().toISOString(),
@@ -247,7 +252,85 @@ export async function buildReport(
     }),
     red_flags: flags,
     risk_score: scoreFromFlags(flags),
+    ownership_network_teaser: ownershipNetworkTeaser,
+    esm_onramp: ESM_ONRAMP,
   };
+}
+
+const OWNERSHIP_NETWORK_TEASER_TITLE = 'Vlastnická a personální síť (z veřejného VR)' as const;
+const OWNERSHIP_NETWORK_UPGRADE_HINT = 'Pro plnou síť a signály přejděte na vyšší tarif.' as const;
+const OWNERSHIP_NETWORK_PREPARING_TEXT = 'Síť se připravuje.' as const;
+
+const ESM_ONRAMP: EsmOnramp = {
+  title: 'Skutečný majitel (ESM)',
+  copy: [
+    'ESM je od 17.12.2025 neveřejný registr.',
+    'Povinná osoba má zákonnou povinnost zjistit skutečného majitele (AML zákon 253/2008 Sb.).',
+    "Postup: přihlásit se datovou schránkou → podat žádost o dálkový přístup → prokázat identitu na úrovni 'značná'.",
+  ],
+  link: 'https://esm.justice.cz',
+  separation: {
+    dolozeny_ubo: 'Pouze co klient sám získá z ESM.',
+    indikovana_struktura: 'Náš VR odhad z veřejného rejstříku.',
+  },
+};
+
+async function buildOwnershipNetworkTeaser(ico: string): Promise<OwnershipNetworkTeaser> {
+  try {
+    const summary = await getOwnershipNetwork(ico, { level: 'summary' });
+    if (!summary || isEmptyOwnershipSummary(summary)) {
+      return emptyOwnershipNetworkTeaser();
+    }
+    return {
+      title: OWNERSHIP_NETWORK_TEASER_TITLE,
+      network_size: normalizeNonNegativeInteger(summary.network_size),
+      shared_role_link_count: normalizeNonNegativeInteger(summary.shared_role_link_count),
+      coverage_pct: normalizeCoverage(summary.coverage_pct),
+      as_of: summary.as_of ?? null,
+      upgrade_hint: OWNERSHIP_NETWORK_UPGRADE_HINT,
+    };
+  } catch {
+    return emptyOwnershipNetworkTeaser();
+  }
+}
+
+function emptyOwnershipNetworkTeaser(): OwnershipNetworkTeaser {
+  return {
+    title: OWNERSHIP_NETWORK_TEASER_TITLE,
+    network_size: 0,
+    shared_role_link_count: 0,
+    coverage_pct: 0,
+    as_of: null,
+    upgrade_hint: OWNERSHIP_NETWORK_UPGRADE_HINT,
+    text: OWNERSHIP_NETWORK_PREPARING_TEXT,
+  };
+}
+
+function isEmptyOwnershipSummary(summary: {
+  network_size?: number;
+  shared_role_link_count?: number;
+  coverage_pct?: number;
+  as_of?: string | null;
+}): boolean {
+  return (
+    summary.network_size === undefined &&
+    summary.shared_role_link_count === undefined &&
+    summary.coverage_pct === undefined &&
+    summary.as_of === undefined
+  );
+}
+
+function normalizeNonNegativeInteger(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.trunc(parsed);
+}
+
+function normalizeCoverage(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  if (parsed > 1) return 1;
+  return parsed;
 }
 
 async function safe<T>(fn: () => Promise<T>): Promise<T | null> {

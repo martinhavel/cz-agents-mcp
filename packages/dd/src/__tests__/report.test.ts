@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildReport } from '../report.js';
+import * as ownershipNetwork from '../ownership-network.js';
 import type {
   AresLike,
   AresSubjectLike,
@@ -55,6 +56,10 @@ function mockUnavailableIsir(): IsirLike {
 }
 
 describe('buildReport', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('builds basic report from ARES alone (no sanctions client)', async () => {
     const ares = mockAres({
       subject: {
@@ -255,5 +260,67 @@ describe('buildReport', () => {
     expect(report.company.error).toBeUndefined();
     expect(report.red_flags.find((f) => f.code === 'NOT_FOUND_IN_ARES')).toBeDefined();
     expect(report.red_flags.find((f) => f.code === 'ARES_UNAVAILABLE')).toBeUndefined();
+  });
+
+  it('adds ownership-network teaser from non-empty summary', async () => {
+    vi.spyOn(ownershipNetwork, 'getOwnershipNetwork').mockResolvedValueOnce({
+      ico: '12345678',
+      network_size: 7,
+      shared_role_link_count: 2,
+      coverage_pct: 0.83,
+      as_of: '2026-06-21',
+      _teaser: true,
+    });
+
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Network Co.' } }),
+    });
+
+    expect(ownershipNetwork.getOwnershipNetwork).toHaveBeenCalledWith('12345678', { level: 'summary' });
+    expect(report.ownership_network_teaser).toMatchObject({
+      title: 'Vlastnická a personální síť (z veřejného VR)',
+      network_size: 7,
+      shared_role_link_count: 2,
+      coverage_pct: 0.83,
+      as_of: '2026-06-21',
+      upgrade_hint: 'Pro plnou síť a signály přejděte na vyšší tarif.',
+    });
+    expect(report.ownership_network_teaser.text).toBeUndefined();
+  });
+
+  it('degrades ownership-network teaser when summary table is empty', async () => {
+    vi.spyOn(ownershipNetwork, 'getOwnershipNetwork').mockRejectedValueOnce(new Error('no such table: vr.company_network_summary'));
+
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Preparing Co.' } }),
+    });
+
+    expect(report.ownership_network_teaser.network_size).toBe(0);
+    expect(report.ownership_network_teaser.coverage_pct).toBe(0);
+    expect(report.ownership_network_teaser.as_of).toBeNull();
+    expect(report.ownership_network_teaser.text).toContain('připravuje');
+  });
+
+  it('adds static ESM onramp block', async () => {
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'ESM Co.' } }),
+    });
+
+    expect(report.esm_onramp.title).toBe('Skutečný majitel (ESM)');
+    expect(report.esm_onramp.link).toBe('https://esm.justice.cz');
+    expect(JSON.stringify(report.esm_onramp)).toContain('esm.justice.cz');
+    expect(report.esm_onramp.separation.dolozeny_ubo).toContain('klient sám získá z ESM');
+    expect(report.esm_onramp.separation.indikovana_struktura).toContain('VR odhad');
+  });
+
+  it('does not expose paid ownership risk labels in free report output', async () => {
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Free Co.' } }),
+    });
+
+    const freeOutput = JSON.stringify(report).toLowerCase();
+    expect(freeOutput).not.toContain('nominee');
+    expect(freeOutput).not.toContain('phoenix');
+    expect(freeOutput).not.toContain('risk_label');
   });
 });
