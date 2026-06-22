@@ -15,7 +15,10 @@ function row(ico = '12345678') {
   };
 }
 
-async function loadModule(vrRows: unknown[], cacheRows: unknown[] = []) {
+async function loadModule(
+  vrRows: unknown[],
+  cacheRowsOrQuery: unknown[] | ((sql: string, params: unknown[]) => Promise<{ rows: unknown[] }>) = [],
+) {
   vi.resetModules();
   const vrQueries: Query[] = [];
   const cacheQueries: Query[] = [];
@@ -33,7 +36,10 @@ async function loadModule(vrRows: unknown[], cacheRows: unknown[] = []) {
     Pool: class {
       async query(sql: string, params: unknown[]) {
         cacheQueries.push({ sql, params });
-        return { rows: cacheRows };
+        if (typeof cacheRowsOrQuery === 'function') {
+          return cacheRowsOrQuery(sql, params);
+        }
+        return { rows: cacheRowsOrQuery };
       }
     },
   }));
@@ -81,6 +87,36 @@ describe('getOwnershipNetwork', () => {
       coverage_pct: 0,
       as_of: null,
       _teaser: true,
+    });
+  });
+
+  it('records a cache miss without waiting for the queue write', async () => {
+    process.env.OWNERSHIP_CACHE_DATABASE_URL = 'postgres://cache';
+    const { getOwnershipNetwork, cacheQueries } = await loadModule([], []);
+
+    await expect(getOwnershipNetwork('12345678', { level: 'summary' })).resolves.toMatchObject({
+      ico: '12345678',
+      network_size: 0,
+    });
+
+    await vi.waitFor(() => {
+      expect(cacheQueries[1]?.sql).toContain('ownership_cache.fill_requests');
+      expect(cacheQueries[1]?.params).toEqual(['12345678']);
+    });
+  });
+
+  it('does not propagate fill request write errors', async () => {
+    process.env.OWNERSHIP_CACHE_DATABASE_URL = 'postgres://cache';
+    const { getOwnershipNetwork } = await loadModule([], async (sql) => {
+      if (sql.includes('fill_requests')) {
+        throw new Error('cache write failed');
+      }
+      return { rows: [] };
+    });
+
+    await expect(getOwnershipNetwork('12345678', { level: 'summary' })).resolves.toMatchObject({
+      ico: '12345678',
+      network_size: 0,
     });
   });
 });

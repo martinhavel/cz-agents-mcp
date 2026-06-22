@@ -34,6 +34,16 @@ FROM ownership_cache.company_network_summary
 WHERE ico = $1
 `;
 
+const FILL_REQUEST_SQL = `
+INSERT INTO ownership_cache.fill_requests (ico)
+VALUES ($1)
+ON CONFLICT (ico) DO UPDATE
+  SET last_requested = now(),
+      request_count = fill_requests.request_count + 1
+`;
+
+const FILL_REQUEST_TIMEOUT_MS = 250;
+
 let cacheClient: QueryClient | undefined;
 
 export async function getOwnershipNetwork(
@@ -55,12 +65,14 @@ export async function getOwnershipNetwork(
     );
   } catch (error) {
     if (isMissingTableError(error)) {
+      captureCacheMiss(cleanIco, client);
       return emptyTeaser(cleanIco);
     }
     throw error;
   }
   const summary = summaryResult.rows[0];
   if (!summary) {
+    captureCacheMiss(cleanIco, client);
     return emptyTeaser(cleanIco);
   }
 
@@ -81,6 +93,27 @@ function getSummaryClient(): QueryClient | undefined {
     cacheClient = new Pool({ connectionString });
   }
   return cacheClient;
+}
+
+function captureCacheMiss(ico: string, client: QueryClient): void {
+  if (!process.env.OWNERSHIP_CACHE_DATABASE_URL) return;
+  try {
+    void ignoreAfterTimeout(client.query(FILL_REQUEST_SQL, [ico]), FILL_REQUEST_TIMEOUT_MS);
+  } catch {
+    // Best-effort queue write: cache miss capture must not affect teaser reads.
+  }
+}
+
+function ignoreAfterTimeout(promise: Promise<unknown>, timeoutMs: number): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const guarded = promise.then(() => undefined).catch(() => undefined);
+  const timer = new Promise<void>((resolve) => {
+    timeout = setTimeout(resolve, timeoutMs);
+    if (typeof timeout === 'object' && 'unref' in timeout) timeout.unref();
+  });
+  return Promise.race([guarded, timer]).then(() => {
+    if (timeout) clearTimeout(timeout);
+  });
 }
 
 function isMissingTableError(error: unknown): boolean {

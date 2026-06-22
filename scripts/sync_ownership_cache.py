@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS {CACHE_SCHEMA}.{EDGES_TABLE} (
   coverage_pct numeric(5,2) NOT NULL
 );
 
+-- Persistent demand-fill queue. Sync replaces cached summary/edge data only;
+-- fill_requests must survive full cache refreshes.
+CREATE TABLE IF NOT EXISTS {CACHE_SCHEMA}.fill_requests (
+  ico text PRIMARY KEY,
+  first_requested timestamptz DEFAULT now(),
+  last_requested timestamptz DEFAULT now(),
+  request_count int DEFAULT 1,
+  filled_at timestamptz NULL,
+  as_of timestamptz NULL
+);
+
 CREATE INDEX IF NOT EXISTS ownership_cache_summary_ico_idx
   ON {CACHE_SCHEMA}.{SUMMARY_TABLE} (ico);
 

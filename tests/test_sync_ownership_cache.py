@@ -142,6 +142,14 @@ def test_sync_streams_summary_and_edges_with_atomic_swap():
     transactional_ops = [op for op in target.operations if op[0] in {"TRUNCATE", "COPY:company_network_summary", "COPY:ownership_edges"}]
     assert [op[0] for op in transactional_ops] == ["TRUNCATE", "COPY:company_network_summary", "COPY:ownership_edges"]
     assert all(op[1] is True for op in transactional_ops)
+    truncate_sql = next(op[2] for op in target.operations if op[0] == "TRUNCATE")
+    assert "fill_requests" not in truncate_sql
+
+
+def test_ddl_creates_persistent_fill_requests_queue():
+    assert "CREATE TABLE IF NOT EXISTS ownership_cache.fill_requests" in sync_ownership_cache.DDL_SQL
+    assert "ico text PRIMARY KEY" in sync_ownership_cache.DDL_SQL
+    assert "filled_at timestamptz NULL" in sync_ownership_cache.DDL_SQL
 
 
 def test_sync_skips_edges_when_size_exceeds_threshold():
