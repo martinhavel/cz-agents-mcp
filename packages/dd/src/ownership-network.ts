@@ -1,3 +1,4 @@
+import { Pool } from 'pg';
 import { vrClient } from './vr-client.js';
 
 export interface OwnershipNetworkFreeResult {
@@ -17,11 +18,23 @@ interface SummaryRow {
   as_of: string | Date | null;
 }
 
-const SUMMARY_SQL = `
+interface QueryClient {
+  query<T>(sql: string, params: unknown[]): Promise<{ rows: T[] }>;
+}
+
+const VR_SUMMARY_SQL = `
 SELECT ico, network_size, shared_role_link_count, coverage_pct, as_of
 FROM vr.company_network_summary
 WHERE ico = $1
 `;
+
+const CACHE_SUMMARY_SQL = `
+SELECT ico, network_size, shared_role_link_count, coverage_pct, as_of
+FROM ownership_cache.company_network_summary
+WHERE ico = $1
+`;
+
+let cacheClient: QueryClient | undefined;
 
 export async function getOwnershipNetwork(
   ico: string,
@@ -29,14 +42,26 @@ export async function getOwnershipNetwork(
 ): Promise<OwnershipNetworkFreeResult> {
   void opts;
   const cleanIco = ico.trim();
-  if (!vrClient) {
+  const client = getSummaryClient();
+  if (!client) {
     throw new Error('vr_client_unavailable');
   }
 
-  const summaryResult = await vrClient.query<SummaryRow>(SUMMARY_SQL, [cleanIco]);
+  let summaryResult: { rows: SummaryRow[] };
+  try {
+    summaryResult = await client.query<SummaryRow>(
+      process.env.OWNERSHIP_CACHE_DATABASE_URL ? CACHE_SUMMARY_SQL : VR_SUMMARY_SQL,
+      [cleanIco],
+    );
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      return emptyTeaser(cleanIco);
+    }
+    throw error;
+  }
   const summary = summaryResult.rows[0];
   if (!summary) {
-    throw new Error(`ownership_network_not_found:${cleanIco}`);
+    return emptyTeaser(cleanIco);
   }
 
   return {
@@ -45,6 +70,32 @@ export async function getOwnershipNetwork(
     shared_role_link_count: Number(summary.shared_role_link_count),
     coverage_pct: Number(summary.coverage_pct),
     as_of: formatIsoDate(summary.as_of),
+    _teaser: true,
+  };
+}
+
+function getSummaryClient(): QueryClient | undefined {
+  const connectionString = process.env.OWNERSHIP_CACHE_DATABASE_URL;
+  if (!connectionString) return vrClient;
+  if (!cacheClient) {
+    cacheClient = new Pool({ connectionString });
+  }
+  return cacheClient;
+}
+
+function isMissingTableError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as Error & { code?: string }).code;
+  return code === '42P01' || error.message.includes('does not exist');
+}
+
+function emptyTeaser(ico: string): OwnershipNetworkFreeResult {
+  return {
+    ico,
+    network_size: 0,
+    shared_role_link_count: 0,
+    coverage_pct: 0,
+    as_of: null,
     _teaser: true,
   };
 }
