@@ -68,6 +68,13 @@ export async function getOwnershipNetwork(
       captureCacheMiss(cleanIco, client);
       return emptyTeaser(cleanIco);
     }
+    // Cache mode: a cache outage / connection error must NOT break the dd report.
+    // Degrade to an empty teaser (graceful "preparing") and queue the fill.
+    if (process.env.OWNERSHIP_CACHE_DATABASE_URL) {
+      console.error('ownership teaser cache read failed; degrading to empty teaser', error);
+      captureCacheMiss(cleanIco, client);
+      return emptyTeaser(cleanIco);
+    }
     throw error;
   }
   const summary = summaryResult.rows[0];
