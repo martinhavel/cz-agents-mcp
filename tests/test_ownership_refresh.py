@@ -45,6 +45,9 @@ class FakeCursor:
 
 
 class ContextCursor:
+    def execute(self, _sql, _params=None):
+        return None
+
     def __enter__(self):
         return self
 
@@ -65,6 +68,19 @@ class FakeConnection:
 
     def rollback(self):
         self.rollbacks += 1
+
+
+class RecordingCursor:
+    def __init__(self):
+        self.executed = []
+        self.executemany_calls = []
+        self.rowcount = 1
+
+    def execute(self, sql, params=None):
+        self.executed.append((sql, params or {}))
+
+    def executemany(self, sql, params):
+        self.executemany_calls.append((sql, params))
 
 
 def test_refresh_commits_each_batch_independently(monkeypatch):
@@ -118,3 +134,46 @@ def test_icos_mode_restricts_batches_to_requested_icos():
     assert mode.icos == ("0003", "0001")
     assert batch == ["0001", "0003"]
     assert cur.executed[-1][1]["icos"] == ["0003", "0001"]
+
+
+def test_depth2_excludes_hub_person_keys_before_roles_expansion():
+    sql = ownership_refresh.DEPTH2_INSERT_SQL
+
+    assert sql.index("hub_person_keys AS") < sql.index("person_company_roles AS")
+    assert "HAVING count(DISTINCT p.id) > %(max_person_records_per_key)s" in sql
+    assert "FROM vr.persons p\n  JOIN (SELECT DISTINCT canonical_key FROM source_people) sp" in sql
+    assert "FROM (SELECT DISTINCT canonical_key FROM depth2_source_people) sp" in sql
+    assert "FROM (SELECT DISTINCT canonical_key FROM source_people) sp\n  JOIN vr.persons p ON p.canonical_key = sp.canonical_key" not in sql
+
+
+def test_depth2_allows_non_hub_person_keys_to_reach_expansion():
+    sql = ownership_refresh.DEPTH2_INSERT_SQL
+
+    assert "depth2_source_people AS" in sql
+    assert "FROM source_people sp\n  LEFT JOIN hub_person_keys h ON h.canonical_key = sp.canonical_key" in sql
+    assert "WHERE h.canonical_key IS NULL" in sql
+    assert "FROM depth2_source_people source" in sql
+
+
+def test_depth1_insert_logic_is_not_affected_by_hub_filter():
+    direct_sql = ownership_refresh.DIRECT_INSERT_SQL
+
+    assert "hub_person_keys" not in direct_sql
+    assert "depth2_source_people" not in direct_sql
+    assert "%(max_person_records_per_key)s" not in direct_sql
+    assert "1::int AS depth" in direct_sql
+    assert "HAVING count(DISTINCT p.id) > 1" in direct_sql
+
+
+def test_process_batch_passes_person_record_cap_for_depth2(monkeypatch):
+    cur = RecordingCursor()
+    mode = ownership_refresh.RefreshMode("icos", "12345678", icos=("12345678",))
+    monkeypatch.setattr(ownership_refresh, "MAX_PERSON_RECORDS_PER_KEY", 7)
+
+    ownership_refresh.process_batch(cur, mode, ["12345678"], Decimal("99.00"))
+
+    depth2_call = next(params for sql, params in cur.executed if sql == ownership_refresh.DEPTH2_INSERT_SQL)
+    insert_sqls = [sql for sql, _params in cur.executed if sql in {ownership_refresh.DIRECT_INSERT_SQL, ownership_refresh.DEPTH2_INSERT_SQL}]
+    assert insert_sqls == [ownership_refresh.DIRECT_INSERT_SQL, ownership_refresh.DEPTH2_INSERT_SQL]
+    assert "%(max_person_records_per_key)s" not in ownership_refresh.DIRECT_INSERT_SQL
+    assert depth2_call["max_person_records_per_key"] == 7

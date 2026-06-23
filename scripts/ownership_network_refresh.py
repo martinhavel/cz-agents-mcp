@@ -21,6 +21,7 @@ PROGRESS_TABLE = "vr.ownership_refresh_progress"
 
 # Depth-2 joins are N x (N - 1); very broad person keys create huge low-signal batches.
 MAX_DEPTH2_COMPANIES_PER_PERSON = int(os.environ.get("MAX_DEPTH2_COMPANIES_PER_PERSON", "50"))
+MAX_PERSON_RECORDS_PER_KEY = int(os.environ.get("MAX_PERSON_RECORDS_PER_KEY", "25"))
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "10000"))
 WORK_MEM = os.environ.get("WORK_MEM", "256MB")
 MAINTENANCE_WORK_MEM = os.environ.get("MAINTENANCE_WORK_MEM", "512MB")
@@ -159,6 +160,20 @@ source_people AS (
   WHERE p.canonical_key IS NOT NULL
     AND r.company_ico IS NOT NULL
 ),
+hub_person_keys AS (
+  SELECT p.canonical_key
+  FROM vr.persons p
+  JOIN (SELECT DISTINCT canonical_key FROM source_people) sp
+    ON sp.canonical_key = p.canonical_key
+  GROUP BY p.canonical_key
+  HAVING count(DISTINCT p.id) > %(max_person_records_per_key)s
+),
+depth2_source_people AS (
+  SELECT sp.*
+  FROM source_people sp
+  LEFT JOIN hub_person_keys h ON h.canonical_key = sp.canonical_key
+  WHERE h.canonical_key IS NULL
+),
 person_company_roles AS (
   SELECT DISTINCT
     p.canonical_key,
@@ -166,7 +181,7 @@ person_company_roles AS (
     r.role AS role_type,
     r.valid_from,
     r.valid_to
-  FROM (SELECT DISTINCT canonical_key FROM source_people) sp
+  FROM (SELECT DISTINCT canonical_key FROM depth2_source_people) sp
   JOIN vr.persons p ON p.canonical_key = sp.canonical_key
   JOIN vr.roles r ON r.person_id = p.id
   JOIN vr.companies c ON c.ico = r.company_ico
@@ -181,7 +196,7 @@ eligible_person_keys AS (
 namesake_person_keys AS (
   SELECT p.canonical_key
   FROM vr.persons p
-  JOIN (SELECT DISTINCT canonical_key FROM source_people) k
+  JOIN (SELECT DISTINCT canonical_key FROM depth2_source_people) k
     ON k.canonical_key = p.canonical_key
   WHERE p.birth_date IS NOT NULL
   GROUP BY p.canonical_key
@@ -212,7 +227,7 @@ SELECT DISTINCT
   CASE WHEN n.canonical_key IS NOT NULL THEN 'LOW' ELSE 'HIGH' END AS confidence,
   COALESCE((SELECT as_of FROM latest_import), now()) AS as_of,
   %(coverage_pct)s::numeric(5,2) AS coverage_pct
-FROM source_people source
+FROM depth2_source_people source
 JOIN eligible_person_keys eligible ON eligible.canonical_key = source.canonical_key
 JOIN person_company_roles target
   ON target.canonical_key = source.canonical_key
@@ -445,6 +460,7 @@ def process_batch(cur, mode: RefreshMode, icos: Sequence[str], coverage_pct: Dec
         "icos": list(icos),
         "coverage_pct": coverage_pct,
         "max_depth2_companies": MAX_DEPTH2_COMPANIES_PER_PERSON,
+        "max_person_records_per_key": MAX_PERSON_RECORDS_PER_KEY,
     }
     cur.execute("DELETE FROM vr.ownership_edges WHERE ico = ANY(%(icos)s::text[])", {"icos": list(icos)})
     cur.execute("DELETE FROM vr.company_network_summary WHERE ico = ANY(%(icos)s::text[])", {"icos": list(icos)})
