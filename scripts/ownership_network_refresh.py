@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Refresh precomputed VR ownership network tables.
 
+DEPRECATED: mini-cache/precompute refresh is retired in favor of on-demand VR base ownership queries.
 Offline batch only -- do not call from API path.
 """
 

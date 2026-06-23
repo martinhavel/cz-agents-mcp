@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Seed ownership_cache.fill_requests from stdin or a file."""
+"""Seed ownership_cache.fill_requests from stdin or a file.
+
+DEPRECATED: mini-cache fill requests are retired in favor of on-demand VR base ownership queries.
+"""
 
 from __future__ import annotations
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Sync precomputed VR ownership tables into the local ownership cache.
 
+DEPRECATED: mini-cache sync is retired in favor of on-demand VR base ownership queries.
 Source and target DSNs must come from SOURCE_DB_URL and CACHE_DB_URL.
 """
 

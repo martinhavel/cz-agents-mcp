@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Demand-driven ownership cache fill runner.
 
+DEPRECATED: mini-cache demand fill is retired in favor of on-demand VR base ownership queries.
 Reads requested ICOs from ownership_cache.fill_requests, builds only those
 networks in the VR base, syncs the mini-cache, and marks requests as filled.
 """

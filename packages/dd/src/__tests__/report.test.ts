@@ -289,7 +289,7 @@ describe('buildReport', () => {
   });
 
   it('degrades ownership-network teaser when summary table is empty', async () => {
-    vi.spyOn(ownershipNetwork, 'getOwnershipNetwork').mockRejectedValueOnce(new Error('no such table: vr.company_network_summary'));
+    vi.spyOn(ownershipNetwork, 'getOwnershipNetwork').mockRejectedValueOnce(new Error('vr_base_client_unavailable'));
 
     const report = await buildReport('12345678', {
       ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Preparing Co.' } }),
