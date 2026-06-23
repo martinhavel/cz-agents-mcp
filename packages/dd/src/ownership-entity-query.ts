@@ -7,11 +7,27 @@ export interface OwnershipEntityEdge {
   role_types: string[];
 }
 
+export interface OwnershipEntity {
+  canonical_key: string;
+  repr_full_name: string | null;
+  role_types: string[];
+  is_hub: boolean;
+}
+
+export interface OwnershipNetworkCompany {
+  ico: string;
+  name: string | null;
+  is_liquidated: boolean;
+  shared_entities: string[];
+}
+
 export interface OwnershipEntityNetwork {
   network_size: number;
   shared_role_link_count: number;
   coverage: number;
   edges: OwnershipEntityEdge[];
+  entities_1hop: OwnershipEntity[];
+  companies_2hop: OwnershipNetworkCompany[];
   collapsed_hubs: string[];
 }
 
@@ -21,6 +37,7 @@ interface QueryClient {
 
 interface FirstHopRow {
   canonical_key: string;
+  repr_full_name: string | null;
   role_types: string[] | null;
 }
 
@@ -35,8 +52,13 @@ interface TwoHopRow {
   role_types: string[] | null;
 }
 
+interface CompanyMetadataRow {
+  ico: string;
+  name: string | null;
+}
+
 const FIRST_HOP_SQL = `
-SELECT e.canonical_key, e.role_types
+SELECT e.canonical_key, pe.repr_full_name, e.role_types
 FROM vr.company_entity_edge e
 LEFT JOIN vr.person_entity pe ON pe.canonical_key = e.canonical_key
 WHERE e.company_ico = $1
@@ -55,6 +77,12 @@ FROM vr.company_entity_edge e
 WHERE e.canonical_key = ANY($1::text[])
   AND e.company_ico <> $2
 ORDER BY e.company_ico, e.canonical_key
+`;
+
+const COMPANY_METADATA_SQL = `
+SELECT ico, name
+FROM vr.companies
+WHERE ico = ANY($1::text[])
 `;
 
 let overrideClient: QueryClient | undefined;
@@ -88,9 +116,17 @@ export async function getCompanyNetwork(
   );
   const collapsedHubs: string[] = [];
   const nonHubKeys: string[] = [];
+  const entities_1hop: OwnershipEntity[] = [];
   for (const row of firstHop) {
     const companyCount = degreeByKey.get(row.canonical_key) ?? 0;
-    if (companyCount > maxDegree) {
+    const isHub = companyCount > maxDegree;
+    entities_1hop.push({
+      canonical_key: row.canonical_key,
+      repr_full_name: row.repr_full_name ?? null,
+      role_types: row.role_types ?? [],
+      is_hub: isHub,
+    });
+    if (isHub) {
       collapsedHubs.push(row.canonical_key);
     } else {
       nonHubKeys.push(row.canonical_key);
@@ -117,6 +153,16 @@ export async function getCompanyNetwork(
   }
 
   const edges = [...companiesByIco.values()].flat();
+  const companyMetadata = await loadCompanyMetadata(client, [...companiesByIco.keys()]);
+  const companies_2hop = [...companiesByIco.entries()].map(([ico, companyEdges]) => {
+    const name = companyMetadata.get(ico)?.name ?? null;
+    return {
+      ico,
+      name,
+      is_liquidated: isLiquidated(name),
+      shared_entities: [...new Set(companyEdges.map((edge) => edge.canonical_key))].sort(),
+    };
+  });
   const companyCoverage = twoHopRows.length === 0
     ? 1
     : companiesByIco.size / new Set(twoHopRows.map((row) => row.company_ico)).size;
@@ -127,8 +173,23 @@ export async function getCompanyNetwork(
     shared_role_link_count: firstHop.length + edges.length,
     coverage: roundCoverage(entityCoverage * companyCoverage),
     edges,
+    entities_1hop,
+    companies_2hop,
     collapsed_hubs: collapsedHubs,
   };
+}
+
+async function loadCompanyMetadata(
+  client: QueryClient,
+  icos: string[],
+): Promise<Map<string, { name: string | null }>> {
+  if (icos.length === 0) return new Map();
+  const result = await client.query<CompanyMetadataRow>(COMPANY_METADATA_SQL, [icos]);
+  return new Map(result.rows.map((row) => [row.ico, { name: row.name ?? null }]));
+}
+
+function isLiquidated(name: string | null): boolean {
+  return /\bv\s+likvidaci\b/i.test(name ?? '');
 }
 
 function emptyNetwork(): OwnershipEntityNetwork {
@@ -137,6 +198,8 @@ function emptyNetwork(): OwnershipEntityNetwork {
     shared_role_link_count: 0,
     coverage: 0,
     edges: [],
+    entities_1hop: [],
+    companies_2hop: [],
     collapsed_hubs: [],
   };
 }

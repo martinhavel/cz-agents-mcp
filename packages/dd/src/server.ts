@@ -8,8 +8,8 @@ import { detectNomineeDirector } from './patterns/nominee-director.js';
 import { buildTimeline } from './patterns/risk-timeline.js';
 import { detectPhoenix } from './patterns/phoenix.js';
 import { detectAddressCrowding } from './patterns/address-crowding.js';
-import { lookupGleifParent, getByLei } from './gleif-lookup.js';
-import type { DdClients } from './clients.js';
+import { lookupGleifByRegistrationNumber, lookupGleifParent, getByLei } from './gleif-lookup.js';
+import type { AresVrLike, DdClients } from './clients.js';
 import { lookupPersonCompanies } from './vr-person-companies.js';
 import { buildOwnersMarkdown, lookupOwners } from './vr-owners.js';
 
@@ -428,19 +428,63 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
 
       const companyName = subject.obchodniJmeno ?? '';
       const match = await lookupGleifParent(companyName);
+      const foreignOwner = match ? null : findForeignLegalOwnerCandidate(await clients.ares.getVrRecord(clean));
+      const registrationMatch = foreignOwner?.registration_number
+        ? await lookupGleifByRegistrationNumber(foreignOwner.registration_number, foreignOwner.name)
+        : null;
+      const ownerNameMatch = !registrationMatch && foreignOwner?.name
+        ? await lookupGleifParent(foreignOwner.name)
+        : null;
+      const fallbackMatch = registrationMatch ?? ownerNameMatch;
+      const vrFallback = foreignOwner
+        ? {
+            name: foreignOwner.name,
+            registration_number: foreignOwner.registration_number ?? null,
+            country: foreignOwner.country ?? null,
+            source: 'ares_vr_active_foreign_legal_owner',
+          }
+        : undefined;
 
       return wrap(JSON.stringify({
         ico: clean,
         czech_name: companyName,
-        eu_parent: match ?? null,
-        ...(match == null && {
-          note: 'No GLEIF-registered entity found. GLEIF coverage is limited to companies with a Legal Entity Identifier (LEI) — typically mid/large firms active in financial markets.',
+        eu_parent: match ?? fallbackMatch ?? null,
+        ...(vrFallback && { vr_foreign_parent_candidate: vrFallback }),
+        ...((match ?? fallbackMatch) == null && {
+          note: vrFallback
+            ? 'No matching GLEIF LEI found for the foreign legal owner; returning structured VR candidate instead of null-only result.'
+            : 'No GLEIF-registered entity found. GLEIF coverage is limited to companies with a Legal Entity Identifier (LEI) — typically mid/large firms active in financial markets.',
         }),
       }, null, 2));
     },
   );
 
   return server;
+}
+
+function findForeignLegalOwnerCandidate(record: AresVrLike | null): {
+  name: string;
+  registration_number?: string;
+  country?: string;
+} | null {
+  for (const group of record?.spolecnici ?? []) {
+    for (const item of group.spolecnik ?? []) {
+      if (item.datumVymazu) continue;
+      const legal = item.osoba?.pravnickaOsoba;
+      if (!legal) continue;
+      const name = legal.obchodniJmeno ?? legal.nazev;
+      if (!name || legal.ico) continue;
+      const country = legal.adresa?.kodStatu ?? legal.adresa?.nazevStatu;
+      const isForeign = country && country !== 'CZ' && country !== 'Česká republika';
+      if (!isForeign) continue;
+      return {
+        name,
+        registration_number: legal.registracniCislo ?? legal.regCislo ?? legal.cisloRegistrace,
+        country,
+      };
+    }
+  }
+  return null;
 }
 
 async function auditTool<T>(

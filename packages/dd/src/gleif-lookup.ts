@@ -21,6 +21,10 @@ export interface GleifMatch {
   source_url: string;
 }
 
+export interface GleifRegistrationMatch extends GleifMatch {
+  registered_as?: string;
+}
+
 const LEGAL_SUFFIXES = /\b(s\.r\.o\.?|a\.s\.?|spol\. s r\.o\.?|k\.s\.?|v\.o\.s\.?|gmbh|ag|ltd|limited|bv|nv|sa|se|plc|oy|ab|as|llc|inc|corp|sàrl|srl|spa|aps|asa)\b\.?/gi;
 
 function normalize(name: string): string {
@@ -130,6 +134,54 @@ export async function lookupGleifParent(companyName: string): Promise<GleifMatch
         };
       })
       .filter((m) => m.name_match_score > 0)
+      .sort((a, b) => b.name_match_score - a.name_match_score);
+
+    return scored[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function lookupGleifByRegistrationNumber(
+  registrationNumber: string,
+  expectedName?: string,
+): Promise<GleifRegistrationMatch | null> {
+  const clean = registrationNumber.trim();
+  if (!clean) return null;
+  try {
+    const url = new URL(`${GLEIF_API}/lei-records`);
+    url.searchParams.set('filter[entity.registeredAs]', clean);
+    url.searchParams.set('page[size]', '5');
+
+    const res = await fetch(url.toString(), {
+      headers: { Accept: 'application/vnd.api+json' },
+    });
+    if (!res.ok) return null;
+
+    const json = await res.json() as { data?: unknown[] };
+    const records = json.data;
+    if (!Array.isArray(records) || records.length === 0) return null;
+
+    const scored = (records as Array<Record<string, unknown>>)
+      .map((r) => {
+        const attrs = r.attributes as Record<string, unknown> | undefined;
+        const entity = attrs?.entity as Record<string, unknown> | undefined;
+        const gleifName = (entity?.legalName as Record<string, unknown> | undefined)?.name as string ?? '';
+        const country = ((entity?.jurisdiction as string) ?? '').toLowerCase();
+        const { confidence, score } = expectedName
+          ? computeConfidence(expectedName, gleifName)
+          : { confidence: 'HIGH' as const, score: 1 };
+        return {
+          lei: r.id as string,
+          name: gleifName,
+          country,
+          confidence,
+          name_match_score: Math.round(score * 100) / 100,
+          registered_as: entity?.registeredAs as string | undefined,
+          source_url: `https://search.gleif.org/#/record/${r.id}`,
+        };
+      })
+      .filter((m) => m.name)
       .sort((a, b) => b.name_match_score - a.name_match_score);
 
     return scored[0] ?? null;

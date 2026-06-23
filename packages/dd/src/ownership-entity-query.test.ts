@@ -9,8 +9,8 @@ class FakeClient {
     if (sql.includes('FROM vr.company_entity_edge e') && sql.includes('WHERE e.company_ico = $1')) {
       return {
         rows: [
-          { canonical_key: 'p:normal', role_types: ['jednatel'] },
-          { canonical_key: 'p:hub', role_types: ['clen_organu'] },
+          { canonical_key: 'p:normal', repr_full_name: 'Normal Person', role_types: ['jednatel'] },
+          { canonical_key: 'p:hub', repr_full_name: 'Hub Person', role_types: ['clen_organu'] },
         ] as T[],
       };
     }
@@ -19,6 +19,14 @@ class FakeClient {
         rows: [
           { canonical_key: 'p:normal', company_count: 3 },
           { canonical_key: 'p:hub', company_count: 51 },
+        ] as T[],
+      };
+    }
+    if (sql.includes('FROM vr.companies')) {
+      return {
+        rows: [
+          { ico: '22222222', name: 'BAIRTA GROUP s.r.o. v likvidaci' },
+          { ico: '33333333', name: 'Active Group s.r.o.' },
         ] as T[],
       };
     }
@@ -45,6 +53,24 @@ describe('getCompanyNetwork', () => {
     expect(client.queries[2]?.params).toEqual([['p:normal'], '12345678']);
     expect(result.collapsed_hubs).toEqual(['p:hub']);
     expect(result.edges.map((edge) => edge.dst_ico)).toEqual(['22222222', '33333333']);
+    expect(result.entities_1hop).toEqual([
+      { canonical_key: 'p:normal', repr_full_name: 'Normal Person', role_types: ['jednatel'], is_hub: false },
+      { canonical_key: 'p:hub', repr_full_name: 'Hub Person', role_types: ['clen_organu'], is_hub: true },
+    ]);
+    expect(result.companies_2hop).toEqual([
+      {
+        ico: '22222222',
+        name: 'BAIRTA GROUP s.r.o. v likvidaci',
+        is_liquidated: true,
+        shared_entities: ['p:normal'],
+      },
+      {
+        ico: '33333333',
+        name: 'Active Group s.r.o.',
+        is_liquidated: false,
+        shared_entities: ['p:normal'],
+      },
+    ]);
     expect(result.network_size).toBe(5);
     expect(result.shared_role_link_count).toBe(4);
     expect(result.coverage).toBe(0.5);
@@ -72,6 +98,8 @@ describe('getCompanyNetwork', () => {
       shared_role_link_count: 0,
       coverage: 0,
       edges: [],
+      entities_1hop: [],
+      companies_2hop: [],
       collapsed_hubs: [],
     });
   });
