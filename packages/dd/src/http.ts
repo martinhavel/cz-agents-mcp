@@ -55,8 +55,6 @@ const OAUTH_RESOURCE_METADATA_URL =
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 30);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
-const MCP_DISCOVERY_UA =
-  /(glama\.ai-mcp-discovery|MCPRegistry-Crawler|MCPScoringEngine|Compose-Market-Connectors|compose\.market|Chiark|relay-registry|gamma-remote-mcp|vesta-inventory-ping|402\.ad-mcp-probe|402\.ad-enrichment-agent|Thinkbot|python-httpx|Ruby)/i;
 
 async function main() {
   const ares = new AresClient();
@@ -234,23 +232,6 @@ async function main() {
       return;
     }
 
-    if (
-      req.method === 'POST' &&
-      !sessionId &&
-      !hasBearerAuth(req) &&
-      !allowsAnonymousMcpDiscovery(req)
-    ) {
-      res.writeHead(401, {
-        'Content-Type': 'application/json',
-        'WWW-Authenticate': `Bearer resource_metadata="${OAUTH_RESOURCE_METADATA_URL}"`,
-      });
-      res.end(JSON.stringify({
-        error: 'authorization_required',
-        message: 'Sign in with OAuth to use the DD MCP connector. Free signed-in accounts keep the basic DD tools.',
-      }));
-      return;
-    }
-
     const auth = quota(req, res);
     if (!auth.ok) return;
 
@@ -309,22 +290,6 @@ async function main() {
       `[cz-agents/dd] listening on :${PORT}${MCP_PATH} (sanctions=${sanctions ? 'enabled' : 'disabled'}, tokens: ${tokenDbPath}, webhook: ${webhookSecret ? 'enabled' : 'disabled'})`,
     );
   });
-}
-
-function hasBearerAuth(req: import('node:http').IncomingMessage): boolean {
-  const auth = req.headers['authorization'];
-  const header = Array.isArray(auth) ? auth[0] : auth;
-  return typeof header === 'string' && /^Bearer\s+\S+/i.test(header.trim());
-}
-
-function allowsAnonymousMcpDiscovery(req: import('node:http').IncomingMessage): boolean {
-  const ua = String(req.headers['user-agent'] ?? '');
-  if (MCP_DISCOVERY_UA.test(ua)) return true;
-
-  // Glama Lightport proxies real catalog usage from this IPv6 range; keep that
-  // anonymous funnel working while Claude Desktop direct connectors use OAuth.
-  const ip = getClientIp(req);
-  return ip.startsWith('2a02:6ea0:');
 }
 
 async function handleDdRest(

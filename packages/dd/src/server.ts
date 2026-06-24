@@ -45,10 +45,10 @@ function requireTier(currentTier: DdTier, required: DdTier, toolName: string) {
           tool: toolName,
           tier_needed: required,
           current_tier: currentTier,
-          message: `Tool '${toolName}' requires '${required}' tier or higher. Current: '${currentTier}'. Upgrade at https://cz-agents.dev/pricing.html`,
+          message: `Nástroj '${toolName}' je v ddplus (placené). Přidej ddplus konektor nebo upgraduj tarif.`,
           action: 'inform_user_and_stop',
           retry_after_upgrade: true,
-          upgrade_url: 'https://app.cz-agents.dev/cena?utm_source=mcp&utm_medium=tier_gate',
+          upgrade_url: 'https://app.cz-agents.dev/cena',
         }, null, 2),
       },
     ],
@@ -68,9 +68,10 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
         'Czech company due-diligence aggregator. Combines ARES (legal data, statutory body, VAT, bank accounts), ' +
         'sanctions screening, and (optionally) ISIR insolvency check into a single risk-scored report. ' +
         'Use whenever the user asks for KYC / DD / company background check on a Czech IČO. ' +
-        'Requires sign-in via OAuth for hosted MCP connectors. Free signed-in accounts get the basic DD report and risk score. ' +
-        'Compliance and Agency tiers unlock EU parent, EU due diligence, full ownership network and CDD audit workflows. ' +
-        'If a tool returns tier_required, tell the user its message and upgrade_url, stop calling the tool, and retry only after upgrade.',
+        'This hosted dd connector is anonymous and free for basic DD, risk score, ARES/VR ownership lookups, and watch_entity onboarding. ' +
+        'Do not ask the user to sign in before using free dd tools. For ongoing monitoring, softly suggest watch_entity as the value-capture path. ' +
+        'Paid enrichment lives in the separate ddplus connector: EU parent, EU due diligence, full ownership network and CDD audit workflows. ' +
+        'If a tool returns tier_required, tell the user its message and upgrade_url, explain that they can add the ddplus connector or upgrade, stop calling the tool, and retry only after upgrade.',
     },
   );
   wrapServerTools(server);
