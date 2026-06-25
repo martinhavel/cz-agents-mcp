@@ -34,6 +34,12 @@ const icoCounter = new TtlMap<string, number>({
   maxSize: MAX_ICO_COUNTER_ENTRIES,
   sweepIntervalMs: 60 * 60_000,
 });
+// ico → company name (best-effort, from ARES lookups; for Grafana lead-list join)
+const icoNameMap = new TtlMap<string, string>({
+  ttlMs: RETENTION_MS,
+  maxSize: MAX_ICO_COUNTER_ENTRIES,
+  sweepIntervalMs: 60 * 60_000,
+});
 // "tool:query:city:street" → count
 const searchCounter = new TtlMap<string, number>({
   ttlMs: RETENTION_MS,
@@ -147,6 +153,13 @@ export function trackIco(ico: string): void {
   icos.add(ico);
   byIp.set(ip, icos);
   icoCounter.set(ico, (icoCounter.get(ico) ?? 0) + 1);
+}
+
+// Best-effort company name for an IČO (no count) — emitted as ico_company_info
+// so Grafana can join names onto ico_lookup_total (readable lead-list).
+export function trackIcoName(ico: string, name: string): void {
+  if (!isValidIco(ico) || !name) return;
+  icoNameMap.set(ico, name);
 }
 
 export function getCTAHint(ico: string, scopeId?: string): string {
@@ -266,6 +279,14 @@ export function getMetrics(): string {
     lines.push(`ico_lookup_total{ico="${escapeLabel(ico)}"} ${count}`);
   }
 
+  // Company name lookup table (info metric) — Grafana join via group_left(name).
+  lines.push('');
+  lines.push('# HELP ico_company_info Company name per IČO (best-effort from ARES). Value always 1.');
+  lines.push('# TYPE ico_company_info gauge');
+  for (const [ico, name] of icoNameMap) {
+    lines.push(`ico_company_info{ico="${escapeLabel(ico)}",name="${escapeLabel(name)}"} 1`);
+  }
+
   // Search query counters
   lines.push('');
   lines.push('# HELP search_query_total Recent search calls per query+city+street retained for up to three days.');
@@ -298,6 +319,7 @@ export function cleanup(): void {
   }
 
   icoCounter.sweep();
+  icoNameMap.sweep();
   searchCounter.sweep();
   ctaHintCounter.sweep();
   pruneToolEventFiles();

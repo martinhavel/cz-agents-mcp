@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, trackIcoName, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
 import { AresClient } from './client.js';
 import { buildAresSummaryMarkdown } from './summary.js';
 
@@ -53,6 +53,7 @@ export function buildAresServer(): McpServer {
           ],
         };
       }
+      if (subject.obchodniJmeno) trackIcoName(clean, subject.obchodniJmeno);
       // RES fetch is best-effort — gracefully undefined when endpoint unavailable
       const czNacePrevazujici = await ares.getResNacePrevazujici(clean);
       if (czNacePrevazujici != null) {
