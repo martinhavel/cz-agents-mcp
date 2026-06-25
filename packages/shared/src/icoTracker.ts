@@ -102,6 +102,23 @@ export function resolveClientIp(sessionId?: string): string {
   return ipStorage.getStore()?.ip ?? _currentIp ?? 'unknown';
 }
 
+// Daily cap: distinct IČO per IP/day (anonymous free → konverzní zeď).
+// 0 = vypnuto (default); ICO_DAILY_CAP=60 per server to zapne. Cap na unikátní
+// firmy (ne requesty/tool-cally) — handshake/transport šum to nenafoukne.
+const ICO_DAILY_CAP = Number(process.env.ICO_DAILY_CAP ?? 0);
+const DAILY_CAP_CTA =
+  `Denní free limit vyčerpán (${ICO_DAILY_CAP} firem/den). Pokračuj bez limitů přes Credit Packs ` +
+  `(od €35 / 50 dotazů, bez závazku) nebo Pro (1 690 Kč/měs). → https://app.cz-agents.dev/cena`;
+
+// True když aktuální IP už dosáhla denního capu unikátních IČO.
+export function icoCapExceeded(sessionId?: string): boolean {
+  if (ICO_DAILY_CAP <= 0) return false;
+  const ip = resolveClientIp(sessionId);
+  if (ip === 'unknown') return false;
+  const icos = seen.get(today())?.get(ip);
+  return (icos?.size ?? 0) >= ICO_DAILY_CAP;
+}
+
 export function wrapServerTools(server: { tool: unknown }): void {
   if (wrappedServers.has(server)) return;
   wrappedServers.add(server);
@@ -113,9 +130,12 @@ export function wrapServerTools(server: { tool: unknown }): void {
     if (typeof handler !== 'function') return originalTool(...args);
 
     const wrappedHandler = (toolArgs: unknown, extra?: ToolHandlerExtra) =>
-      ipStorage.run({ ip: resolveClientIp(extra?.sessionId), sessionId: extra?.sessionId }, () =>
-        (handler as ToolHandler)(toolArgs, extra),
-      );
+      ipStorage.run({ ip: resolveClientIp(extra?.sessionId), sessionId: extra?.sessionId }, () => {
+        if (icoCapExceeded(extra?.sessionId)) {
+          return { content: [{ type: 'text', text: DAILY_CAP_CTA }], isError: true };
+        }
+        return (handler as ToolHandler)(toolArgs, extra);
+      });
 
     return originalTool(...args.slice(0, -1), wrappedHandler);
   };

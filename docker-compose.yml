@@ -12,6 +12,7 @@ services:
       - PORT=3030
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
+      - ICO_DAILY_CAP=60
       - SANDBOX_HMAC_SECRET=${SANDBOX_HMAC_SECRET}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
@@ -38,6 +39,7 @@ services:
       - PORT=3031
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
+      - ICO_DAILY_CAP=60
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - tool-events:/var/lib/czagents-events
@@ -67,6 +69,7 @@ services:
       - SANCTIONS_EU_URL=${SANCTIONS_EU_URL:-https://webgate.ec.europa.eu/fsd/fsf/public/files/xmlFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET_SANCTIONS:-}
       - RATE_LIMIT_MAX=600
+      - ICO_DAILY_CAP=60
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions
@@ -100,6 +103,7 @@ services:
       # requests (initialize + tools/list + multiple tool calls + notifications)
       # in seconds. The 30/min default routinely hits 429 in single chat turn.
       - RATE_LIMIT_MAX=600
+      - ICO_DAILY_CAP=60
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
       - MCP_AUDIT_URL=${MCP_AUDIT_URL:-}
       - MCP_AUDIT_KEY=${MCP_AUDIT_KEY:-}
@@ -130,6 +134,7 @@ services:
       - NODE_ENV=production
       - ISIR_SOAP_ENABLED=1
       - RATE_LIMIT_MAX=600
+      - ICO_DAILY_CAP=60
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - tool-events:/var/lib/czagents-events
@@ -156,6 +161,7 @@ services:
       - NODE_ENV=production
       - ADIS_SOAP_ENABLED=1
       - RATE_LIMIT_MAX=600
+      - ICO_DAILY_CAP=60
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - tool-events:/var/lib/czagents-events
@@ -227,6 +233,7 @@ services:
       - PORT=3030
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
+      - ICO_DAILY_CAP=60
       - CH_API_KEY=${CH_API_KEY:-}
 
       - GLEIF_CACHE_PATH=/var/lib/czagents-gleif-cache/cache.db
