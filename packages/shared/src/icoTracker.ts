@@ -115,8 +115,19 @@ export function icoCapExceeded(sessionId?: string): boolean {
   if (ICO_DAILY_CAP <= 0) return false;
   const ip = resolveClientIp(sessionId);
   if (ip === 'unknown') return false;
-  const icos = seen.get(today())?.get(ip);
-  return (icos?.size ?? 0) >= ICO_DAILY_CAP;
+  const byIp = seen.get(today());
+  if (!byIp) return false;
+  // DISTINCT IČO přes celý /24 prefix (anti-rotace: .18/.34/.144 sdílí jeden cap).
+  const prefix = ipPrefix(ip);
+  const union = new Set<string>();
+  for (const [otherIp, icos] of byIp) {
+    if (ipPrefix(otherIp) !== prefix) continue;
+    for (const ico of icos) {
+      union.add(ico);
+      if (union.size >= ICO_DAILY_CAP) return true;
+    }
+  }
+  return false;
 }
 
 export function wrapServerTools(server: { tool: unknown }): void {
