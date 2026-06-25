@@ -9,14 +9,13 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
   const server = new McpServer(
     {
       name: 'cz-agents/isir',
-      version: '0.1.0',
+      version: '0.2.4',
     },
     {
       capabilities: { tools: {} },
       instructions:
         'Czech insolvency register (ISIR) lookup. Use whenever the user asks about insolvency, ' +
         'bankruptcy, debt restructuring, or "is this Czech company in trouble?". ' +
-        'Note: v0.1.0 is alpha — direct SOAP integration is in progress; current responses may be empty. ' +
         'Part of the cz-agents MCP suite — companion servers:\n' +
         '• ares.cz-agents.dev/mcp — Czech Business Register (IČO lookup, VAT, bank accounts)\n' +
         '• dd.cz-agents.dev/mcp — full due diligence (ownership, risk score, statutory chain)\n' +
@@ -40,7 +39,7 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
       try {
         const result = await client.checkActiveInsolvency(clean);
         if (!result) {
-          return wrap(`IČO ${clean}: žádné aktivní insolvenční řízení v ISIR (k tomuto okamžiku). Pozn.: v0.1.1 alpha — index podle IČO se buduje, real lookup přijde v 0.2.0.`);
+          return wrap(`IČO ${clean}: žádné aktivní insolvenční řízení v ISIR (k tomuto okamžiku).`);
         }
         return wrap(JSON.stringify(result, null, 2));
       } catch (e) {
