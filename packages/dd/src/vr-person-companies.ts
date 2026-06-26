@@ -1,4 +1,5 @@
 import type { VrLike } from './clients.js';
+import { PERSON_RISK_ROLE_FILTER_SQL, teaserRiskFlag, type PersonRiskFlag, type PersonRiskMetrics } from './vr-person-risk.js';
 
 export type PersonCompaniesConfidenceTier = 'HIGH' | 'LOW';
 
@@ -29,6 +30,7 @@ export interface PersonCompaniesPerson {
   };
   namesake_flag: boolean;
   distinguisher: string;
+  risk_flag: PersonRiskFlag;
   companies: PersonCompanyRole[];
 }
 
@@ -131,6 +133,46 @@ person_roles AS (
   LEFT JOIN vr.companies c ON c.ico = r.company_ico
   LEFT JOIN vr.companies mc ON mc.ico = r.member_ico
   WHERE r.company_ico IS NOT NULL
+),
+risk_edges AS (
+  SELECT DISTINCT
+    id.canonical_key,
+    e.company_ico,
+    c.name,
+    c.status,
+    c.registered_at
+  FROM identities id
+  JOIN vr.company_entity_edge e ON e.canonical_key = id.canonical_key
+  LEFT JOIN vr.companies c ON c.ico = e.company_ico
+  WHERE ${PERSON_RISK_ROLE_FILTER_SQL}
+),
+risk_metrics AS (
+  SELECT
+    re.canonical_key,
+    count(DISTINCT re.company_ico)::int AS risk_n,
+    count(DISTINCT re.company_ico) FILTER (
+      WHERE re.status = 'deleted' OR re.name ILIKE '%likvidaci%'
+    )::int AS risk_l
+  FROM risk_edges re
+  GROUP BY re.canonical_key
+),
+risk_batch_windows AS (
+  SELECT
+    a.canonical_key,
+    count(DISTINCT b.company_ico)::int AS batch_count
+  FROM risk_edges a
+  JOIN risk_edges b
+    ON b.canonical_key = a.canonical_key
+   AND a.registered_at IS NOT NULL
+   AND b.registered_at IS NOT NULL
+   AND b.registered_at >= a.registered_at
+   AND b.registered_at <= a.registered_at + interval '45 days'
+  GROUP BY a.canonical_key, a.company_ico
+),
+risk_batch AS (
+  SELECT canonical_key, coalesce(max(batch_count), 0)::int AS risk_batch
+  FROM risk_batch_windows
+  GROUP BY canonical_key
 )
 SELECT
   pr.person_id::text,
@@ -146,6 +188,9 @@ SELECT
     'person_id=', pr.person_id::text,
     coalesce(', birth_year=' || pr.birth_year::text, ', birth_year=unknown')
   ) AS distinguisher,
+  coalesce(rm.risk_n, 0)::int AS risk_n,
+  coalesce(rm.risk_l, 0)::int AS risk_l,
+  coalesce(rb.risk_batch, 0)::int AS risk_batch,
   jsonb_agg(DISTINCT jsonb_build_object(
     'ico', pr.ico,
     'name', pr.name,
@@ -160,6 +205,8 @@ SELECT
     'member_company_name', pr.member_company_name
   )) AS companies
 FROM person_roles pr
+LEFT JOIN risk_metrics rm ON rm.canonical_key = pr.canonical_key
+LEFT JOIN risk_batch rb ON rb.canonical_key = pr.canonical_key
 GROUP BY
   pr.person_id,
   pr.full_name,
@@ -168,7 +215,10 @@ GROUP BY
   pr.birth_year,
   pr.confidence_tier,
   pr.confidence_score,
-  pr.confidence_basis
+  pr.confidence_basis,
+  rm.risk_n,
+  rm.risk_l,
+  rb.risk_batch
 ORDER BY pr.full_name, pr.birth_year NULLS LAST, pr.person_id
 LIMIT 200
 `;
@@ -184,6 +234,9 @@ interface PersonCompaniesRow {
   confidence_basis: 'NAME_AND_BIRTH_YEAR' | 'NAME_ONLY';
   namesake_flag: boolean;
   distinguisher: string;
+  risk_n: number;
+  risk_l: number;
+  risk_batch: number;
   companies: PersonCompanyRole[] | string;
 }
 
@@ -207,6 +260,8 @@ export async function lookupPersonCompanies(
     },
     namesake_flag: row.namesake_flag,
     distinguisher: row.distinguisher,
+    // teaser: full risk profile available via assess_person_risk (ddplus)
+    risk_flag: teaserRiskFlag(toRiskMetrics(row)),
     companies: parseCompanies(row.companies),
   }));
 
@@ -223,4 +278,15 @@ export async function lookupPersonCompanies(
 function parseCompanies(companies: PersonCompanyRole[] | string): PersonCompanyRole[] {
   if (typeof companies === 'string') return JSON.parse(companies) as PersonCompanyRole[];
   return companies;
+}
+
+function toRiskMetrics(row: PersonCompaniesRow): PersonRiskMetrics {
+  const N = Number(row.risk_n);
+  const L = Number(row.risk_l);
+  return {
+    N,
+    L,
+    ln: N === 0 ? 0 : L / N,
+    batch: Number(row.risk_batch),
+  };
 }
