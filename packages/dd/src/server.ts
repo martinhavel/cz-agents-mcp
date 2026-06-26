@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
+import { validateIcoInput, trackIco, logToolCall, getCurrentSessionId, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown, getUnavailableReferencedSources } from './summary.js';
 import { buildChain } from './chain.js';
@@ -12,6 +12,26 @@ import { lookupGleifByRegistrationNumber, lookupGleifParent, getByLei } from './
 import type { AresVrLike, DdClients } from './clients.js';
 import { lookupPersonCompanies } from './vr-person-companies.js';
 import { buildOwnersMarkdown, lookupOwners } from './vr-owners.js';
+
+// Soft conversion nudge: heavy person_companies users are doing portfolio / UBO
+// mapping across people — exactly the ddplus value territory. After
+// PC_NUDGE_AFTER lookups within 24h we surface a non-blocking upgrade hint on the
+// result. Never gates, never errors, never logs PII; best-effort, per-process.
+// Calibrated on the education-sector portfolio mapper (51× person_companies/3 days).
+const PC_NUDGE_AFTER = 8;
+const PC_NUDGE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const personCompaniesCalls = new Map<string, number[]>();
+function personCompaniesUpgradeHint(scope: string): string | undefined {
+  const now = Date.now();
+  const recent = (personCompaniesCalls.get(scope) ?? []).filter((t) => now - t < PC_NUDGE_WINDOW_MS);
+  recent.push(now);
+  if (personCompaniesCalls.size > 5000) personCompaniesCalls.clear(); // bound memory
+  personCompaniesCalls.set(scope, recent);
+  if (recent.length > PC_NUDGE_AFTER) {
+    return `Mapujete vlastnická portfolia napříč osobami (${recent.length}× person_companies / 24 h)? ddplus Agency dělá dávkové mapování sítě, watchlist a phoenix/nominee detekci v jednom — https://app.cz-agents.dev/cena`;
+  }
+  return undefined;
+}
 
 /**
  * Tier kind — controls which tools are available to the caller.
@@ -103,6 +123,8 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
         if (!clients.vrBase) {
           (result as unknown as Record<string, unknown>).coverage = 'partial_ownership_only';
         }
+        const hint = personCompaniesUpgradeHint(getCurrentSessionId() ?? 'anon');
+        if (hint) (result as unknown as Record<string, unknown>).upgrade_hint = hint;
         return wrap(JSON.stringify(result, null, 2));
       } catch (e) {
         console.error('[dd] person_companies base query failed:', e);
