@@ -11,7 +11,6 @@ import { detectAddressCrowding } from './patterns/address-crowding.js';
 import { lookupGleifByRegistrationNumber, lookupGleifParent, getByLei } from './gleif-lookup.js';
 import type { AresVrLike, DdClients } from './clients.js';
 import { lookupPersonCompanies } from './vr-person-companies.js';
-import { assessPersonRisk } from './vr-person-risk.js';
 import { buildOwnersMarkdown, lookupOwners } from './vr-owners.js';
 
 /**
@@ -114,65 +113,6 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
             (fallback as unknown as Record<string, unknown>).note =
               'Full person registry temporarily offline; showing ownership roles only.';
             return wrap(JSON.stringify(fallback, null, 2));
-          } catch { /* fall through to honest error */ }
-        }
-        return wrap(JSON.stringify({
-          error: 'vr_base_unavailable',
-          message: 'Plný rejstřík osob je dočasně nedostupný — zkus to prosím později.',
-        }, null, 2));
-      }
-    },
-  );
-
-  server.tool(
-    'assess_person_risk',
-    'Paid ddplus tool. Assess person-level VR shell-factory / serial-liquidation / mass-nominee risk from namesake-safe canonical_key, using only jednatel/společník roles and excluding liquidators / insolvency administrators.',
-    {
-      name: z.string().min(2).describe('Person full name as recorded in VR, e.g. "Jan Novak".'),
-      birth_year: z.number().int().min(1850).max(new Date().getFullYear()).describe('Public birth year used to resolve the VR canonical_key namesake-safely.'),
-    },
-    { title: 'Assess Person Risk Profile (ddplus)', readOnlyHint: true, openWorldHint: true },
-    async ({ name, birth_year }) => {
-      logToolCall('dd', 'assess_person_risk', { name, birth_year });
-      const gate = requireTier(tier, 'compliance', 'assess_person_risk');
-      if (gate) return gate;
-
-      const primary = clients.vrBase ?? clients.vr;
-      if (!primary) {
-        return wrap(JSON.stringify({
-          error: 'vr_not_configured',
-          message: 'VR Postgres client is not configured for this DD server instance.',
-        }, null, 2));
-      }
-      try {
-        const persons = await assessPersonRisk(primary, { name, birthYear: birth_year });
-        if (persons.length === 0) {
-          return wrap(JSON.stringify({ error: 'person_not_found', name, birth_year }, null, 2));
-        }
-        const response: Record<string, unknown> = {
-          query: { name, birth_year },
-          namesake_flag: persons.length > 1,
-          persons,
-        };
-        if (!clients.vrBase) {
-          response.coverage = 'partial_ownership_only';
-        }
-        return wrap(JSON.stringify(response, null, 2));
-      } catch (e) {
-        console.error('[dd] assess_person_risk base query failed:', e);
-        if (clients.vrBase && clients.vr) {
-          try {
-            const persons = await assessPersonRisk(clients.vr, { name, birthYear: birth_year });
-            if (persons.length === 0) {
-              return wrap(JSON.stringify({ error: 'person_not_found', name, birth_year }, null, 2));
-            }
-            return wrap(JSON.stringify({
-              query: { name, birth_year },
-              namesake_flag: persons.length > 1,
-              persons,
-              coverage: 'partial_ownership_only',
-              note: 'Full person registry temporarily offline; showing ownership roles only.',
-            }, null, 2));
           } catch { /* fall through to honest error */ }
         }
         return wrap(JSON.stringify({
