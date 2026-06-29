@@ -40,7 +40,7 @@ const icoNameMap = new TtlMap<string, string>({
   maxSize: MAX_ICO_COUNTER_ENTRIES,
   sweepIntervalMs: 60 * 60_000,
 });
-// "tool:query:city:street" → count
+// tool → count
 const searchCounter = new TtlMap<string, number>({
   ttlMs: RETENTION_MS,
   maxSize: MAX_SEARCH_COUNTER_ENTRIES,
@@ -273,11 +273,7 @@ export function logToolCall(service: string, tool: string, args: Record<string, 
   });
 
   if (tool === 'search_companies' || tool === 'search_by_address') {
-    const q = String(args['query'] ?? '').slice(0, 60).replace(/\s+/g, '_') || '-';
-    const city = String(args['city'] ?? '').slice(0, 40).replace(/\s+/g, '_') || '-';
-    const street = String(args['street'] ?? '').slice(0, 40).replace(/\s+/g, '_') || '-';
-    const key = `${tool}\t${q}\t${city}\t${street}`;
-    searchCounter.set(key, (searchCounter.get(key) ?? 0) + 1);
+    searchCounter.set(tool, (searchCounter.get(tool) ?? 0) + 1);
   }
 }
 
@@ -320,11 +316,10 @@ export function getMetrics(): string {
 
   // Search query counters
   lines.push('');
-  lines.push('# HELP search_query_total Recent search calls per query+city+street retained for up to three days.');
-  lines.push('# TYPE search_query_total counter');
-  for (const [key, count] of searchCounter) {
-    const [tool, query, city, street] = key.split('\t') as [string, string, string, string];
-    lines.push(`search_query_total{tool="${escapeLabel(tool)}",query="${escapeLabel(query)}",city="${escapeLabel(city)}",street="${escapeLabel(street)}"} ${count}`);
+  lines.push('# HELP query_lookup_total Recent search calls per tool retained for up to three days.');
+  lines.push('# TYPE query_lookup_total counter');
+  for (const [tool, count] of searchCounter) {
+    lines.push(`query_lookup_total{tool="${escapeLabel(tool)}"} ${count}`);
   }
 
   // Per-tool call counter — real tools/call usage (not transport/handshake requests).
