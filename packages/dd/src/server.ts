@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, getCurrentSessionId, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
+import { validateIcoInput, trackIco, trackQuery, personQueryUnitKey, entityIdUnitKey, logToolCall, getCurrentSessionId, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown, getUnavailableReferencedSources } from './summary.js';
 import { buildChain } from './chain.js';
@@ -105,6 +105,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
     },
     { title: 'Find Person Companies in VR', readOnlyHint: true, openWorldHint: true },
     async ({ name, birth_year }) => {
+      trackQuery(personQueryUnitKey(name, birth_year));
       logToolCall('dd', 'person_companies', { name, birth_year });
       // Person->companies needs the FULL VR base (statutory + ownership roles), which
       // lives on the off-site base (clients.vrBase). The local hot slim (clients.vr)
@@ -375,6 +376,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
     },
     { title: 'EU Due-Diligence Report (GLEIF + Sanctions)', readOnlyHint: true, openWorldHint: true },
     async ({ identifier, country }) => auditTool(opts.audit, 'get_eu_dd_report', undefined, async () => {
+      trackQuery(entityIdUnitKey(country ?? 'xx', identifier));
       logToolCall('dd', 'get_eu_dd_report', { identifier, country });
       const gate = requireTier(tier, 'compliance', 'get_eu_dd_report');
       if (gate) return gate;

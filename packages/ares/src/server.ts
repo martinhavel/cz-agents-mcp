@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, trackIcoName, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
+import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, trackIcoName, trackQuery, queryUnitKey, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
 import { AresClient } from './client.js';
 import { buildAresSummaryMarkdown } from './summary.js';
 
@@ -89,6 +89,7 @@ export function buildAresServer(): McpServer {
     { title: 'Search Czech Companies', readOnlyHint: true, openWorldHint: true },
     async ({ query, city, street, psc, nace, pocet, start }) => {
       const normalizedQuery = query?.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+      trackQuery(queryUnitKey({ query: normalizedQuery, city, street, psc, nace, pocet, start }));
       logToolCall('ares', 'search_companies', { query: normalizedQuery, city, street, psc, nace, pocet, start });
       const sidlo = city || street || psc
         ? { nazevObce: city, nazevUlice: street, psc }
@@ -124,6 +125,7 @@ export function buildAresServer(): McpServer {
     },
     { title: 'Search Companies by Address', readOnlyHint: true, openWorldHint: true },
     async ({ street, city, psc, pocet }) => {
+      trackQuery(queryUnitKey({ street, city, psc, pocet }));
       logToolCall('ares', 'search_by_address', { street, city, psc, pocet });
       const result = await ares.search({
         sidlo: { nazevUlice: street, nazevObce: city, psc },
@@ -154,6 +156,7 @@ export function buildAresServer(): McpServer {
     },
     { title: 'Search Companies by NACE Code', readOnlyHint: true, openWorldHint: true },
     async ({ nace, city, pocet }) => {
+      trackQuery(queryUnitKey({ nace, city, pocet }));
       logToolCall('ares', 'search_by_nace', { nace, city, pocet });
       const result = await ares.search({
         czNace: [nace],

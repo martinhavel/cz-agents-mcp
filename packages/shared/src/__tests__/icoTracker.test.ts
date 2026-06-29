@@ -216,6 +216,65 @@ describe('tool event JSONL persistence', () => {
   }
 });
 
+describe('daily cap buckets', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it('keeps entity cap independent from query units', async () => {
+    const tracker = await importTrackerWithCaps({ ico: 60, query: 0 });
+
+    await tracker.runWithIp('203.0.113.10', async () => {
+      for (let i = 0; i < 59; i += 1) tracker.trackQuery(`id:gb:${i}`);
+      for (let i = 0; i < 100; i += 1) tracker.trackQuery(`q:${i.toString().padStart(16, '0')}`);
+      expect(tracker.dailyCapExceeded()).toBe(false);
+      tracker.trackQuery('id:gb:59');
+      expect(tracker.dailyCapExceeded()).toBe('entity');
+    });
+  });
+
+  it('blocks query cap only for q-prefixed keys', async () => {
+    const tracker = await importTrackerWithCaps({ ico: 0, query: 2 });
+
+    await tracker.runWithIp('203.0.113.20', async () => {
+      tracker.trackQuery('27074358');
+      tracker.trackQuery('id:gb:14356670');
+      tracker.trackQuery('id:de:W38RGI023J3WT1HWRP32');
+      expect(tracker.dailyCapExceeded()).toBe(false);
+      tracker.trackQuery('q:0000000000000001');
+      expect(tracker.dailyCapExceeded()).toBe(false);
+      tracker.trackQuery('q:0000000000000002');
+      expect(tracker.dailyCapExceeded()).toBe('query');
+    });
+  });
+
+  it('unions entity units across the same IPv4 /24', async () => {
+    const tracker = await importTrackerWithCaps({ ico: 2, query: 0 });
+
+    await tracker.runWithIp('198.51.100.10', async () => {
+      tracker.trackQuery('id:gb:one');
+      expect(tracker.dailyCapExceeded()).toBe(false);
+    });
+    await tracker.runWithIp('198.51.100.200', async () => {
+      tracker.trackQuery('id:gb:two');
+      expect(tracker.dailyCapExceeded()).toBe('entity');
+    });
+  });
+
+  it('counts the same normalized query once and excludes pagination fields', async () => {
+    const tracker = await importTrackerWithCaps({ ico: 0, query: 2 });
+
+    await tracker.runWithIp('192.0.2.50', async () => {
+      tracker.trackQuery(tracker.queryUnitKey({ query: '  Acme  ', city: 'Praha', pocet: 10, start: 0 }));
+      tracker.trackQuery(tracker.queryUnitKey({ query: 'acme', city: ' Praha ', pocet: 100, start: 50 }));
+      expect(tracker.dailyCapExceeded()).toBe(false);
+      tracker.trackQuery(tracker.queryUnitKey({ query: 'Beta', city: 'Praha', pocet: 10, start: 0 }));
+      expect(tracker.dailyCapExceeded()).toBe('query');
+    });
+  });
+});
+
 async function readOnlyRecord(dir: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readOnlyRawLine(dir)) as Record<string, unknown>;
 }
@@ -227,6 +286,14 @@ async function readOnlyRawLine(dir: string): Promise<string> {
   const lines = raw.trim().split('\n');
   expect(lines).toHaveLength(1);
   return lines[0] ?? '';
+}
+
+async function importTrackerWithCaps(caps: { ico: number; query: number }) {
+  vi.resetModules();
+  vi.stubEnv('LOOKUP_HASH_SALT', 'test-salt');
+  vi.stubEnv('ICO_DAILY_CAP', String(caps.ico));
+  vi.stubEnv('QUERY_DAILY_CAP', String(caps.query));
+  return import('../icoTracker.js');
 }
 
 async function fileExists(file: string): Promise<boolean> {

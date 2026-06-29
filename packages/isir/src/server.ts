@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
+import { validateIcoInput, trackIco, trackQuery, personQueryUnitKey, logToolCall, wrapServerTools } from '@czagents/shared';
 import { IsirClient } from './client.js';
 import { IsirNotConfiguredError } from './cuzk.js';
 
@@ -65,6 +65,7 @@ export function buildIsirServer(client: IsirClient = new IsirClient()): McpServe
     { title: 'Search Person Insolvency in ISIR', readOnlyHint: true, openWorldHint: true },
     async ({ name, dob, only_active }) => {
       try {
+        trackQuery(personQueryUnitKey(name, dob));
         logToolCall('isir', 'search_person_insolvency', { name, dob, only_active });
         const matches = await client.searchPersonInsolvency({ name, dob, onlyActive: only_active });
         if (matches.length === 0) {

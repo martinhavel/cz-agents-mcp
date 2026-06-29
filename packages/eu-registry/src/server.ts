@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { logToolCall, wrapServerTools } from '@czagents/shared';
+import { entityIdUnitKey, logToolCall, queryUnitKey, trackQuery, wrapServerTools } from '@czagents/shared';
 import { UkCompaniesHouseAdapter } from './adapters/uk-companies-house.js';
 import { SkOrsrAdapter } from './adapters/sk-orsr.js';
 import { PlKrsAdapter } from './adapters/pl-krs.js';
@@ -53,6 +53,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     async ({ name, country, limit }) => {
       const normalizedCountry = country?.toLowerCase();
       const cappedLimit = Math.min(Math.max(limit ?? 10, 1), 20);
+      trackQuery(queryUnitKey({ name, country: normalizedCountry, limit: cappedLimit }));
       logToolCall('eu-registry', 'search_company', { name, country: normalizedCountry, limit: cappedLimit });
 
       const selected = Object.entries(adapters).filter(([adapterCountry]) => {
@@ -82,6 +83,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     { title: 'Get Non-Czech Company', readOnlyHint: true, openWorldHint: true },
     async ({ id, country }) => {
       const normalizedCountry = country.toLowerCase();
+      trackQuery(entityIdUnitKey(normalizedCountry, id));
       logToolCall('eu-registry', 'get_company', { id, country: normalizedCountry });
 
       const company = await getCompany(adapters, id, normalizedCountry);

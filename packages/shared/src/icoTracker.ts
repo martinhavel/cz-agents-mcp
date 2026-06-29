@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { createHash } from 'node:crypto';
 import { appendFile, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isValidIco } from './ico.js';
@@ -68,6 +69,10 @@ type ToolHandlerExtra = { sessionId?: string };
 type ToolHandler = (args: unknown, extra?: ToolHandlerExtra) => unknown;
 type ToolRegistrar = (...args: unknown[]) => unknown;
 const wrappedServers = new WeakSet<object>();
+const LOOKUP_HASH_SALT = process.env.LOOKUP_HASH_SALT ?? '';
+if (!LOOKUP_HASH_SALT) {
+  console.error('[cap] LOOKUP_HASH_SALT is not set; lookup query hashes are unsalted.');
+}
 
 export function setRequestIp(ip: string): void {
   _currentIp = ip;
@@ -102,32 +107,49 @@ export function resolveClientIp(sessionId?: string): string {
   return ipStorage.getStore()?.ip ?? _currentIp ?? 'unknown';
 }
 
-// Daily cap: distinct IČO per IP/day (anonymous free → konverzní zeď).
+// Daily cap: distinct entity/query units per IP/day (anonymous free → konverzní zeď).
 // 0 = vypnuto (default); ICO_DAILY_CAP=60 per server to zapne. Cap na unikátní
 // firmy (ne requesty/tool-cally) — handshake/transport šum to nenafoukne.
 const ICO_DAILY_CAP = Number(process.env.ICO_DAILY_CAP ?? 0);
+const QUERY_DAILY_CAP = Number(process.env.QUERY_DAILY_CAP ?? 0);
 const DAILY_CAP_CTA =
   `Denní free limit vyčerpán (${ICO_DAILY_CAP} firem/den). Pokračuj bez limitů přes Credit Packs ` +
   `(od €35 / 50 dotazů, bez závazku) nebo Pro (1 690 Kč/měs). → https://app.cz-agents.dev/cena`;
+const QUERY_DAILY_CAP_CTA =
+  `Denní free limit vyčerpán (${QUERY_DAILY_CAP} dotazů/den). Pokračuj bez limitů přes Credit Packs ` +
+  `(od €35 / 50 dotazů, bez závazku) nebo Pro (1 690 Kč/měs). → https://app.cz-agents.dev/cena`;
 
-// True když aktuální IP už dosáhla denního capu unikátních IČO.
-export function icoCapExceeded(sessionId?: string): boolean {
-  if (ICO_DAILY_CAP <= 0) return false;
+export type DailyCapBucket = 'entity' | 'query';
+
+// Returns the bucket when aktuální IP už dosáhla denního capu unikátních jednotek.
+export function dailyCapExceeded(sessionId?: string): DailyCapBucket | false {
+  if (ICO_DAILY_CAP <= 0 && QUERY_DAILY_CAP <= 0) return false;
   const ip = resolveClientIp(sessionId);
   if (ip === 'unknown') return false;
   const byIp = seen.get(today());
   if (!byIp) return false;
-  // DISTINCT IČO přes celý /24 prefix (anti-rotace: .18/.34/.144 sdílí jeden cap).
+  // DISTINCT units přes celý /24 prefix (anti-rotace: .18/.34/.144 sdílí jeden cap).
   const prefix = ipPrefix(ip);
-  const union = new Set<string>();
+  const entityUnion = new Set<string>();
+  const queryUnion = new Set<string>();
   for (const [otherIp, icos] of byIp) {
     if (ipPrefix(otherIp) !== prefix) continue;
-    for (const ico of icos) {
-      union.add(ico);
-      if (union.size >= ICO_DAILY_CAP) return true;
+    for (const key of icos) {
+      if (key.startsWith('q:')) {
+        queryUnion.add(key);
+        if (QUERY_DAILY_CAP > 0 && queryUnion.size >= QUERY_DAILY_CAP) return 'query';
+      } else {
+        entityUnion.add(key);
+        if (ICO_DAILY_CAP > 0 && entityUnion.size >= ICO_DAILY_CAP) return 'entity';
+      }
     }
   }
   return false;
+}
+
+// Compatibility alias for older imports/tests that only need the boolean entity/query gate.
+export function icoCapExceeded(sessionId?: string): boolean {
+  return dailyCapExceeded(sessionId) !== false;
 }
 
 export function wrapServerTools(server: { tool: unknown }): void {
@@ -142,8 +164,12 @@ export function wrapServerTools(server: { tool: unknown }): void {
 
     const wrappedHandler = (toolArgs: unknown, extra?: ToolHandlerExtra) =>
       ipStorage.run({ ip: resolveClientIp(extra?.sessionId), sessionId: extra?.sessionId }, () => {
-        if (icoCapExceeded(extra?.sessionId)) {
-          return { content: [{ type: 'text', text: DAILY_CAP_CTA }], isError: true };
+        const trippedBucket = dailyCapExceeded(extra?.sessionId);
+        if (trippedBucket) {
+          return {
+            content: [{ type: 'text', text: trippedBucket === 'query' ? QUERY_DAILY_CAP_CTA : DAILY_CAP_CTA }],
+            isError: true,
+          };
         }
         return (handler as ToolHandler)(toolArgs, extra);
       });
@@ -154,7 +180,42 @@ export function wrapServerTools(server: { tool: unknown }): void {
 
 export function trackIco(ico: string): void {
   if (!isValidIco(ico)) return;
+  trackSeenUnit(ico);
+  icoCounter.set(ico, (icoCounter.get(ico) ?? 0) + 1);
+}
 
+export function trackQuery(unitKey: string): void {
+  if (!unitKey.trim()) return;
+  trackSeenUnit(unitKey);
+}
+
+export function salted16(s: string): string {
+  return createHash('sha256').update(`${LOOKUP_HASH_SALT}|${s}`).digest('hex').slice(0, 16);
+}
+
+export function queryUnitKey(fields: Record<string, unknown>): string {
+  const normalized = Object.entries(fields)
+    .filter(([key, value]) => !isPaginationField(key) && value !== undefined && value !== null && value !== '')
+    .map(([, value]) => normalizeQueryValue(value))
+    .join('|');
+  return `q:${salted16(normalized)}`;
+}
+
+export function personQueryUnitKey(name: string, yearOrDob?: string | number): string {
+  return queryUnitKey({ name, birth_year: yearFromInput(yearOrDob) });
+}
+
+export function entityIdUnitKey(country: string, id: string): string {
+  return `id:${country.toLowerCase()}:${id.trim()}`;
+}
+
+export function yearFromInput(value?: string | number): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const match = String(value).match(/\d{4}/);
+  return match?.[0];
+}
+
+function trackSeenUnit(unitKey: string): void {
   const ip = resolveClientIp();
   if (ip === 'unknown') return;
 
@@ -171,19 +232,18 @@ export function trackIco(ico: string): void {
     seen.set(date, byIp);
   }
 
-  let icos = byIp.get(ip);
-  if (!icos) {
-    icos = new Set();
-    byIp.set(ip, icos);
+  let units = byIp.get(ip);
+  if (!units) {
+    units = new Set();
+    byIp.set(ip, units);
   }
 
-  if (icos.size >= MAX_ICOS_PER_IP && !icos.has(ico)) {
-    const oldest = icos.values().next();
-    if (!oldest.done) icos.delete(oldest.value);
+  if (units.size >= MAX_ICOS_PER_IP && !units.has(unitKey)) {
+    const oldest = units.values().next();
+    if (!oldest.done) units.delete(oldest.value);
   }
-  icos.add(ico);
-  byIp.set(ip, icos);
-  icoCounter.set(ico, (icoCounter.get(ico) ?? 0) + 1);
+  units.add(unitKey);
+  byIp.set(ip, units);
 }
 
 // Best-effort company name for an IČO (no count) — emitted as ico_company_info
@@ -284,10 +344,29 @@ export function getMetrics(): string {
   ];
 
   const totals = new Map<string, number>();
+  const queryTotals = new Map<string, number>();
   for (const [date, byIp] of seen) {
-    for (const [ip, icos] of byIp) {
+    const prefixIcos = new Map<string, Set<string>>();
+    const prefixQueries = new Map<string, Set<string>>();
+    for (const [ip, units] of byIp) {
       const key = `${ipPrefix(ip)}\t${date}`;
-      totals.set(key, (totals.get(key) ?? 0) + icos.size);
+      for (const unit of units) {
+        if (unit.startsWith('q:')) {
+          const querySet = prefixQueries.get(key) ?? new Set<string>();
+          querySet.add(unit);
+          prefixQueries.set(key, querySet);
+        } else if (!unit.startsWith('id:')) {
+          const icoSet = prefixIcos.get(key) ?? new Set<string>();
+          icoSet.add(unit);
+          prefixIcos.set(key, icoSet);
+        }
+      }
+    }
+    for (const [key, values] of prefixIcos) {
+      totals.set(key, values.size);
+    }
+    for (const [key, values] of prefixQueries) {
+      queryTotals.set(key, values.size);
     }
   }
 
@@ -295,6 +374,16 @@ export function getMetrics(): string {
     const [prefix, date] = key.split('\t') as [string, string];
     lines.push(
       `unique_ico_per_ip_per_day{ip_prefix="${escapeLabel(prefix)}",date="${escapeLabel(date)}"} ${value}`,
+    );
+  }
+
+  lines.push('');
+  lines.push('# HELP unique_query_per_ip_per_day Unique hashed name/address search queries seen per anonymized IP prefix per day.');
+  lines.push('# TYPE unique_query_per_ip_per_day gauge');
+  for (const [key, value] of queryTotals) {
+    const [prefix, date] = key.split('\t') as [string, string];
+    lines.push(
+      `unique_query_per_ip_per_day{ip_prefix="${escapeLabel(prefix)}",date="${escapeLabel(date)}"} ${value}`,
     );
   }
 
@@ -402,6 +491,15 @@ function getCTAEscalationThreshold(): number {
 function getToolEventsRetentionDays(): number {
   const parsed = Number.parseInt(process.env.TOOL_EVENTS_RETENTION_DAYS ?? '', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 90;
+}
+
+function isPaginationField(key: string): boolean {
+  return ['pocet', 'start', 'limit', 'offset', 'page'].includes(key);
+}
+
+function normalizeQueryValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map((item) => normalizeQueryValue(item)).join(',');
+  return String(value).trim().toLowerCase();
 }
 
 function escapeLabel(value: string): string {
