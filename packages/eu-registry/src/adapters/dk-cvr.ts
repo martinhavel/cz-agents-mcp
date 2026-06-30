@@ -61,6 +61,13 @@ interface DkSearchResponse {
 
 type DkTotalHits = number | { value?: number };
 
+// Lucene/ES query-injection guard: scope user input jako quoted phrase + escapovat jediné
+// znaky speciální UVNITŘ fráze (\ a "). Bez toho by name/id injectly query operátory
+// (wildcard DoS, bypass field-scopingu) do Virk Elasticsearch _search query stringu (ř. q=).
+function lucenePhrase(value: string): string {
+  return `"${value.replace(/[\\"]/g, '\\$&')}"`;
+}
+
 export class DkCvrAdapter implements RegistryAdapter {
   constructor(
     private readonly user = process.env.DK_CVR_USER,
@@ -72,7 +79,7 @@ export class DkCvrAdapter implements RegistryAdapter {
     if (!this.isConfigured()) return notConfiguredSearch();
 
     const url = new URL(API_BASE);
-    url.searchParams.set('q', `Vrvirksomhed.virksomhedMetadata.nyesteNavn.navn:${name}`);
+    url.searchParams.set('q', `Vrvirksomhed.virksomhedMetadata.nyesteNavn.navn:${lucenePhrase(name)}`);
     url.searchParams.set('size', String(limit));
 
     try {
@@ -100,6 +107,7 @@ export class DkCvrAdapter implements RegistryAdapter {
 
   async getById(id: string): Promise<Company | null> {
     if (!this.isConfigured()) return notConfiguredLookup();
+    if (!/^\d+$/.test(id)) return null; // cvrNummer je číselné → digit-only guard proti Lucene injection
 
     const url = new URL(API_BASE);
     url.searchParams.set('q', `Vrvirksomhed.cvrNummer:${id}`);

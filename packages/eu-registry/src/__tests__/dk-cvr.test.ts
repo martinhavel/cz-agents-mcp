@@ -82,7 +82,7 @@ describe('DkCvrAdapter', () => {
       'http://distribution.virk.dk/cvr-permanent/virksomhed/_search?',
     );
     expect(captured?.url).toContain(
-      'q=Vrvirksomhed.virksomhedMetadata.nyesteNavn.navn%3AMagenta',
+      'q=Vrvirksomhed.virksomhedMetadata.nyesteNavn.navn%3A%22Magenta%22',
     );
     expect(captured?.url).toContain('size=5');
     expect(captured?.init?.headers).toMatchObject({
@@ -103,6 +103,25 @@ describe('DkCvrAdapter', () => {
         },
       ],
     });
+  });
+
+  it('escapes Lucene operators in name (query-injection guard)', async () => {
+    let capturedUrl: string | undefined;
+    handler = (url) => {
+      capturedUrl = url;
+      return jsonResponse(searchPayload());
+    };
+    await new DkCvrAdapter().searchByName('x" OR cvrNummer:*', 5);
+    const q = new URL(capturedUrl!).searchParams.get('q');
+    // user input wrapped in a quoted phrase + the breakout " escaped → operators are literal
+    expect(q).toBe('Vrvirksomhed.virksomhedMetadata.nyesteNavn.navn:"x\\" OR cvrNummer:*"');
+  });
+
+  it('getById rejects non-numeric id without fetching (injection guard)', async () => {
+    handler = () => {
+      throw new Error('should not fetch for non-numeric id');
+    };
+    expect(await new DkCvrAdapter().getById('1 OR 1=1')).toBeNull();
   });
 
   it('getById searches by cvrNummer and returns exact match', async () => {
