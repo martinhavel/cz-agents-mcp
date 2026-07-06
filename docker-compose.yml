@@ -13,7 +13,7 @@ services:
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
-      - QUERY_DAILY_CAP=80
+      - QUERY_DAILY_CAP=25
       - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
       - SANDBOX_HMAC_SECRET=${SANDBOX_HMAC_SECRET}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
@@ -72,7 +72,7 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET_SANCTIONS:-}
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
-      - QUERY_DAILY_CAP=80
+      - QUERY_DAILY_CAP=25
       - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
@@ -108,7 +108,7 @@ services:
       # in seconds. The 30/min default routinely hits 429 in single chat turn.
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
-      - QUERY_DAILY_CAP=80
+      - QUERY_DAILY_CAP=25
       - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
       - MCP_AUDIT_URL=${MCP_AUDIT_URL:-}
@@ -141,7 +141,7 @@ services:
       - ISIR_SOAP_ENABLED=1
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
-      - QUERY_DAILY_CAP=80
+      - QUERY_DAILY_CAP=25
       - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
@@ -242,7 +242,7 @@ services:
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
-      - QUERY_DAILY_CAP=80
+      - QUERY_DAILY_CAP=25
       - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
       - CH_API_KEY=${CH_API_KEY:-}
 
