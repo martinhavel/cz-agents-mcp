@@ -12,6 +12,17 @@ Model Context Protocol servers for Czech & EU government and business data. Nati
 > Adds higher quotas, nominee detection, risk timeline, address crowding, watchlist monitoring, and a web compliance dashboard.
 > Your self-hosted config keeps working after upgrade — same endpoints, same token format.
 
+### No-code web app
+
+Don't want to wire an MCP client? The same data is available as a web application:
+
+- [Company verification by IČO (ověření firmy)](https://app.cz-agents.dev/overeni-firmy)
+- [AML company check (AML kontrola firmy)](https://app.cz-agents.dev/aml-kontrola-firmy)
+- [Sanctions list screening (kontrola sankčních seznamů)](https://app.cz-agents.dev/kontrola-sankcnich-seznamu)
+- [Business partner due diligence (prověření obchodního partnera)](https://app.cz-agents.dev/provereni-obchodniho-partnera)
+- [Company change monitoring (monitoring změn ve firmě)](https://app.cz-agents.dev/monitoring-zmen-ve-firme)
+- Case study: [company due diligence with an AI agent — 20 minutes → 30 seconds](https://cz-agents.dev/case-study/company-due-diligence-with-ai-agent/)
+
 **Landing page:** [cz-agents.dev](https://cz-agents.dev) · **Listed in:** [official MCP Registry](https://registry.modelcontextprotocol.io) under DNS-verified namespace `dev.cz-agents/*`
 
 ## Available servers
