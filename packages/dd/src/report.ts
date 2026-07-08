@@ -487,7 +487,7 @@ async function screenStatutory(
           is_person: m.is_person,
           datumNarozeni: m.dob,
           legal_entity_ico: m.legal_entity_ico,
-          sanctions_match: top ? toSummary(top) : undefined,
+          sanctions_match: top ? toSummary(top, m.dob) : undefined,
         };
       }),
       error: null,
@@ -538,21 +538,85 @@ function buildSanctionsReport(input: {
   };
 }
 
-function toSummary(match: SanctionsMatch): SanctionMatchSummary {
+function toSummary(match: SanctionsMatch, subjectDob?: string): SanctionMatchSummary {
+  const listDobs = nonEmptyArray(match.entity.dobs);
+  const nationalities = nonEmptyArray(match.entity.nationalities);
+  const programs = nonEmptyArray(match.entity.programs);
+  const dobStatus = deriveDobStatus(listDobs, subjectDob);
+
   return {
     source: match.entity.source,
     list_id: match.entity.id,
     confidence: match.confidence,
     matched_on: match.matched_on,
+    primary_name: match.entity.primary_name,
+    matched_alias: match.matched_alias,
+    list_dobs: listDobs,
+    subject_dob: subjectDob,
+    dob_status: dobStatus,
+    match_strength: deriveMatchStrength(match, dobStatus),
+    nationalities,
+    programs,
+    listed_on: match.entity.listed_on,
   };
 }
 
 function rebuildSanctionsMatch(s: SanctionMatchSummary): SanctionsMatch {
   return {
-    entity: { id: s.list_id, source: s.source, primary_name: '', type: 'person' },
+    entity: {
+      id: s.list_id,
+      source: s.source,
+      primary_name: s.primary_name,
+      type: 'person',
+      dobs: s.list_dobs,
+      nationalities: s.nationalities,
+      programs: s.programs,
+      listed_on: s.listed_on,
+    },
     confidence: s.confidence,
     matched_on: s.matched_on,
+    matched_alias: s.matched_alias,
   };
+}
+
+function nonEmptyArray(values: string[] | undefined): string[] | undefined {
+  return values && values.length > 0 ? values : undefined;
+}
+
+function deriveDobStatus(
+  listDobs: string[] | undefined,
+  subjectDob: string | undefined,
+): SanctionMatchSummary['dob_status'] {
+  if (!subjectDob) return 'subject_missing';
+  if (!listDobs || listDobs.length === 0) return 'list_missing';
+  return listDobs.some((listDob) => dobValuesMatch(listDob, subjectDob)) ? 'match' : 'mismatch';
+}
+
+function dobValuesMatch(listDob: string, subjectDob: string): boolean {
+  if (listDob === subjectDob) return true;
+  if (/^\d{4}$/.test(listDob)) {
+    return extractYear(subjectDob) === listDob;
+  }
+  return false;
+}
+
+function extractYear(value: string): string | null {
+  return value.match(/\d{4}/)?.[0] ?? null;
+}
+
+function deriveMatchStrength(
+  match: SanctionsMatch,
+  dobStatus: SanctionMatchSummary['dob_status'],
+): SanctionMatchSummary['match_strength'] {
+  if (match.matched_on === 'id' || match.matched_on === 'ico') return 'strong';
+  if (match.confidence >= 90 && dobStatus === 'match') return 'strong';
+  if (
+    (match.confidence >= 80 && (dobStatus === 'list_missing' || dobStatus === 'subject_missing')) ||
+    match.confidence >= 90
+  ) {
+    return 'possible';
+  }
+  return 'weak-name-only';
 }
 
 /** Older surname-only match — kept for compat with chain.ts callers. */

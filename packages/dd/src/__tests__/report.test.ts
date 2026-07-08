@@ -104,7 +104,7 @@ describe('buildReport', () => {
         statutarniOrgany: [{
           nazevOrganu: 'Jednatelé',
           clenoveOrganu: [{
-            fyzickaOsoba: { jmeno: 'Vladimir', prijmeni: 'Putin' },
+            fyzickaOsoba: { jmeno: 'Vladimir', prijmeni: 'Putin', datumNarozeni: '1952-10-07' },
             funkce: { nazev: 'jednatel' },
             datumZapisu: '2024-01-01',
           }, {
@@ -118,9 +118,20 @@ describe('buildReport', () => {
 
     const sanctions = mockSanctions({
       'name:Vladimir Putin': [{
-        entity: { id: 'eu:putin', source: 'eu', primary_name: 'Vladimir Putin', type: 'person' },
+        entity: {
+          id: 'eu:putin',
+          source: 'eu',
+          primary_name: 'Vladimir Vladimirovich Putin',
+          type: 'person',
+          aliases: ['Vladimir Putin'],
+          dobs: ['1952-10-07'],
+          nationalities: ['Russia'],
+          programs: ['EU.RUSSIA'],
+          listed_on: '2014-07-31',
+        },
         confidence: 100,
-        matched_on: 'primary_name',
+        matched_on: 'alias',
+        matched_alias: 'Vladimir Putin',
       }],
       'ico:12345678': [],
     });
@@ -129,6 +140,17 @@ describe('buildReport', () => {
     expect(report.statutory_body).toHaveLength(2);
     const putin = report.statutory_body.find((m) => m.name === 'Vladimir Putin');
     expect(putin?.sanctions_match?.confidence).toBe(100);
+    expect(putin?.sanctions_match).toMatchObject({
+      primary_name: 'Vladimir Vladimirovich Putin',
+      matched_alias: 'Vladimir Putin',
+      list_dobs: ['1952-10-07'],
+      subject_dob: '1952-10-07',
+      dob_status: 'match',
+      match_strength: 'strong',
+      nationalities: ['Russia'],
+      programs: ['EU.RUSSIA'],
+      listed_on: '2014-07-31',
+    });
     expect(report.sanctions.any_statutory_match).toBe(true);
     expect(report.red_flags.find((f) => f.code === 'STATUTORY_SANCTIONED')).toBeDefined();
     expect(report.risk_score.level).toBe('high');
@@ -188,8 +210,82 @@ describe('buildReport', () => {
     });
     const report = await buildReport('12345678', { ares, sanctions });
     expect(report.sanctions.company_match?.confidence).toBe(100);
+    expect(report.sanctions.company_match).toMatchObject({
+      primary_name: 'Bank Rossiya',
+      dob_status: 'subject_missing',
+      match_strength: 'strong',
+    });
     expect(report.red_flags.find((f) => f.code === 'COMPANY_SANCTIONED')).toBeDefined();
     expect(report.risk_score.level).toBe('high');
+  });
+
+  it('summarizes name matches when the sanctions list has no DOB', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345678', obchodniJmeno: 'Test Co.' },
+      vr: {
+        ico: '12345678',
+        statutarniOrgany: [{
+          nazevOrganu: 'Jednatelé',
+          clenoveOrganu: [{
+            fyzickaOsoba: { jmeno: 'John', prijmeni: 'Doe', datumNarozeni: '1970-01-01' },
+            funkce: { nazev: 'jednatel' },
+          }],
+        }],
+      },
+    });
+    const sanctions = mockSanctions({
+      'name:John Doe': [{
+        entity: { id: 'eu:john-doe', source: 'eu', primary_name: 'John Doe', type: 'person' },
+        confidence: 96,
+        matched_on: 'primary_name',
+      }],
+    });
+
+    const report = await buildReport('12345678', { ares, sanctions });
+    expect(report.statutory_body[0]?.sanctions_match).toMatchObject({
+      primary_name: 'John Doe',
+      subject_dob: '1970-01-01',
+      dob_status: 'list_missing',
+      match_strength: 'possible',
+    });
+  });
+
+  it('summarizes name matches when ARES has no subject DOB', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345678', obchodniJmeno: 'Test Co.' },
+      vr: {
+        ico: '12345678',
+        statutarniOrgany: [{
+          nazevOrganu: 'Předseda představenstva',
+          clenoveOrganu: [{
+            fyzickaOsoba: { jmeno: 'Jane', prijmeni: 'Doe' },
+            funkce: { nazev: 'předseda představenstva' },
+          }],
+        }],
+      },
+    });
+    const sanctions = mockSanctions({
+      'name:Jane Doe': [{
+        entity: {
+          id: 'eu:jane-doe',
+          source: 'eu',
+          primary_name: 'Jane Doe',
+          type: 'person',
+          dobs: ['1980-05-05'],
+        },
+        confidence: 94,
+        matched_on: 'primary_name',
+      }],
+    });
+
+    const report = await buildReport('12345678', { ares, sanctions });
+    expect(report.statutory_body[0]?.sanctions_match).toMatchObject({
+      primary_name: 'Jane Doe',
+      list_dobs: ['1980-05-05'],
+      dob_status: 'subject_missing',
+      match_strength: 'possible',
+    });
+    expect(report.statutory_body[0]?.sanctions_match?.subject_dob).toBeUndefined();
   });
 
   it('full depth includes ISIR + virtual address probe', async () => {

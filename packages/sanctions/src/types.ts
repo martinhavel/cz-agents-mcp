@@ -52,6 +52,25 @@ export interface MatchResult {
   matched_alias?: string;
 }
 
+export type SanctionDobStatus = 'match' | 'mismatch' | 'list_missing' | 'subject_missing';
+export type SanctionMatchStrength = 'strong' | 'possible' | 'weak-name-only';
+
+export interface SanctionMatchSummary {
+  source: string;
+  list_id: string;
+  confidence: number;
+  matched_on: string;
+  primary_name: string;
+  matched_alias?: string;
+  list_dobs?: string[];
+  subject_dob?: string;
+  dob_status: SanctionDobStatus;
+  match_strength: SanctionMatchStrength;
+  nationalities?: string[];
+  programs?: string[];
+  listed_on?: string;
+}
+
 export interface SearchPersonInput {
   name: string;
   dob?: string;

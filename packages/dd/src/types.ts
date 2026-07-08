@@ -43,6 +43,15 @@ export interface SanctionMatchSummary {
   list_id: string;
   confidence: number;    // 0–100
   matched_on: string;    // 'primary_name' | 'alias' | 'ico' | 'id'
+  primary_name: string;   // sanctions-list subject that matched
+  matched_alias?: string;
+  list_dobs?: string[];
+  subject_dob?: string;
+  dob_status: 'match' | 'mismatch' | 'list_missing' | 'subject_missing';
+  match_strength: 'strong' | 'possible' | 'weak-name-only';
+  nationalities?: string[];
+  programs?: string[];
+  listed_on?: string;
 }
 
 export interface PersonalInsolvency {
