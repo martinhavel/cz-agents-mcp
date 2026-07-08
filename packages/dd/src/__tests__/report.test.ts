@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildReport } from '../report.js';
+import * as ownershipNetwork from '../ownership-network.js';
 import type {
   AresLike,
   AresSubjectLike,
@@ -55,6 +56,10 @@ function mockUnavailableIsir(): IsirLike {
 }
 
 describe('buildReport', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('builds basic report from ARES alone (no sanctions client)', async () => {
     const ares = mockAres({
       subject: {
@@ -99,7 +104,7 @@ describe('buildReport', () => {
         statutarniOrgany: [{
           nazevOrganu: 'Jednatelé',
           clenoveOrganu: [{
-            fyzickaOsoba: { jmeno: 'Vladimir', prijmeni: 'Putin' },
+            fyzickaOsoba: { jmeno: 'Vladimir', prijmeni: 'Putin', datumNarozeni: '1952-10-07' },
             funkce: { nazev: 'jednatel' },
             datumZapisu: '2024-01-01',
           }, {
@@ -113,9 +118,20 @@ describe('buildReport', () => {
 
     const sanctions = mockSanctions({
       'name:Vladimir Putin': [{
-        entity: { id: 'eu:putin', source: 'eu', primary_name: 'Vladimir Putin', type: 'person' },
+        entity: {
+          id: 'eu:putin',
+          source: 'eu',
+          primary_name: 'Vladimir Vladimirovich Putin',
+          type: 'person',
+          aliases: ['Vladimir Putin'],
+          dobs: ['1952-10-07'],
+          nationalities: ['Russia'],
+          programs: ['EU.RUSSIA'],
+          listed_on: '2014-07-31',
+        },
         confidence: 100,
-        matched_on: 'primary_name',
+        matched_on: 'alias',
+        matched_alias: 'Vladimir Putin',
       }],
       'ico:12345678': [],
     });
@@ -124,6 +140,17 @@ describe('buildReport', () => {
     expect(report.statutory_body).toHaveLength(2);
     const putin = report.statutory_body.find((m) => m.name === 'Vladimir Putin');
     expect(putin?.sanctions_match?.confidence).toBe(100);
+    expect(putin?.sanctions_match).toMatchObject({
+      primary_name: 'Vladimir Vladimirovich Putin',
+      matched_alias: 'Vladimir Putin',
+      list_dobs: ['1952-10-07'],
+      subject_dob: '1952-10-07',
+      dob_status: 'match',
+      match_strength: 'strong',
+      nationalities: ['Russia'],
+      programs: ['EU.RUSSIA'],
+      listed_on: '2014-07-31',
+    });
     expect(report.sanctions.any_statutory_match).toBe(true);
     expect(report.red_flags.find((f) => f.code === 'STATUTORY_SANCTIONED')).toBeDefined();
     expect(report.risk_score.level).toBe('high');
@@ -183,8 +210,82 @@ describe('buildReport', () => {
     });
     const report = await buildReport('12345678', { ares, sanctions });
     expect(report.sanctions.company_match?.confidence).toBe(100);
+    expect(report.sanctions.company_match).toMatchObject({
+      primary_name: 'Bank Rossiya',
+      dob_status: 'subject_missing',
+      match_strength: 'strong',
+    });
     expect(report.red_flags.find((f) => f.code === 'COMPANY_SANCTIONED')).toBeDefined();
     expect(report.risk_score.level).toBe('high');
+  });
+
+  it('summarizes name matches when the sanctions list has no DOB', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345678', obchodniJmeno: 'Test Co.' },
+      vr: {
+        ico: '12345678',
+        statutarniOrgany: [{
+          nazevOrganu: 'Jednatelé',
+          clenoveOrganu: [{
+            fyzickaOsoba: { jmeno: 'John', prijmeni: 'Doe', datumNarozeni: '1970-01-01' },
+            funkce: { nazev: 'jednatel' },
+          }],
+        }],
+      },
+    });
+    const sanctions = mockSanctions({
+      'name:John Doe': [{
+        entity: { id: 'eu:john-doe', source: 'eu', primary_name: 'John Doe', type: 'person' },
+        confidence: 96,
+        matched_on: 'primary_name',
+      }],
+    });
+
+    const report = await buildReport('12345678', { ares, sanctions });
+    expect(report.statutory_body[0]?.sanctions_match).toMatchObject({
+      primary_name: 'John Doe',
+      subject_dob: '1970-01-01',
+      dob_status: 'list_missing',
+      match_strength: 'possible',
+    });
+  });
+
+  it('summarizes name matches when ARES has no subject DOB', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345678', obchodniJmeno: 'Test Co.' },
+      vr: {
+        ico: '12345678',
+        statutarniOrgany: [{
+          nazevOrganu: 'Předseda představenstva',
+          clenoveOrganu: [{
+            fyzickaOsoba: { jmeno: 'Jane', prijmeni: 'Doe' },
+            funkce: { nazev: 'předseda představenstva' },
+          }],
+        }],
+      },
+    });
+    const sanctions = mockSanctions({
+      'name:Jane Doe': [{
+        entity: {
+          id: 'eu:jane-doe',
+          source: 'eu',
+          primary_name: 'Jane Doe',
+          type: 'person',
+          dobs: ['1980-05-05'],
+        },
+        confidence: 94,
+        matched_on: 'primary_name',
+      }],
+    });
+
+    const report = await buildReport('12345678', { ares, sanctions });
+    expect(report.statutory_body[0]?.sanctions_match).toMatchObject({
+      primary_name: 'Jane Doe',
+      list_dobs: ['1980-05-05'],
+      dob_status: 'subject_missing',
+      match_strength: 'possible',
+    });
+    expect(report.statutory_body[0]?.sanctions_match?.subject_dob).toBeUndefined();
   });
 
   it('full depth includes ISIR + virtual address probe', async () => {
@@ -255,5 +356,67 @@ describe('buildReport', () => {
     expect(report.company.error).toBeUndefined();
     expect(report.red_flags.find((f) => f.code === 'NOT_FOUND_IN_ARES')).toBeDefined();
     expect(report.red_flags.find((f) => f.code === 'ARES_UNAVAILABLE')).toBeUndefined();
+  });
+
+  it('adds ownership-network teaser from non-empty summary', async () => {
+    vi.spyOn(ownershipNetwork, 'getOwnershipNetwork').mockResolvedValueOnce({
+      ico: '12345678',
+      network_size: 7,
+      shared_role_link_count: 2,
+      coverage_pct: 0.83,
+      as_of: '2026-06-21',
+      _teaser: true,
+    });
+
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Network Co.' } }),
+    });
+
+    expect(ownershipNetwork.getOwnershipNetwork).toHaveBeenCalledWith('12345678', { level: 'summary' });
+    expect(report.ownership_network_teaser).toMatchObject({
+      title: 'Vlastnická a personální síť (z veřejného VR)',
+      network_size: 7,
+      shared_role_link_count: 2,
+      coverage_pct: 0.83,
+      as_of: '2026-06-21',
+      upgrade_hint: 'Pro plnou síť a signály přejděte na vyšší tarif.',
+    });
+    expect(report.ownership_network_teaser.text).toBeUndefined();
+  });
+
+  it('degrades ownership-network teaser when summary table is empty', async () => {
+    vi.spyOn(ownershipNetwork, 'getOwnershipNetwork').mockRejectedValueOnce(new Error('vr_base_client_unavailable'));
+
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Preparing Co.' } }),
+    });
+
+    expect(report.ownership_network_teaser.network_size).toBe(0);
+    expect(report.ownership_network_teaser.coverage_pct).toBe(0);
+    expect(report.ownership_network_teaser.as_of).toBeNull();
+    expect(report.ownership_network_teaser.text).toContain('připravuje');
+  });
+
+  it('adds static ESM onramp block', async () => {
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'ESM Co.' } }),
+    });
+
+    expect(report.esm_onramp.title).toBe('Skutečný majitel (ESM)');
+    expect(report.esm_onramp.link).toBe('https://esm.justice.cz');
+    expect(JSON.stringify(report.esm_onramp)).toContain('esm.justice.cz');
+    expect(report.esm_onramp.separation.dolozeny_ubo).toContain('klient sám získá z ESM');
+    expect(report.esm_onramp.separation.indikovana_struktura).toContain('VR odhad');
+  });
+
+  it('does not expose paid ownership risk labels in free report output', async () => {
+    const report = await buildReport('12345678', {
+      ares: mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Free Co.' } }),
+    });
+
+    const freeOutput = JSON.stringify(report).toLowerCase();
+    expect(freeOutput).not.toContain('nominee');
+    expect(freeOutput).not.toContain('phoenix');
+    expect(freeOutput).not.toContain('risk_label');
   });
 });

@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
+import { validateIcoInput, trackIco, trackQuery, personQueryUnitKey, entityIdUnitKey, logToolCall, getCurrentSessionId, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse, watchEntityOutputShape } from '@czagents/shared';
 import { buildReport } from './report.js';
 import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown, getUnavailableReferencedSources } from './summary.js';
 import { buildChain } from './chain.js';
@@ -8,10 +8,30 @@ import { detectNomineeDirector } from './patterns/nominee-director.js';
 import { buildTimeline } from './patterns/risk-timeline.js';
 import { detectPhoenix } from './patterns/phoenix.js';
 import { detectAddressCrowding } from './patterns/address-crowding.js';
-import { lookupGleifParent, getByLei } from './gleif-lookup.js';
-import type { DdClients } from './clients.js';
+import { lookupGleifByRegistrationNumber, lookupGleifParent, getByLei } from './gleif-lookup.js';
+import type { AresVrLike, DdClients } from './clients.js';
 import { lookupPersonCompanies } from './vr-person-companies.js';
 import { buildOwnersMarkdown, lookupOwners } from './vr-owners.js';
+
+// Soft conversion nudge: heavy person_companies users are doing portfolio / UBO
+// mapping across people — exactly the ddplus value territory. After
+// PC_NUDGE_AFTER lookups within 24h we surface a non-blocking upgrade hint on the
+// result. Never gates, never errors, never logs PII; best-effort, per-process.
+// Calibrated on the education-sector portfolio mapper (51× person_companies/3 days).
+const PC_NUDGE_AFTER = 8;
+const PC_NUDGE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const personCompaniesCalls = new Map<string, number[]>();
+function personCompaniesUpgradeHint(scope: string): string | undefined {
+  const now = Date.now();
+  const recent = (personCompaniesCalls.get(scope) ?? []).filter((t) => now - t < PC_NUDGE_WINDOW_MS);
+  recent.push(now);
+  if (personCompaniesCalls.size > 5000) personCompaniesCalls.clear(); // bound memory
+  personCompaniesCalls.set(scope, recent);
+  if (recent.length > PC_NUDGE_AFTER) {
+    return `Mapujete vlastnická portfolia napříč osobami (${recent.length}× person_companies / 24 h)? ddplus Agency dělá dávkové mapování sítě, watchlist a phoenix/nominee detekci v jednom — https://app.cz-agents.dev/cena`;
+  }
+  return undefined;
+}
 
 /**
  * Tier kind — controls which tools are available to the caller.
@@ -45,8 +65,10 @@ function requireTier(currentTier: DdTier, required: DdTier, toolName: string) {
           tool: toolName,
           tier_needed: required,
           current_tier: currentTier,
-          message: `Tool '${toolName}' requires '${required}' tier or higher. Current: '${currentTier}'. Upgrade at https://cz-agents.dev/pricing.html`,
-          upgrade_url: 'https://cz-agents.dev/pricing.html?utm_source=mcp&utm_medium=tier_gate',
+          message: `Nástroj '${toolName}' je v ddplus (placené). Přidej ddplus konektor nebo upgraduj tarif.`,
+          action: 'inform_user_and_stop',
+          retry_after_upgrade: true,
+          upgrade_url: 'https://app.cz-agents.dev/cena',
         }, null, 2),
       },
     ],
@@ -66,7 +88,10 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
         'Czech company due-diligence aggregator. Combines ARES (legal data, statutory body, VAT, bank accounts), ' +
         'sanctions screening, and (optionally) ISIR insolvency check into a single risk-scored report. ' +
         'Use whenever the user asks for KYC / DD / company background check on a Czech IČO. ' +
-        'Free tier (basic report) rate-limited; Compliance and Agency tiers (more tools, higher quotas) at https://cz-agents.dev/pricing.html.',
+        'This hosted dd connector is anonymous and free for basic DD, risk score, ARES/VR ownership lookups, and watch_entity onboarding. ' +
+        'Do not ask the user to sign in before using free dd tools. For ongoing monitoring, softly suggest watch_entity as the value-capture path. ' +
+        'Paid enrichment lives in the separate ddplus connector: EU parent, EU due diligence, full ownership network and CDD audit workflows. ' +
+        'If a tool returns tier_required, tell the user its message and upgrade_url, explain that they can add the ddplus connector or upgrade, stop calling the tool, and retry only after upgrade.',
     },
   );
   wrapServerTools(server);
@@ -80,6 +105,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
     },
     { title: 'Find Person Companies in VR', readOnlyHint: true, openWorldHint: true },
     async ({ name, birth_year }) => {
+      trackQuery(personQueryUnitKey(name, birth_year));
       logToolCall('dd', 'person_companies', { name, birth_year });
       // Person->companies needs the FULL VR base (statutory + ownership roles), which
       // lives on the off-site base (clients.vrBase). The local hot slim (clients.vr)
@@ -98,6 +124,8 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
         if (!clients.vrBase) {
           (result as unknown as Record<string, unknown>).coverage = 'partial_ownership_only';
         }
+        const hint = personCompaniesUpgradeHint(getCurrentSessionId() ?? 'anon');
+        if (hint) (result as unknown as Record<string, unknown>).upgrade_hint = hint;
         return wrap(JSON.stringify(result, null, 2));
       } catch (e) {
         console.error('[dd] person_companies base query failed:', e);
@@ -348,6 +376,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
     },
     { title: 'EU Due-Diligence Report (GLEIF + Sanctions)', readOnlyHint: true, openWorldHint: true },
     async ({ identifier, country }) => auditTool(opts.audit, 'get_eu_dd_report', undefined, async () => {
+      trackQuery(entityIdUnitKey(country ?? 'xx', identifier));
       logToolCall('dd', 'get_eu_dd_report', { identifier, country });
       const gate = requireTier(tier, 'compliance', 'get_eu_dd_report');
       if (gate) return gate;
@@ -424,19 +453,63 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
 
       const companyName = subject.obchodniJmeno ?? '';
       const match = await lookupGleifParent(companyName);
+      const foreignOwner = match ? null : findForeignLegalOwnerCandidate(await clients.ares.getVrRecord(clean));
+      const registrationMatch = foreignOwner?.registration_number
+        ? await lookupGleifByRegistrationNumber(foreignOwner.registration_number, foreignOwner.name)
+        : null;
+      const ownerNameMatch = !registrationMatch && foreignOwner?.name
+        ? await lookupGleifParent(foreignOwner.name)
+        : null;
+      const fallbackMatch = registrationMatch ?? ownerNameMatch;
+      const vrFallback = foreignOwner
+        ? {
+            name: foreignOwner.name,
+            registration_number: foreignOwner.registration_number ?? null,
+            country: foreignOwner.country ?? null,
+            source: 'ares_vr_active_foreign_legal_owner',
+          }
+        : undefined;
 
       return wrap(JSON.stringify({
         ico: clean,
         czech_name: companyName,
-        eu_parent: match ?? null,
-        ...(match == null && {
-          note: 'No GLEIF-registered entity found. GLEIF coverage is limited to companies with a Legal Entity Identifier (LEI) — typically mid/large firms active in financial markets.',
+        eu_parent: match ?? fallbackMatch ?? null,
+        ...(vrFallback && { vr_foreign_parent_candidate: vrFallback }),
+        ...((match ?? fallbackMatch) == null && {
+          note: vrFallback
+            ? 'No matching GLEIF LEI found for the foreign legal owner; returning structured VR candidate instead of null-only result.'
+            : 'No GLEIF-registered entity found. GLEIF coverage is limited to companies with a Legal Entity Identifier (LEI) — typically mid/large firms active in financial markets.',
         }),
       }, null, 2));
     },
   );
 
   return server;
+}
+
+function findForeignLegalOwnerCandidate(record: AresVrLike | null): {
+  name: string;
+  registration_number?: string;
+  country?: string;
+} | null {
+  for (const group of record?.spolecnici ?? []) {
+    for (const item of group.spolecnik ?? []) {
+      if (item.datumVymazu) continue;
+      const legal = item.osoba?.pravnickaOsoba;
+      if (!legal) continue;
+      const name = legal.obchodniJmeno ?? legal.nazev;
+      if (!name || legal.ico) continue;
+      const country = legal.adresa?.kodStatu ?? legal.adresa?.nazevStatu;
+      const isForeign = country && country !== 'CZ' && country !== 'Česká republika';
+      if (!isForeign) continue;
+      return {
+        name,
+        registration_number: legal.registracniCislo ?? legal.regCislo ?? legal.cisloRegistrace,
+        country,
+      };
+    }
+  }
+  return null;
 }
 
 async function auditTool<T>(

@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
+import { entityIdUnitKey, logToolCall, queryUnitKey, trackIco, trackQuery, wrapServerTools, yearFromInput } from '@czagents/shared';
 import { SanctionsDb, type DbStats } from './db.js';
 import { SanctionsSearch } from './search.js';
 
@@ -93,6 +93,7 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
     },
     { title: 'Search Sanctioned Person', readOnlyHint: true, openWorldHint: true },
     async ({ name, dob, nationality, threshold, limit }) => {
+      trackQuery(queryUnitKey({ name, birth_year: yearFromInput(dob), nationality }));
       logToolCall('sanctions', 'search_person', { name, dob, nationality, threshold, limit });
       const matches = search.searchByName(name, { dob, nationality, threshold, limit, typeFilter: 'person' });
       return matches.length === 0
@@ -112,6 +113,7 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
     },
     { title: 'Search Sanctioned Entity', readOnlyHint: true, openWorldHint: true },
     async ({ name, country, threshold, limit }) => {
+      trackQuery(queryUnitKey({ name, country, limit }));
       logToolCall('sanctions', 'search_entity', { name, country, threshold, limit });
       const matches = search.searchByName(name, { nationality: country, threshold, limit, typeFilter: 'entity' });
       return matches.length === 0
@@ -146,6 +148,7 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
     },
     { title: 'Get Sanctions Listing Detail', readOnlyHint: true, openWorldHint: true },
     async ({ id }) => {
+      trackQuery(entityIdUnitKey('sanctions', id));
       logToolCall('sanctions', 'get_listing', { id });
       const entity = db.getById(id);
       if (!entity) return wrap(`Listing ${id} nenalezen.`);

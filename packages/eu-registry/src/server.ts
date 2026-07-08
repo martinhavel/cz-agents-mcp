@@ -1,12 +1,16 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { logToolCall, wrapServerTools } from '@czagents/shared';
+import { entityIdUnitKey, logToolCall, queryUnitKey, trackQuery, wrapServerTools } from '@czagents/shared';
 import { UkCompaniesHouseAdapter } from './adapters/uk-companies-house.js';
 import { SkOrsrAdapter } from './adapters/sk-orsr.js';
 import { PlKrsAdapter } from './adapters/pl-krs.js';
 import { FrSireneAdapter } from './adapters/fr-sirene.js';
 import { GleifAdapter, DeGleifAdapter } from './adapters/de-gleif.js';
+import { ViesGleifAdapter } from './adapters/vies-gleif.js';
+import { NoBrregAdapter } from './adapters/no-brreg.js';
+import { DkCvrAdapter } from './adapters/dk-cvr.js';
 import { GleifCache } from './gleif-cache.js';
+import { lookupCompanyByVat } from './vies.js';
 import type { Company, RegistryAdapter } from './types.js';
 
 export type RegistryAdapters = Record<string, RegistryAdapter>;
@@ -25,7 +29,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       capabilities: { tools: {} },
       instructions:
         'Non-Czech business registry lookup. Use for companies outside the Czech Republic. ' +
-        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI), FR (SIRENE). ' +
+        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL/IT/AT/ES (VIES VAT lookup + GLEIF/LEI name search), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR). ' +
         'This server does not handle Czech registry lookups.',
     },
   );
@@ -36,14 +40,19 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     gb: new UkCompaniesHouseAdapter(),
     sk: new SkOrsrAdapter(),
     pl: new PlKrsAdapter(),
-    nl: new GleifAdapter('NL', globalThis.fetch, gleifCache),
+    nl: new ViesGleifAdapter('nl', new GleifAdapter('NL', globalThis.fetch, gleifCache)),
+    it: new ViesGleifAdapter('it', new GleifAdapter('IT', globalThis.fetch, gleifCache)),
+    at: new ViesGleifAdapter('at', new GleifAdapter('AT', globalThis.fetch, gleifCache)),
+    es: new ViesGleifAdapter('es', new GleifAdapter('ES', globalThis.fetch, gleifCache)),
     de: new DeGleifAdapter(globalThis.fetch, gleifCache),
     fr: new FrSireneAdapter(),
+    no: new NoBrregAdapter(),
+    dk: new DkCvrAdapter(),
   };
 
   server.tool(
     'search_company',
-    'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), NL (GLEIF/LEI), DE (GLEIF/LEI), FR (SIRENE).',
+    'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), NL/IT/AT/ES (GLEIF/LEI only; exact VAT data via lookup_company_by_vat or get_company with VAT), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR).',
     {
       name: z.string().min(1).describe('Company name or partial company name.'),
       country: z.string().length(2).describe('ISO 3166-1 alpha-2 country code, e.g. "gb".').optional(),
@@ -53,6 +62,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     async ({ name, country, limit }) => {
       const normalizedCountry = country?.toLowerCase();
       const cappedLimit = Math.min(Math.max(limit ?? 10, 1), 20);
+      trackQuery(queryUnitKey({ name, country: normalizedCountry, limit: cappedLimit }));
       logToolCall('eu-registry', 'search_company', { name, country: normalizedCountry, limit: cappedLimit });
 
       const selected = Object.entries(adapters).filter(([adapterCountry]) => {
@@ -74,7 +84,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
 
   server.tool(
     'get_company',
-    'Get a non-Czech company by national ID and country code. Supported: gb (CRN), sk (IČO), pl (KRS number), nl (LEI), de (LEI), fr (SIREN).',
+    'Get a non-Czech company by national ID and country code. Supported: gb (CRN), sk (IČO), pl (KRS number), nl/it/at/es (VAT via VIES), de (LEI), fr (SIREN), no (organization number), dk (CVR number).',
     {
       id: z.string().min(1).describe('National company ID, e.g. UK Companies House CRN "14356670".'),
       country: z.string().length(2).describe('ISO 3166-1 alpha-2 country code, e.g. "gb".'),
@@ -82,6 +92,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     { title: 'Get Non-Czech Company', readOnlyHint: true, openWorldHint: true },
     async ({ id, country }) => {
       const normalizedCountry = country.toLowerCase();
+      trackQuery(entityIdUnitKey(normalizedCountry, id));
       logToolCall('eu-registry', 'get_company', { id, country: normalizedCountry });
 
       const company = await getCompany(adapters, id, normalizedCountry);
@@ -91,6 +102,35 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
             {
               type: 'text',
               text: `No company ${id} found for country ${normalizedCountry}.`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(company, null, 2) }],
+      };
+    },
+  );
+
+  server.tool(
+    'lookup_company_by_vat',
+    'Free VIES VAT lookup. Returns VAT validity plus name/address when the member state discloses them; some countries such as ES/DE may return only validity.',
+    {
+      vat: z.string().min(3).describe('EU VAT number including ISO-2 country prefix, e.g. "NL123456789B01".'),
+    },
+    { title: 'Lookup Company by VAT', readOnlyHint: true, openWorldHint: true },
+    async ({ vat }) => {
+      trackQuery(entityIdUnitKey('vat', vat));
+      logToolCall('eu-registry', 'lookup_company_by_vat', { vat });
+
+      const company = await lookupCompanyByVat(vat);
+      if (!company) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No VIES result found for VAT ${vat}.`,
             },
           ],
         };

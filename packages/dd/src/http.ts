@@ -48,6 +48,10 @@ import { vrClient, vrBaseClient } from './vr-client.js';
 
 const PORT = Number(process.env.PORT ?? 3030);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
+const PUBLIC_MCP_URL = process.env.PUBLIC_MCP_URL ?? 'https://dd.cz-agents.dev/mcp';
+const OAUTH_ISSUER = process.env.OAUTH_ISSUER ?? 'https://app.cz-agents.dev';
+const OAUTH_RESOURCE_METADATA_URL =
+  process.env.OAUTH_RESOURCE_METADATA_URL ?? 'https://dd.cz-agents.dev/.well-known/oauth-protected-resource/mcp';
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 30);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
@@ -109,6 +113,25 @@ async function main() {
         version: '0.1.0',
         sanctions: sanctions ? 'enabled' : 'disabled',
         tokens,
+      }));
+      return;
+    }
+
+    if (
+      req.method === 'GET' &&
+      (req.url === '/.well-known/oauth-protected-resource' ||
+        req.url === '/.well-known/oauth-protected-resource/mcp')
+    ) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=300',
+      });
+      res.end(JSON.stringify({
+        resource: PUBLIC_MCP_URL,
+        authorization_servers: [OAUTH_ISSUER],
+        scopes_supported: ['mcp:dd'],
+        bearer_methods_supported: ['header'],
       }));
       return;
     }
@@ -192,17 +215,19 @@ async function main() {
     if (!checkBodySize(req, res, MAX_BODY_BYTES)) return;
 
     // Streamable HTTP spec: a bare GET to /mcp without a session id is a
-    // probe for a server-initiated SSE stream. We don't push server→client
-    // messages, so per spec respond with 405 (instead of letting the SDK
-    // return 400, which Anthropic's Connector reachability check misreads
-    // as "server unreachable").
+    // probe for a server-initiated SSE stream. For Claude Desktop connectors
+    // this is also the OAuth discovery trigger, so advertise protected-resource
+    // metadata instead of falling through to an SDK-level transport error.
     const sessionHeader = req.headers['mcp-session-id'];
     const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
     if (req.method === 'GET' && !sessionId) {
-      res.writeHead(405, { 'Content-Type': 'application/json', Allow: 'POST, OPTIONS' });
+      res.writeHead(401, {
+        'Content-Type': 'application/json',
+        'WWW-Authenticate': `Bearer resource_metadata="${OAUTH_RESOURCE_METADATA_URL}"`,
+      });
       res.end(JSON.stringify({
-        error: 'method_not_allowed',
-        message: 'Use POST for MCP requests. Server-initiated SSE streams are not supported.',
+        error: 'authorization_required',
+        message: 'Use OAuth or Authorization: Bearer <token> for DD MCP connector access. Anonymous discovery probes remain available for catalogs.',
       }));
       return;
     }

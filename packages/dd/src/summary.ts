@@ -42,6 +42,8 @@ export function buildDdSummaryMarkdown(report: DdReport): string {
     buildBasicDataLine(report),
     buildSourcesLine(report),
     buildStatutoryLine(report),
+    buildOwnershipNetworkLine(report),
+    buildEsmOnrampLine(report),
     ...buildFlagLines(report.red_flags),
     `*Snapshot ${report.retrieved_at} · veřejné registry · cz-agents.dev*`,
     '*Trvalý auditní záznam s časovým razítkem a hash-chain (CDD Karta, doložitelné pro auditora): placená úroveň.*',
@@ -122,6 +124,17 @@ function buildStatutoryLine(report: DdReport): string {
   const roleDesc = count === 0 ? 'bez statutárů' : statutoryCountLabel(count, report.statutory_body.map((m) => m.role));
   const matches = report.statutory_body.filter((m) => m.sanctions_match).map((m) => m.name);
   return `Statutární orgán: ${roleDesc} · sankční shoda: ${matches[0] ?? 'žádná'}.`;
+}
+
+function buildOwnershipNetworkLine(report: DdReport): string {
+  const teaser = report.ownership_network_teaser;
+  const asOf = teaser.as_of ? ` · stav k ${teaser.as_of}` : '';
+  const preparing = teaser.text ? ` · ${teaser.text}` : '';
+  return `${teaser.title}: ${teaser.network_size} vazeb · sdílené role ${teaser.shared_role_link_count} · pokrytí ${Math.round(teaser.coverage_pct * 100)} %${asOf}${preparing}. ${teaser.upgrade_hint}`;
+}
+
+function buildEsmOnrampLine(report: DdReport): string {
+  return `${report.esm_onramp.title}: ${report.esm_onramp.copy.join(' ')} Odkaz: ${report.esm_onramp.link}. Doložený UBO: ${report.esm_onramp.separation.dolozeny_ubo} Indikovaná struktura: ${report.esm_onramp.separation.indikovana_struktura}`;
 }
 
 function statutoryCountLabel(count: number, roles: string[]): string {

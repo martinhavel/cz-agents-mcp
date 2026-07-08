@@ -95,4 +95,36 @@ describe('buildEuRegistryServer', () => {
       await server.close();
     }
   });
+
+  it('handles lookup_company_by_vat', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ isValid: true, name: 'ACME B.V.' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const adapter: RegistryAdapter = {
+      searchByName: vi.fn(),
+      getById: vi.fn(),
+    };
+    const { client, server } = await connectTestClient(adapter);
+
+    try {
+      const result = await client.callTool({
+        name: 'lookup_company_by_vat',
+        arguments: { vat: 'NL123456789B01' },
+      });
+
+      expect(JSON.parse(text(result))).toMatchObject({
+        id: 'NL123456789B01',
+        country: 'nl',
+        name: 'ACME B.V.',
+        status: 'active',
+      });
+    } finally {
+      fetchSpy.mockRestore();
+      await client.close();
+      await server.close();
+    }
+  });
 });

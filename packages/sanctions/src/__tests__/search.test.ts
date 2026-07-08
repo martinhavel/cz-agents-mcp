@@ -61,9 +61,11 @@ describe('SanctionsSearch', () => {
         id: 'eu:putin',
         source_list_id: 'putin',
         primary_name: 'Vladimir Vladimirovich Putin',
-        aliases: ['Владимир Путин'],
+        aliases: ['Владимир Путин', 'VVP'],
         dobs: ['1952-10-07'],
         nationalities: ['Russia'],
+        programs: ['EU.RUSSIA'],
+        listed_on: '2014-07-31',
       }),
       makePerson({
         id: 'eu:doe',
@@ -92,11 +94,28 @@ describe('SanctionsSearch', () => {
     const top = matches[0]!;
     expect(top.entity.id).toBe('eu:putin');
     expect(top.confidence).toBeGreaterThanOrEqual(80);
+    expect(top.entity.primary_name).toBe('Vladimir Vladimirovich Putin');
+    expect(top.entity.dobs).toEqual(['1952-10-07']);
+    expect(top.entity.nationalities).toEqual(['Russia']);
+    expect(top.entity.programs).toEqual(['EU.RUSSIA']);
+    expect(top.entity.listed_on).toBe('2014-07-31');
   });
 
   it('finds person by cyrillic alias via transliteration', () => {
     const matches = search.searchByName('Путин', { typeFilter: 'person', threshold: 60 });
     expect(matches.some((m) => m.entity.id === 'eu:putin')).toBe(true);
+  });
+
+  it('returns matched alias and evidence fields for alias hits', () => {
+    const matches = search.searchByName('VVP', { typeFilter: 'person', threshold: 60 });
+    const match = matches.find((m) => m.entity.id === 'eu:putin');
+    expect(match?.matched_on).toBe('alias');
+    expect(match?.matched_alias).toBe('VVP');
+    expect(match?.entity.primary_name).toBe('Vladimir Vladimirovich Putin');
+    expect(match?.entity.dobs).toEqual(['1952-10-07']);
+    expect(match?.entity.nationalities).toEqual(['Russia']);
+    expect(match?.entity.programs).toEqual(['EU.RUSSIA']);
+    expect(match?.entity.listed_on).toBe('2014-07-31');
   });
 
   it('respects threshold', () => {
@@ -118,6 +137,7 @@ describe('SanctionsSearch', () => {
     const m = matches[0]!;
     expect(m.confidence).toBe(100);
     expect(m.matched_on).toBe('id');
+    expect(m.entity.primary_name).toBe('John Doe');
   });
 
   it('searchByIco direct hit when IČO is in ids table', () => {
@@ -140,6 +160,7 @@ describe('SanctionsSearch', () => {
     const m = matches[0]!;
     expect(m.confidence).toBe(100);
     expect(m.matched_on).toBe('ico');
+    expect(m.entity.primary_name).toBe('Bad Czech Co.');
   });
 
   it('dob filter excludes mismatched birth year', () => {

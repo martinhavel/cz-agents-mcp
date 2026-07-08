@@ -43,6 +43,15 @@ export interface SanctionMatchSummary {
   list_id: string;
   confidence: number;    // 0–100
   matched_on: string;    // 'primary_name' | 'alias' | 'ico' | 'id'
+  primary_name: string;   // sanctions-list subject that matched
+  matched_alias?: string;
+  list_dobs?: string[];
+  subject_dob?: string;
+  dob_status: 'match' | 'mismatch' | 'list_missing' | 'subject_missing';
+  match_strength: 'strong' | 'possible' | 'weak-name-only';
+  nationalities?: string[];
+  programs?: string[];
+  listed_on?: string;
 }
 
 export interface PersonalInsolvency {
@@ -138,6 +147,30 @@ export interface DdRiskScore {
   level: RiskLevel;
 }
 
+export interface OwnershipNetworkTeaser {
+  title: 'Vlastnická a personální síť (z veřejného VR)';
+  network_size: number;
+  shared_role_link_count: number;
+  coverage_pct: number;
+  as_of: string | null;
+  upgrade_hint: 'Pro plnou síť a signály přejděte na vyšší tarif.';
+  text?: 'Síť se připravuje.';
+}
+
+export interface EsmOnramp {
+  title: 'Skutečný majitel (ESM)';
+  copy: [
+    'ESM je od 17.12.2025 neveřejný registr.',
+    'Povinná osoba má zákonnou povinnost zjistit skutečného majitele (AML zákon 253/2008 Sb.).',
+    "Postup: přihlásit se datovou schránkou → podat žádost o dálkový přístup → prokázat identitu na úrovni 'značná'.",
+  ];
+  link: 'https://esm.justice.cz';
+  separation: {
+    dolozeny_ubo: 'Pouze co klient sám získá z ESM.';
+    indikovana_struktura: 'Náš VR odhad z veřejného rejstříku.';
+  };
+}
+
 export interface DdReport {
   ico: string;
   retrieved_at: string;
@@ -150,6 +183,8 @@ export interface DdReport {
   sanctions: DdSanctions;
   red_flags: RedFlag[];
   risk_score: DdRiskScore;
+  ownership_network_teaser: OwnershipNetworkTeaser;
+  esm_onramp: EsmOnramp;
 }
 
 export interface ChainNode {

@@ -54,6 +54,26 @@ export interface AresVrLike {
   stavSubjektu?: string;
   datumZapisu?: string;
   statutarniOrgany?: AresStatutoryOrgan[];
+  spolecnici?: Array<{
+    spolecnik?: Array<{
+      datumVymazu?: string | null;
+      osoba?: {
+        pravnickaOsoba?: {
+          ico?: string;
+          nazev?: string;
+          obchodniJmeno?: string;
+          registracniCislo?: string;
+          regCislo?: string;
+          cisloRegistrace?: string;
+          adresa?: {
+            kodStatu?: string;
+            nazevStatu?: string;
+            textovaAdresa?: string;
+          };
+        };
+      };
+    }>;
+  }>;
 }
 
 export interface AresSubjectLike {
@@ -109,6 +129,11 @@ export interface SanctionsMatch {
     source: string;
     primary_name: string;
     type: string;
+    aliases?: string[];
+    dobs?: string[];
+    nationalities?: string[];
+    programs?: string[];
+    listed_on?: string;
   };
   confidence: number;
   matched_on: string;

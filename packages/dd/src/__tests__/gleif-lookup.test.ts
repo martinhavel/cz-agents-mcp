@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { lookupGleifParent, getByLei } from '../gleif-lookup.js';
+import { lookupGleifByRegistrationNumber, lookupGleifParent, getByLei } from '../gleif-lookup.js';
 
 type FetchArgs = Parameters<typeof fetch>;
 
@@ -143,5 +143,47 @@ describe('getByLei', () => {
   it('returns null on network error', async () => {
     fetchSpy.mockRejectedValue(new Error('timeout'));
     await expect(getByLei('ANYLEI')).resolves.toBeNull();
+  });
+});
+
+describe('lookupGleifByRegistrationNumber', () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  it('calls GLEIF registeredAs filter and returns the best name match', async () => {
+    let capturedUrl = '';
+    fetchSpy.mockImplementation((async (...args: FetchArgs) => {
+      capturedUrl = args[0] instanceof URL ? args[0].toString() : String(args[0]);
+      return gleifResponse([
+        makeRecord('PENSION', 'HILTI PENSIONSKASSE', 'CH'),
+        {
+          ...makeRecord('HILTIAG', 'Hilti Aktiengesellschaft', 'LI'),
+          attributes: {
+            entity: {
+              legalName: { name: 'Hilti Aktiengesellschaft' },
+              jurisdiction: 'LI',
+              registeredAs: 'FL-0001.011.557-0',
+            },
+          },
+        },
+      ]);
+    }) as typeof fetch);
+
+    const result = await lookupGleifByRegistrationNumber('FL-0001.011.557-0', 'Hilti Aktiengesellschaft');
+
+    expect(capturedUrl).toContain('filter%5Bentity.registeredAs%5D=FL-0001.011.557-0');
+    expect(result).toMatchObject({
+      lei: 'HILTIAG',
+      name: 'Hilti Aktiengesellschaft',
+      country: 'li',
+      registered_as: 'FL-0001.011.557-0',
+    });
   });
 });
