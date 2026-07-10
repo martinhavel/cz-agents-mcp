@@ -97,19 +97,17 @@ async function ingestJsonStream(db: DatabaseType, jsonStream: Readable, minRecor
       name,
       status,
       address,
-      registered_on,
-      raw_json
-    ) VALUES (?, ?, ?, ?, ?, ?)
+      registered_on
+    ) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(registry_code) DO UPDATE SET
       name = excluded.name,
       status = excluded.status,
       address = excluded.address,
-      registered_on = excluded.registered_on,
-      raw_json = excluded.raw_json
+      registered_on = excluded.registered_on
   `);
   const flushBatch = db.transaction((rows: EeCompanyRow[]) => {
     for (const row of rows) {
-      insertStage.run(row.registry_code, row.name, row.status, row.address, row.registered_on, row.raw_json);
+      insertStage.run(row.registry_code, row.name, row.status, row.address, row.registered_on);
     }
   });
 
@@ -147,10 +145,9 @@ async function ingestJsonStream(db: DatabaseType, jsonStream: Readable, minRecor
         name,
         status,
         address,
-        registered_on,
-        raw_json
+        registered_on
       )
-      SELECT registry_code, name, status, address, registered_on, raw_json
+      SELECT registry_code, name, status, address, registered_on
       FROM ${EE_COMPANIES_STAGE_TABLE}
     `).run();
     db.prepare(`DELETE FROM ${EE_COMPANIES_STAGE_TABLE}`).run();
@@ -172,7 +169,6 @@ function toCompanyRow(record: EeRikRecord): EeCompanyRow | null {
     status: mapStatus(record.yldandmed?.staatus),
     address: pickAddress(record.yldandmed?.aadressid) ?? null,
     registered_on: normalizeDate(record.yldandmed?.esmaregistreerimise_kpv) ?? null,
-    raw_json: JSON.stringify(record),
   };
 }
 

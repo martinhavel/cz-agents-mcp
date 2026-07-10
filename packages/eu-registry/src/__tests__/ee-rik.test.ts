@@ -128,7 +128,6 @@ describe('EeRikAdapter + ingest', () => {
       status: 'active',
       address: 'Old address',
       registered_on: '2020-01-01',
-      raw_json: '{"existing":true}',
     });
 
     await expect(
@@ -165,7 +164,6 @@ describe('EeRikAdapter + ingest', () => {
       status: 'unknown',
       address: null,
       registered_on: null,
-      raw_json: '{"stable":true}',
     });
 
     await expect(
@@ -206,21 +204,19 @@ function seedCompany(
     status: string;
     address: string | null;
     registered_on: string | null;
-    raw_json: string;
   },
 ): void {
   const db = openEeRikDb(dbPath);
   ensureEeRikSchema(db);
   db.prepare(`
-    INSERT INTO ee_companies (registry_code, name, status, address, registered_on, raw_json)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO ee_companies (registry_code, name, status, address, registered_on)
+    VALUES (?, ?, ?, ?, ?)
   `).run(
     company.registry_code,
     company.name,
     company.status,
     company.address,
     company.registered_on,
-    company.raw_json,
   );
   db.close();
 }

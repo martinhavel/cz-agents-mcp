@@ -12,7 +12,6 @@ export interface EeCompanyRow {
   status: 'active' | 'dissolved' | 'unknown';
   address: string | null;
   registered_on: string | null;
-  raw_json: string;
 }
 
 export function resolveEeRikDbPath(dbPath: string | undefined = process.env[EE_RIK_DB_PATH_ENV]): string {
@@ -34,8 +33,7 @@ export function ensureEeRikSchema(db: DatabaseType): void {
       name TEXT NOT NULL,
       status TEXT NOT NULL CHECK (status IN ('active', 'dissolved', 'unknown')),
       address TEXT,
-      registered_on TEXT,
-      raw_json TEXT NOT NULL
+      registered_on TEXT
     );
 
     CREATE INDEX IF NOT EXISTS ee_companies_name_idx
@@ -46,8 +44,7 @@ export function ensureEeRikSchema(db: DatabaseType): void {
       name TEXT NOT NULL,
       status TEXT NOT NULL CHECK (status IN ('active', 'dissolved', 'unknown')),
       address TEXT,
-      registered_on TEXT,
-      raw_json TEXT NOT NULL
+      registered_on TEXT
     );
   `);
 }
