@@ -247,12 +247,14 @@ services:
       - CH_API_KEY=${CH_API_KEY:-}
       - DK_CVR_USER=${DK_CVR_USER:-}
       - DK_CVR_PASS=${DK_CVR_PASS:-}
+      - EE_RIK_DB_PATH=/var/lib/czagents-ee-rik/ee-rik.db
 
       - GLEIF_CACHE_PATH=/var/lib/czagents-gleif-cache/cache.db
       - GLEIF_CACHE_TTL_DAYS=7
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - gleif-cache:/var/lib/czagents-gleif-cache
+      - ee-rik-data:/var/lib/czagents-ee-rik
       - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/v1/health"]
@@ -299,5 +301,6 @@ volumes:
   sanctions-data:
   tokens-data:
   gleif-cache:
+  ee-rik-data:
   czagents_reality_webapp_data:
     external: true

@@ -1,6 +1,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# better-sqlite3 (EE bulk-ingest store) is a native module — needs a toolchain on Alpine/musl.
+RUN apk add --no-cache python3 make g++
+
 # Copy workspace root manifest + shared package first (better layer caching)
 COPY package.json package-lock.json* ./
 COPY tsconfig.base.json ./
