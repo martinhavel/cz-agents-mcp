@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "cz-agents-eu-registry": "./dist/index.js"
+    "cz-agents-eu-registry": "./dist/index.js",
+    "cz-agents-eu-registry-ingest-ee-rik": "./dist/cli-ingest-ee-rik.js"
   },
   "files": [
     "dist",
@@ -31,8 +32,9 @@
     "directory": "packages/eu-registry"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js dist/cli-ingest-ee-rik.js",
     "dev": "tsx watch src/index.ts",
+    "ingest:ee-rik": "node dist/cli-ingest-ee-rik.js",
     "start": "node dist/index.js",
     "start:http": "node dist/http.js",
     "test": "vitest run"
@@ -41,6 +43,8 @@
     "@czagents/shared": "^0.1.9",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "better-sqlite3": "^11.5.0",
+    "stream-json": "^1.9.1",
+    "unzipper": "^0.12.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {
