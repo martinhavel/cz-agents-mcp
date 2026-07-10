@@ -1,4 +1,9 @@
 import { Readable } from 'node:stream';
+import { spawn } from 'node:child_process';
+import { createReadStream } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 // stream-json is CommonJS — named ESM imports crash at runtime (vitest hides it by mocking
 // the stream, real Node does not). Import the default and destructure. Verified 2026-07-10.
 import streamJson from 'stream-json';
@@ -57,14 +62,46 @@ export async function runEeRikIngest(options: EeRikIngestOptions = {}): Promise<
   const db = openEeRikDb(dbPath);
   ensureEeRikSchema(db);
 
+  const datasetUrl = options.datasetUrl ?? EE_RIK_DATASET_URL;
   try {
-    const response = await fetchDataset(options.fetchImpl ?? globalThis.fetch, options.datasetUrl ?? EE_RIK_DATASET_URL);
-    const jsonStream = await (options.openZipEntryStream ?? openZipEntryStream)(response);
-    const imported = await ingestJsonStream(db, jsonStream, options.minRecords ?? EE_RIK_MIN_RECORDS);
-    return { dbPath, imported };
+    // Tests inject fetchImpl/openZipEntryStream. Production takes the wget path below:
+    // the RIK CDN WAF fingerprints the HTTP client and 403s Node's undici fetch from
+    // datacenter IPs, while wget/curl get 206. So download via wget, then unzip locally.
+    if (options.fetchImpl || options.openZipEntryStream) {
+      const response = await fetchDataset(options.fetchImpl ?? globalThis.fetch, datasetUrl);
+      const jsonStream = await (options.openZipEntryStream ?? openZipEntryStream)(response);
+      const imported = await ingestJsonStream(db, jsonStream, options.minRecords ?? EE_RIK_MIN_RECORDS);
+      return { dbPath, imported };
+    }
+
+    const tmp = await mkdtemp(join(tmpdir(), 'ee-rik-'));
+    const zipPath = join(tmp, 'yldandmed.json.zip');
+    try {
+      await downloadViaWget(datasetUrl, zipPath);
+      const jsonStream = createReadStream(zipPath).pipe(unzipper.ParseOne()) as unknown as Readable;
+      const imported = await ingestJsonStream(db, jsonStream, options.minRecords ?? EE_RIK_MIN_RECORDS);
+      return { dbPath, imported };
+    } finally {
+      await rm(tmp, { recursive: true, force: true });
+    }
   } finally {
     db.close();
   }
+}
+
+function downloadViaWget(url: string, destPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'wget',
+      ['-q', '--timeout=120', '--tries=3', '--user-agent=Mozilla/5.0', '-O', destPath, url],
+      { stdio: 'ignore' },
+    );
+    child.on('error', (err) => reject(new Error(`EE RIK download failed (wget spawn): ${err.message}`)));
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`EE RIK download failed: wget exit ${code}`));
+    });
+  });
 }
 
 async function fetchDataset(fetchImpl: typeof fetch, datasetUrl: string): Promise<Response> {
