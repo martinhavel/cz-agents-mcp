@@ -1,6 +1,6 @@
 {
   "name": "@czagents/eu-registry",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "European business registry lookups in one MCP — verify companies across EU member states via GLEIF/LEI and official national registries. Entity status, registration data, addresses, and parent-company resolution. Built for cross-border due-diligence and KYC directly in your AI assistant.",
   "type": "module",
   "main": "./dist/index.js",
