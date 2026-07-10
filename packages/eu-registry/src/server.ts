@@ -10,6 +10,7 @@ import { ViesGleifAdapter } from './adapters/vies-gleif.js';
 import { NoBrregAdapter } from './adapters/no-brreg.js';
 import { DkCvrAdapter } from './adapters/dk-cvr.js';
 import { FiPrhAdapter } from './adapters/fi-prh.js';
+import { EeRikAdapter } from './adapters/ee-rik.js';
 import { GleifCache } from './gleif-cache.js';
 import { lookupCompanyByVat } from './vies.js';
 import type { Company, RegistryAdapter } from './types.js';
@@ -30,7 +31,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       capabilities: { tools: {} },
       instructions:
         'Non-Czech business registry lookup. Use for companies outside the Czech Republic. ' +
-        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL/IT/AT/ES (VIES VAT lookup + GLEIF/LEI name search), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ). ' +
+        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL/IT/AT/ES (VIES VAT lookup + GLEIF/LEI name search), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data). ' +
         'This server does not handle Czech registry lookups.',
     },
   );
@@ -50,11 +51,12 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     no: new NoBrregAdapter(),
     dk: new DkCvrAdapter(),
     fi: new FiPrhAdapter(),
+    ee: new EeRikAdapter(),
   };
 
   server.tool(
     'search_company',
-    'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), NL/IT/AT/ES (GLEIF/LEI only; exact VAT data via lookup_company_by_vat or get_company with VAT), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ).',
+    'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), NL/IT/AT/ES (GLEIF/LEI only; exact VAT data via lookup_company_by_vat or get_company with VAT), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data).',
     {
       name: z.string().min(1).describe('Company name or partial company name.'),
       country: z.string().length(2).describe('ISO 3166-1 alpha-2 country code, e.g. "gb".').optional(),
@@ -86,7 +88,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
 
   server.tool(
     'get_company',
-    'Get a non-Czech company by national ID and country code. Supported: gb (CRN), sk (IČO), pl (KRS number), nl/it/at/es (VAT via VIES), de (LEI), fr (SIREN), no (organization number), dk (CVR number), fi (Business ID).',
+    'Get a non-Czech company by national ID and country code. Supported: gb (CRN), sk (IČO), pl (KRS number), nl/it/at/es (VAT via VIES), de (LEI), fr (SIREN), no (organization number), dk (CVR number), fi (Business ID), ee (registry code).',
     {
       id: z.string().min(1).describe('National company ID, e.g. UK Companies House CRN "14356670".'),
       country: z.string().length(2).describe('ISO 3166-1 alpha-2 country code, e.g. "gb".'),

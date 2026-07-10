@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { buildEuRegistryServer } from './server.js';
 
 export { UkCompaniesHouseAdapter } from './adapters/uk-companies-house.js';
+export { EeRikAdapter } from './adapters/ee-rik.js';
 export { buildEuRegistryServer } from './server.js';
+export { runEeRikIngest, EE_RIK_DATASET_URL, EE_RIK_MIN_RECORDS } from './ingest-ee-rik.js';
 export type { Company, CompanySearchResult, CompanyStatus, RegistryAdapter } from './types.js';
 
 async function main() {

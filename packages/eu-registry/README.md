@@ -1,6 +1,6 @@
 # @czagents/eu-registry
 
-European business registry lookups in one MCP — verify companies across 12 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 7 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
+European business registry lookups in one MCP — verify companies across 12 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 8 countries; identity + ownership baseline for the rest. 8 full tier out of 12. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
 
 Part of the [cz-agents](https://cz-agents.dev) suite.
 
@@ -17,6 +17,7 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | NO | Brønnøysund (BRREG) | No auth required |
 | DK | CVR (Erhvervsstyrelsen) | Optional `DK_CVR_USER`/`DK_CVR_PASS` (free, request at cvrselvbetjening@erst.dk); public fallback otherwise |
 | FI | PRH YTJ Open Data v3 | Free, no API key, CC BY 4.0 |
+| EE | RIK open data dump | Daily bulk ingest to local SQLite via `EE_RIK_DB_PATH`; no API key, CC BY 4.0 |
 
 **Identity + ownership baseline** (name, address, status, VAT validity, GLEIF/LEI parent-company resolution — no officer/board data; for registries that are paywalled):
 
@@ -42,6 +43,7 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | `GLEIF_CACHE_PATH` | No | Path to SQLite cache file for GLEIF responses (DE/NL/IT/AT/ES). Falls back to in-memory if unset. |
 | `GLEIF_CACHE_TTL_DAYS` | No | Cache TTL in days. Default: 7. |
 | `DK_CVR_USER` / `DK_CVR_PASS` | No | Denmark CVR data credentials (free, request at cvrselvbetjening@erst.dk). Without them the DK adapter uses its public fallback. |
+| `EE_RIK_DB_PATH` | No | Path to SQLite store for Estonia RIK bulk data. Default: `./ee-rik.db`. |
 | `PORT` | No | HTTP transport port. Default: 3036. |
 
 ## Usage
@@ -78,4 +80,11 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 npm run build
 npm test
 npm run start:http
+```
+
+Estonia bulk ingest:
+
+```bash
+EE_RIK_DB_PATH=/absolute/path/ee-rik.db npm run build --workspace=@czagents/eu-registry
+EE_RIK_DB_PATH=/absolute/path/ee-rik.db npm run ingest:ee-rik --workspace=@czagents/eu-registry
 ```
