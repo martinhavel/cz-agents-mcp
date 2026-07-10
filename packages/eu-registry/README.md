@@ -1,6 +1,6 @@
 # @czagents/eu-registry
 
-European business registry lookups in one MCP — verify companies across 11 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 6 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
+European business registry lookups in one MCP — verify companies across 12 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 7 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
 
 Part of the [cz-agents](https://cz-agents.dev) suite.
 
@@ -16,6 +16,7 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | FR | SIRENE | No auth required |
 | NO | Brønnøysund (BRREG) | No auth required |
 | DK | CVR (Erhvervsstyrelsen) | Optional `DK_CVR_USER`/`DK_CVR_PASS` (free, request at cvrselvbetjening@erst.dk); public fallback otherwise |
+| FI | PRH YTJ Open Data v3 | Free, no API key, CC BY 4.0 |
 
 **Identity + ownership baseline** (name, address, status, VAT validity, GLEIF/LEI parent-company resolution — no officer/board data; for registries that are paywalled):
 
@@ -30,7 +31,7 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 ## Tools
 
 - `search_company(name, country?, limit?)` — search by company name across all or a single country. `country` is ISO 3166-1 alpha-2 (e.g. `"gb"`). Default limit 10, max 20.
-- `get_company(id, country)` — fetch a company by national ID (CRN for GB, IČO for SK, KRS number for PL, SIREN for FR, org.nr for NO, CVR number for DK, LEI for DE/NL, VAT for IT/AT/ES/NL).
+- `get_company(id, country)` — fetch a company by national ID (CRN for GB, IČO for SK, KRS number for PL, SIREN for FR, org.nr for NO, CVR number for DK, Business ID for FI, LEI for DE/NL, VAT for IT/AT/ES/NL).
 - `lookup_company_by_vat(vat)` — free EU VAT validation via VIES; returns validity plus registered name/address where the member state discloses them (ES/DE return validity only).
 
 ## Configuration

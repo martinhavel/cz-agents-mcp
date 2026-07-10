@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/eu-registry",
-  "description": "EU business registry lookup via GLEIF/LEI & national registries — cross-border due diligence & KYC.",
+  "description": "EU business registry lookup via GLEIF/LEI and official national registries including Finland PRH YTJ — cross-border due diligence & KYC.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",
