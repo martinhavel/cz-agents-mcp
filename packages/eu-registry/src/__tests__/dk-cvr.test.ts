@@ -210,3 +210,42 @@ describe('reklamebeskyttelse (license term)', () => {
     expect('marketing_protected' in (result.companies[0] ?? {})).toBe(false);
   });
 });
+
+describe('live-schema status shapes (regression 2026-07-10)', () => {
+  beforeEach(() => {
+    vi.stubEnv('DK_CVR_USER', 'test-user');
+    vi.stubEnv('DK_CVR_PASS', 'test-pass');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  function withRecord(record: Record<string, unknown>) {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse(searchPayload(record as typeof RECORD)),
+    );
+    return () => spy.mockRestore();
+  }
+
+  it('handles virksomhedsstatus as array of {status, periode} (real API shape)', async () => {
+    const restore = withRecord({
+      ...RECORD,
+      virksomhedsstatus: [
+        { status: 'UNDER KONKURS', periode: { gyldigFra: '2010-01-01', gyldigTil: '2012-01-01' } },
+        { status: 'NORMAL', periode: { gyldigFra: '2012-01-01', gyldigTil: null } },
+      ],
+    });
+    const result = await new DkCvrAdapter().searchByName('Magenta');
+    expect(result.companies[0]?.status).toBe('active');
+    restore();
+  });
+
+  it('prefers metadata.sammensatStatus when present', async () => {
+    const restore = withRecord({
+      ...RECORD,
+      virksomhedsstatus: undefined,
+      virksomhedMetadata: { ...RECORD.virksomhedMetadata, sammensatStatus: 'OPHØRT' },
+    });
+    const result = await new DkCvrAdapter().searchByName('Magenta');
+    expect(result.companies[0]?.status).toBe('dissolved');
+    restore();
+  });
+});

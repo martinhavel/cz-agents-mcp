@@ -37,12 +37,18 @@ interface DkAddress {
 interface DkMetadata {
   nyesteNavn?: DkName;
   nyesteBeliggenhedsadresse?: DkAddress;
+  sammensatStatus?: string;
 }
+
+// Live CVR: virksomhedsstatus je POLE {status, periode} objektů (fixtury měly zjednodušený
+// string — spadlo na prvním reálném záznamu 10.7.). Bereme metadata.sammensatStatus,
+// fallback poslední aktivní položka pole, fallback legacy string.
+type DkStatusEntry = { status?: string; periode?: DkPeriod };
 
 interface DkCompanyRecord {
   cvrNummer?: number | string;
   reklamebeskyttet?: boolean;
-  virksomhedsstatus?: string;
+  virksomhedsstatus?: string | DkStatusEntry[];
   navne?: DkName[];
   beliggenhedsadresse?: DkAddress[];
   virksomhedMetadata?: DkMetadata;
@@ -146,7 +152,7 @@ function mapRecord(record: DkCompanyRecord | undefined): Company | null {
     id,
     country: 'dk',
     name,
-    status: mapStatus(record.virksomhedsstatus),
+    status: mapStatus(resolveRawStatus(record)),
     address: formatAddress(
       record.virksomhedMetadata?.nyesteBeliggenhedsadresse ?? activeAddress(record.beliggenhedsadresse),
     ),
@@ -156,6 +162,18 @@ function mapRecord(record: DkCompanyRecord | undefined): Company | null {
     // protected entities for marketing. Only set when true — keeps other countries' output unchanged.
     ...(record.reklamebeskyttet ? { marketing_protected: true } : {}),
   };
+}
+
+function resolveRawStatus(record: DkCompanyRecord): string | undefined {
+  const composite = record.virksomhedMetadata?.sammensatStatus;
+  if (typeof composite === 'string' && composite) return composite;
+  const raw = record.virksomhedsstatus;
+  if (typeof raw === 'string') return raw;
+  if (Array.isArray(raw) && raw.length > 0) {
+    const current = raw.find((s) => !s.periode?.gyldigTil) ?? raw[raw.length - 1];
+    return current?.status;
+  }
+  return undefined;
 }
 
 function mapStatus(status: string | undefined): CompanyStatus {
