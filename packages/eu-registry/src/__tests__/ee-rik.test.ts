@@ -230,3 +230,11 @@ function tempDir(tmpDirs: string[]): string {
   tmpDirs.push(dir);
   return dir;
 }
+
+describe('module loads under real ESM (stream-json CJS interop)', () => {
+  it('imports the ingest entrypoint without a named-export crash', async () => {
+    // Regression: stream-json is CommonJS; `import { parser }` crashes real Node
+    // even though mocked-stream tests pass. This just loads the module for real.
+    await expect(import('../ingest-ee-rik.js')).resolves.toBeDefined();
+  });
+});

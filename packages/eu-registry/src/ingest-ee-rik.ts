@@ -1,6 +1,10 @@
 import { Readable } from 'node:stream';
-import { parser } from 'stream-json';
-import { streamArray } from 'stream-json/streamers/StreamArray.js';
+// stream-json is CommonJS — named ESM imports crash at runtime (vitest hides it by mocking
+// the stream, real Node does not). Import the default and destructure. Verified 2026-07-10.
+import streamJson from 'stream-json';
+import streamArrayPkg from 'stream-json/streamers/StreamArray.js';
+const { parser } = streamJson;
+const { streamArray } = streamArrayPkg;
 import unzipper from 'unzipper';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import {
