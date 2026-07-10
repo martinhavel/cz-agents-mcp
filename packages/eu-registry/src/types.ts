@@ -9,6 +9,10 @@ export interface Company {
   registered_on?: string;
   lei?: string;
   source_url?: string;
+  /** DK CVR: reklamebeskyttet — entity opted out of marketing use. License term
+   *  (Erhvervsstyrelsen declaration): data of such entities MUST NOT be used for
+   *  unsolicited advertising. Lookup/DD display is fine; propagate so consumers can comply. */
+  marketing_protected?: boolean;
 }
 
 export interface CompanySearchResult {

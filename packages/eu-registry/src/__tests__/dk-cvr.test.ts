@@ -178,3 +178,35 @@ describe('DkCvrAdapter', () => {
     );
   });
 });
+
+describe('reklamebeskyttelse (license term)', () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.stubEnv('DK_CVR_USER', 'test-user');
+    vi.stubEnv('DK_CVR_PASS', 'test-pass');
+  });
+
+  afterEach(() => {
+    fetchSpy?.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  function stub(record: Record<string, unknown>) {
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse(searchPayload(record as typeof RECORD)),
+    );
+  }
+
+  it('propagates marketing_protected=true for reklamebeskyttet entities', async () => {
+    stub({ ...RECORD, reklamebeskyttet: true });
+    const result = await new DkCvrAdapter().searchByName('Magenta');
+    expect(result.companies[0]?.marketing_protected).toBe(true);
+  });
+
+  it('omits the field entirely when not protected (other countries unchanged)', async () => {
+    stub({ ...RECORD, reklamebeskyttet: false });
+    const result = await new DkCvrAdapter().searchByName('Magenta');
+    expect('marketing_protected' in (result.companies[0] ?? {})).toBe(false);
+  });
+});

@@ -41,6 +41,7 @@ interface DkMetadata {
 
 interface DkCompanyRecord {
   cvrNummer?: number | string;
+  reklamebeskyttet?: boolean;
   virksomhedsstatus?: string;
   navne?: DkName[];
   beliggenhedsadresse?: DkAddress[];
@@ -151,6 +152,9 @@ function mapRecord(record: DkCompanyRecord | undefined): Company | null {
     ),
     registered_on: record.livsforloeb?.[0]?.periode?.gyldigFra,
     source_url: `${SOURCE_BASE}/${id}`,
+    // License term (reklamebeskyttelse): propagate the flag so downstream never uses
+    // protected entities for marketing. Only set when true — keeps other countries' output unchanged.
+    ...(record.reklamebeskyttet ? { marketing_protected: true } : {}),
   };
 }
 
