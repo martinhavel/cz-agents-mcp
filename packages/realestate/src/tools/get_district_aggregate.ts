@@ -25,6 +25,17 @@ import type { DistrictAggregate } from '../types.js';
 // the 1–4 range are withheld (banded to '<5') to avoid identifying an individual.
 const K_ANONYMITY_THRESHOLD = 5;
 
+// Count DISTINCT properties, not rows. One insolvency case emits several ISIR
+// events (dražební vyhláška → změna termínu → výsledek) for the same property,
+// so COUNT(*) double-counts. Key = spisovaZnacka|oddil|cisloVOddilu (the concrete
+// land-registry entry); spisovaZnacka alone is unsafe because one case can auction
+// several distinct parcels. Leads without an LV entry (portal auctions) fall back
+// to the row id so they never merge. Mirrors lib/realestate-dedup.ts in the webapp.
+const DISTINCT_PROPERTY_SQL = `COUNT(DISTINCT CASE
+        WHEN l.oddil IS NOT NULL AND l.cisloVOddilu IS NOT NULL
+        THEN l.spisovaZnacka || '|' || l.oddil || '|' || l.cisloVOddilu
+        ELSE 'ID:' || l.id END)`;
+
 const DATA_SOURCE_NOTE =
   'Agregace veřejných rejstříků: ISIR (insolvence) + portál dražeb / CEVD (dražby a exekuce). ' +
   'Počty 1–4 jsou skryté (zobrazeny jako „<5"), aby nešlo ztotožnit konkrétní osobu; 0 a 5+ se zobrazují přesně.';
@@ -88,7 +99,7 @@ export function getDistrictAggregate(params: {
   // aggregates (previously only 'archived' was excluded).
   const distressCount = (db
     .prepare(`
-      SELECT COUNT(*) AS c
+      SELECT ${DISTINCT_PROPERTY_SQL} AS c
       FROM RealEstateLead l
       WHERE ${districtWhere}
     `)
@@ -96,7 +107,7 @@ export function getDistrictAggregate(params: {
 
   const insolvencyCount = (db
     .prepare(`
-      SELECT COUNT(*) AS c
+      SELECT ${DISTINCT_PROPERTY_SQL} AS c
       FROM RealEstateLead l
       WHERE ${districtWhere}
         AND l.sourceType = 'isir'
@@ -105,7 +116,7 @@ export function getDistrictAggregate(params: {
 
   const auctionCount = (db
     .prepare(`
-      SELECT COUNT(*) AS c
+      SELECT ${DISTINCT_PROPERTY_SQL} AS c
       FROM RealEstateLead l
       WHERE ${districtWhere}
         AND l.sourceType IN ('portaldrazeb', 'cevd', 'cuzk_delta')

@@ -35,6 +35,8 @@ CREATE TABLE RealEstateLead (
   popisUdalosti TEXT DEFAULT '',
   typUdalosti TEXT DEFAULT '',
   matchedKeywords TEXT DEFAULT '',
+  oddil TEXT,
+  cisloVOddilu INTEGER,
   lat REAL,
   lng REAL,
   okresSlug TEXT
@@ -72,21 +74,27 @@ function insertLead(opts: {
   ingestedAt?: string;
   status?: string;
   okresSlug?: string | null;
+  // Same (spisovaZnacka, oddil, cisloVOddilu) = same property → deduped.
+  spisovaZnacka?: string;
+  oddil?: string | null;
+  cisloVOddilu?: number | null;
 }): void {
   testDb.prepare(`
     INSERT INTO RealEstateLead (
-      id, sourceType, spisovaZnacka, courtCode, ingestedAt, status, kuMatchedName, okresSlug
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      id, sourceType, spisovaZnacka, courtCode, ingestedAt, status, kuMatchedName, okresSlug, oddil, cisloVOddilu
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     opts.id,
     opts.sourceType,
-    `INS-${opts.id}`,
+    opts.spisovaZnacka ?? `INS-${opts.id}`,
     'KSPH',
     opts.ingestedAt ?? new Date().toISOString(),
     // Aggregates count status='scored' only — default test leads to that.
     opts.status ?? 'scored',
     opts.kuMatchedName ?? 'Praha',
     opts.okresSlug,
+    opts.oddil ?? null,
+    opts.cisloVOddilu ?? null,
   );
 }
 
@@ -101,6 +109,29 @@ beforeEach(() => {
 });
 
 describe('getDistrictAggregate', () => {
+  it('counts distinct properties, not ISIR events (one case, many events → 1)', () => {
+    // Same case + same LV entry (oddil B / cislo 172) across 5 ISIR events.
+    for (let i = 0; i < 5; i++) {
+      insertLead({ id: `ev-${i}`, sourceType: 'isir', kuMatchedName: 'Praha', spisovaZnacka: 'KSPH 1 INS 1/26', oddil: 'B', cisloVOddilu: 172 });
+    }
+    // Same case, DIFFERENT parcel (cislo 170) = a second distinct property.
+    insertLead({ id: 'other-parcel', sourceType: 'isir', kuMatchedName: 'Praha', spisovaZnacka: 'KSPH 1 INS 1/26', oddil: 'B', cisloVOddilu: 170 });
+    // Portal auction without an LV entry — id fallback, never merges.
+    insertLead({ id: 'auction-1', sourceType: 'portaldrazeb', kuMatchedName: 'Praha', spisovaZnacka: 'KSPH 1 INS 1/26', oddil: null, cisloVOddilu: null });
+    const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
+    // 7 rows → 3 distinct properties (parcel 172, parcel 170, auction). ≥5? no → banded.
+    // But distress total = 3, so it's in the 1–4 band → suppressed.
+    expect(result.distress_lead_count).toBeNull();
+    expect(result.counts_band).toBe('<5');
+    // Below k=5 means banding — but the point is 7 events collapsed to 3 properties,
+    // not 7. Verify by adding two more distinct properties to cross k=5:
+    insertLead({ id: 'p3', sourceType: 'isir', kuMatchedName: 'Praha', spisovaZnacka: 'KSPH 2 INS 2/26', oddil: 'B', cisloVOddilu: 5 });
+    insertLead({ id: 'p4', sourceType: 'isir', kuMatchedName: 'Praha', spisovaZnacka: 'KSPH 3 INS 3/26', oddil: 'B', cisloVOddilu: 6 });
+    const r2 = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
+    // Now 5 distinct properties (172, 170, auction, p3, p4) despite 9 rows.
+    expect(r2.distress_lead_count).toBe(5);
+  });
+
   it('shows 0 (not banded) and low_activity for empty district', () => {
     const result = getDistrictAggregate({ okres: 'Praha', window_days: 90 });
     expect(result.okres).toBe('Praha');
