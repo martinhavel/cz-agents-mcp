@@ -5,7 +5,7 @@
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-listed-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=cz-agents)
 [![Glama](https://img.shields.io/badge/glama.ai-listed-success)](https://glama.ai/mcp/servers/lgs0fwjrl8)
 
-Model Context Protocol servers for Czech & EU government and business data. Native access to ARES (company registry), ČNB (FX rates), ADIS (VAT-payer status), ISIR (insolvency), EU + OFAC sanctions screening, and EU business registries (GB/SK/PL/NL/DE/FR) — plus a unified due-diligence aggregator that combines them into risk scoring and statutory-chain (UBO) analysis.
+Model Context Protocol servers for **Czech & EU due diligence and KYC/AML** — company facts, insolvency (ISIR), EU + OFAC sanctions screening, VAT-payer reliability, phoenix & nominee-director detection, quantified risk score and statutory-chain (UBO) ownership analysis. Built on native access to ARES (company registry), ČNB (FX rates), ADIS (VAT-payer status) and EU business registries (GB/SK/PL/NL/DE/FR).
 
 > **Want a hosted, production-ready version?**
 > [cz-agents.dev](https://cz-agents.dev) — managed API with a 14-day free trial (no credit card).

@@ -1,5 +1,5 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "maintainers": ["martinhavel"],
-  "description": "Model Context Protocol servers for Czech & EU government and business data — KYC/AML and due-diligence ready. ARES company registry, ČNB FX rates, ADIS VAT-payer status, ISIR insolvency, EU + OFAC sanctions screening, EU business registries (GB/SK/PL/NL/DE/FR), and real-estate auctions, plus a unified due-diligence aggregator with risk scoring and statutory-chain / UBO ownership analysis."
+  "description": "Czech & EU due-diligence and KYC/AML MCP servers — company facts, insolvency (ISIR), EU + OFAC sanctions screening, VAT-payer reliability, phoenix & nominee-director detection, quantified risk score and statutory-chain (UBO) ownership analysis. A unified due-diligence aggregator built on native access to ARES (company registry), ČNB (FX rates), ADIS (VAT status) and EU business registries (GB/SK/PL/NL/DE/FR)."
 }
