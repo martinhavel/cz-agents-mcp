@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics, registerSession,
   getClientIp,
+  getClientUa,
 } from '@czagents/shared';
 import { buildPayqrServer } from './server.js';
 import { getQr, getPrefill } from './qr-store.js';
@@ -106,13 +107,14 @@ async function main() {
     } else {
       // New session — fresh McpServer instance (SDK limitation)
       const clientIpEarly = getClientIp(req);
+      const clientUaEarly = getClientUa(req);
       const newSessionId = randomUUID();
       const server = buildPayqrServer();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
-          registerSession(id, clientIpEarly);
+          registerSession(id, clientIpEarly, clientUaEarly);
           transports.set(id, transport);
         },
       });

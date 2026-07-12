@@ -10,6 +10,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, runWithIp, setRequestIp, clearRequestIp, getMetrics, registerSession,
   getClientIp,
+  getClientUa,
 } from '@czagents/shared';
 import { AdisClient } from './client.js';
 import { buildAdisServer } from './server.js';
@@ -93,6 +94,7 @@ async function main() {
       transport = transports.get(sessionId)!;
     } else {
       const clientIpEarly = getClientIp(req);
+      const clientUaEarly = getClientUa(req);
       const newSessionId = randomUUID();
       const server = buildAdisServer(client);
       transport = new StreamableHTTPServerTransport({
@@ -100,7 +102,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/adis] new session: ${id}`);
-          registerSession(id, clientIpEarly);
+          registerSession(id, clientIpEarly, clientUaEarly);
           transports.set(id, transport);
         },
       });

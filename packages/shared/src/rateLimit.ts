@@ -91,6 +91,14 @@ export function createRateLimiter(opts: RateLimiterOptions = {}) {
  * usable value. Verified empirically 2026-06-07 via a header-dump on ares behind
  * the production tunnel (XFF arrived as "realIP, realIP"; cf-connecting-ip "%a").
  */
+/** Inbound client User-Agent, trimmed. Paired with getClientIp so services can
+ *  register both on session init — the UA is what separates catalog scanners
+ *  (SentinelOracle, glama, verifymcp…) from real MCP clients in the tool event log. */
+export function getClientUa(req: IncomingMessage): string | undefined {
+  const ua = req.headers['user-agent'];
+  return typeof ua === 'string' && ua.trim() ? ua.trim() : undefined;
+}
+
 export function getClientIp(req: IncomingMessage): string {
   const xff = req.headers['x-forwarded-for'];
   if (typeof xff === 'string' && xff.length > 0) {

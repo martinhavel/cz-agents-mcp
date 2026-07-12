@@ -8,6 +8,9 @@ import { TtlMap } from './cache.js';
 interface IpContext {
   ip: string;
   sessionId?: string;
+  /** Inbound client User-Agent — lets analytics tell catalog scanners
+   *  (SentinelOracle, glama, verifymcp…) apart from real MCP clients. */
+  ua?: string;
 }
 
 const ipStorage = new AsyncLocalStorage<IpContext>();
@@ -18,6 +21,9 @@ const MAX_ICOS_PER_IP = 5_000;
 const MAX_ICO_COUNTER_ENTRIES = 50_000;
 const MAX_SEARCH_COUNTER_ENTRIES = 5_000;
 const MAX_CTA_HINT_ENTRIES = 50_000;
+// Bound the stored UA — real ones are <200 chars; a long header must not bloat
+// the session map or the event log line.
+const MAX_UA_LEN = 200;
 const SESSION_IP_TTL_MS = 6 * 60 * 60_000;
 const MAX_SESSION_IPS = 50_000;
 const DEFAULT_CTA_ESCALATION_THRESHOLD = 3;
@@ -52,6 +58,13 @@ const sessionIpMap = new TtlMap<string, string>({
   maxSize: MAX_SESSION_IPS,
   sweepIntervalMs: 60 * 60_000,
 });
+// Same lifetime/bounds as sessionIpMap — the UA is captured once at session init
+// and resolved per tool call, exactly like the IP.
+const sessionUaMap = new TtlMap<string, string>({
+  ttlMs: SESSION_IP_TTL_MS,
+  maxSize: MAX_SESSION_IPS,
+  sweepIntervalMs: 60 * 60_000,
+});
 
 // TtlMap (not a plain Map) so per-(scope, ico) CTA state is bounded and self-evicts,
 // matching the other counters above — a plain Map would grow unbounded over uptime.
@@ -64,6 +77,7 @@ const ctaHintCounter = new TtlMap<string, { count: number; escalationShown: bool
 // Legacy fallback for non-MCP or older call paths. MCP HTTP tool handlers should
 // resolve IP by session id via wrapServerTools(), then enter an ALS scope.
 let _currentIp: string | undefined;
+let _currentUa: string | undefined;
 
 type ToolHandlerExtra = { sessionId?: string };
 type ToolHandler = (args: unknown, extra?: ToolHandlerExtra) => unknown;
@@ -78,8 +92,13 @@ export function setRequestIp(ip: string): void {
   _currentIp = ip;
 }
 
+export function setRequestUa(ua: string | undefined): void {
+  _currentUa = ua;
+}
+
 export function clearRequestIp(): void {
   _currentIp = undefined;
+  _currentUa = undefined;
 }
 
 export function runWithIp(ip: string, fn: () => Promise<void>): Promise<void> {
@@ -94,9 +113,11 @@ export function getCurrentSessionId(): string | undefined {
   return ipStorage.getStore()?.sessionId;
 }
 
-export function registerSession(sessionId: string, ip: string): void {
+export function registerSession(sessionId: string, ip: string, ua?: string): void {
   if (!sessionId.trim() || !ip.trim()) return;
   sessionIpMap.set(sessionId, ip);
+  // UA is optional — older callers pass none; the tool event then records 'unknown'.
+  if (ua?.trim()) sessionUaMap.set(sessionId, ua.slice(0, MAX_UA_LEN));
 }
 
 export function resolveClientIp(sessionId?: string): string {
@@ -105,6 +126,18 @@ export function resolveClientIp(sessionId?: string): string {
     if (sessionIp) return sessionIp;
   }
   return ipStorage.getStore()?.ip ?? _currentIp ?? 'unknown';
+}
+
+export function resolveClientUa(sessionId?: string): string | undefined {
+  if (sessionId) {
+    const sessionUa = sessionUaMap.get(sessionId);
+    if (sessionUa) return sessionUa;
+  }
+  return ipStorage.getStore()?.ua ?? _currentUa;
+}
+
+export function getCurrentUa(): string | undefined {
+  return ipStorage.getStore()?.ua ?? _currentUa;
 }
 
 // Daily cap: distinct entity/query units per IP/day (anonymous free → konverzní zeď).
@@ -163,7 +196,7 @@ export function wrapServerTools(server: { tool: unknown }): void {
     if (typeof handler !== 'function') return originalTool(...args);
 
     const wrappedHandler = (toolArgs: unknown, extra?: ToolHandlerExtra) =>
-      ipStorage.run({ ip: resolveClientIp(extra?.sessionId), sessionId: extra?.sessionId }, () => {
+      ipStorage.run({ ip: resolveClientIp(extra?.sessionId), sessionId: extra?.sessionId, ua: resolveClientUa(extra?.sessionId) }, () => {
         const trippedBucket = dailyCapExceeded(extra?.sessionId);
         if (trippedBucket) {
           return {
@@ -300,6 +333,7 @@ export function logToolCall(service: string, tool: string, args: Record<string, 
   toolCallCounter.set(tcKey, (toolCallCounter.get(tcKey) ?? 0) + 1);
   const ip = getCurrentIp() ?? 'unknown';
   const sessionId = getCurrentSessionId();
+  const ua = getCurrentUa();
   const parts = [`service=${service}`, `tool=${tool}`];
   const paramKeys: string[] = [];
   const safeFields: Record<string, string> = {};
@@ -319,6 +353,7 @@ export function logToolCall(service: string, tool: string, args: Record<string, 
     parts.push(`param_keys=${paramKeys.sort().join(',')}`);
   }
   parts.push(`ip=${ip}`);
+  if (ua) parts.push(`ua="${ua.replace(/"/g, "'")}"`);
 
   console.error(`[tool] ${parts.join(' ')}`);
   writeToolEventJsonl({
@@ -328,6 +363,8 @@ export function logToolCall(service: string, tool: string, args: Record<string, 
     status: 'ok',
     ip_prefix: process.env.TOOL_EVENTS_FULL_IP === '1' ? ip : ipPrefix(ip),
     ...(sessionId ? { session: sessionId } : {}),
+    // Client UA — the field that lets us separate catalog scanners from real clients.
+    ...(ua ? { ua } : {}),
     param_keys: paramKeys,
     ...safeFields,
   });

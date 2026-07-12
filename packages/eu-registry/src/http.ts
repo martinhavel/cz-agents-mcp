@@ -18,6 +18,7 @@ import {
   createSessionRegistry,
   registerSession,
   getClientIp,
+  getClientUa,
 } from '@czagents/shared';
 import { buildEuRegistryServer } from './server.js';
 
@@ -155,6 +156,7 @@ async function main() {
       transport = transports.get(sessionId)!;
     } else {
       const clientIpEarly = getClientIp(req);
+      const clientUaEarly = getClientUa(req);
       if (!checkSessionLimit(clientIpEarly)) {
         console.error(`[cz-agents/eu-registry] session limit exceeded ip=${clientIpEarly}`);
         res.writeHead(429, { 'Content-Type': 'application/json' });
@@ -169,7 +171,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/eu-registry] new session: ${id} ip=${clientIpEarly}`);
-          registerSession(id, clientIpEarly);
+          registerSession(id, clientIpEarly, clientUaEarly);
           transports.set(id, transport);
         },
       });

@@ -10,8 +10,10 @@ import {
   logToolCall,
   registerSession,
   resolveClientIp,
+  resolveClientUa,
   runWithIp,
   setRequestIp,
+  setRequestUa,
   wrapServerTools,
 } from '../icoTracker.js';
 
@@ -122,6 +124,39 @@ describe('tool event JSONL persistence', () => {
       limit: '2',
     });
     expect(typeof record.ts).toBe('string');
+  });
+
+  it('records the client UA so catalog scanners are separable from real clients', async () => {
+    const dir = await tempToolEventsDir();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.TOOL_EVENTS_DIR = dir;
+
+    // Session carries the UA (registered at session init, like the IP).
+    registerSession('sess-scanner', '203.0.113.90', 'SentinelOracle/0.1 (+https://glimind.com/opt-out)');
+    await runWithIp('203.0.113.90', async () => {
+      // resolveClientUa prefers the session UA — this is what the tool scope uses.
+      expect(resolveClientUa('sess-scanner')).toContain('SentinelOracle');
+    });
+
+    setRequestUa('Claude-User (claude-code/2.1.201)');
+    setRequestIp('203.0.113.91');
+    logToolCall('ares', 'lookup_by_ico', { ico: '27074358' });
+
+    const record = await readOnlyRecord(dir);
+    expect(record.ua).toBe('Claude-User (claude-code/2.1.201)');
+    expect(record.ip_prefix).toBe('203.0.113');
+  });
+
+  it('omits ua when the client sent none (older callers stay valid)', async () => {
+    const dir = await tempToolEventsDir();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    process.env.TOOL_EVENTS_DIR = dir;
+    setRequestIp('203.0.113.92');
+
+    logToolCall('cnb', 'get_rates', {});
+
+    const record = await readOnlyRecord(dir);
+    expect('ua' in record).toBe(false);
   });
 
   it('keeps the depth enum value (basic/full), not only numeric params', async () => {

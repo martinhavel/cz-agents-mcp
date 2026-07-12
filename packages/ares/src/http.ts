@@ -26,6 +26,7 @@ import {
   createSessionRegistry,
   registerSession,
   getClientIp,
+  getClientUa,
 } from '@czagents/shared';
 import { AresClient } from './client.js';
 import { checkSandboxLimit, getSandboxIp, getSandboxMeta } from './sandbox.js';
@@ -188,6 +189,7 @@ async function main() {
     } else {
       // New session — check session-creation rate limit before allocating
       const clientIpEarly = getClientIp(req);
+      const clientUaEarly = getClientUa(req);
       if (!checkSessionLimit(clientIpEarly)) {
         console.error(`[cz-agents/ares] session limit exceeded ip=${clientIpEarly}`);
         res.writeHead(429, { 'Content-Type': 'application/json' });
@@ -202,7 +204,7 @@ async function main() {
         enableJsonResponse: true,
         onsessioninitialized: (id) => {
           console.error(`[cz-agents/ares] new session: ${id} ip=${clientIpEarly}`);
-          registerSession(id, clientIpEarly);
+          registerSession(id, clientIpEarly, clientUaEarly);
           transports.set(id, transport);
         },
       });
