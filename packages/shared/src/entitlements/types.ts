@@ -136,4 +136,3 @@ export interface EntitlementEventInput {
   requestId: string;
   eventKind?: 'entitlement_check' | 'upgrade_cta' | 'conversion';
 }
-

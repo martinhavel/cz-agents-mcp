@@ -46,4 +46,3 @@ function addAlias(aliases: Map<string, string>, alias: string, country: string):
   if (existing && existing !== country) throw new Error(`COUNTRY_ALIAS_COLLISION:${alias}`);
   aliases.set(alias, country);
 }
-

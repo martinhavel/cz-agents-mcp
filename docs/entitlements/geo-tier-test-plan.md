@@ -55,4 +55,3 @@ No production endpoint is mutated and no marketing claim/screenshot is produced 
 ## Commands and evidence
 
 Run workspace typecheck/build and targeted Vitest suites first, followed by the full workspace test command. Capture command, exit status and counts in the implementation report. The upstream-call proof is an assertion on injected mock call counts, not code inspection alone.
-
