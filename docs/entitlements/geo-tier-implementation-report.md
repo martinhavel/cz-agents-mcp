@@ -1,6 +1,6 @@
 # Hosted entitlement geo-tier implementation report
 
-Status: local review prototype complete on `agent/hosted-entitlement-geo-tiering`. No commit was pushed, no production deployment ran, no production database or policy was changed, and no feature flag was enabled.
+Status: reviewed implementation merged locally into `main` from `agent/hosted-entitlement-geo-tiering`. No commit was pushed, no production deployment ran, no production database or policy was changed, and no feature flag was enabled.
 
 ## Result
 
@@ -179,7 +179,7 @@ Fast rollback is `enforce -> observe -> off`, followed by the previous applicati
 
 ## Steps requiring Martin's approval
 
-- commit/push/PR publication if desired;
+- push/PR publication if desired;
 - any deployment;
 - production DB backup and policy seed/change;
 - any later country reclassification or plan unbundling;
