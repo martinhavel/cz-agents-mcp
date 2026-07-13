@@ -13,14 +13,31 @@ import { FiPrhAdapter } from './adapters/fi-prh.js';
 import { EeRikAdapter } from './adapters/ee-rik.js';
 import { SeBolagsverketAdapter } from './adapters/se-bolagsverket.js';
 import { GleifCache } from './gleif-cache.js';
-import { lookupCompanyByVat } from './vies.js';
+import { lookupCompanyByVat, parseVat } from './vies.js';
 import type { Company, RegistryAdapter } from './types.js';
 
 export type RegistryAdapters = Record<string, RegistryAdapter>;
 
 export interface EuRegistryServerOptions {
   adapters?: RegistryAdapters;
+  authorizeLookup?: RegistryLookupAuthorizer;
+  vatLookup?: typeof lookupCompanyByVat;
 }
+
+export interface RegistryLookupRequest {
+  country: string;
+  tool: 'search_company' | 'get_company' | 'lookup_company_by_vat';
+  depth: 'basic';
+}
+
+export interface RegistryLookupAccess {
+  upstreamAllowed: boolean;
+  country?: string;
+  error?: unknown;
+  record?: (upstreamCalled:boolean)=>void;
+}
+
+export type RegistryLookupAuthorizer = (request:RegistryLookupRequest)=>RegistryLookupAccess|Promise<RegistryLookupAccess>;
 
 export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): McpServer {
   const server = new McpServer(
@@ -63,12 +80,18 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), NL/IT/AT/ES (GLEIF/LEI only; exact VAT data via lookup_company_by_vat or get_company with VAT), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data), SE (GLEIF/LEI name search; use get_company for full Bolagsverket data).',
     {
       name: z.string().min(1).describe('Company name or partial company name.'),
-      country: z.string().length(2).describe('ISO 3166-1 alpha-2 country code, e.g. "gb".').optional(),
+      country: z.string().min(2).max(64).describe('ISO alpha-2 code or supported country name, e.g. "GB", "UK", or "United Kingdom".').optional(),
       limit: z.number().int().min(1).max(20).default(10).describe('Max results per search, default 10, max 20.'),
     },
     { title: 'Search Non-Czech Company', readOnlyHint: true, openWorldHint: true },
     async ({ name, country, limit }) => {
-      const normalizedCountry = country?.toLowerCase();
+      let normalizedCountry = country === undefined ? undefined : normalizeRegistryCountry(country,adapters);
+      if (country !== undefined && !normalizedCountry) {
+        const decision=await authorize(options.authorizeLookup,{country,tool:'search_company',depth:'basic'});
+        const resolved=decision.country?.toLowerCase();
+        if(decision.upstreamAllowed && resolved && adapters[resolved])normalizedCountry=resolved;
+        else {decision.record?.(false);return decision.error ? accessErrorResult(decision.error):invalidCountryResult(country);}
+      }
       const cappedLimit = Math.min(Math.max(limit ?? 10, 1), 20);
       trackQuery(queryUnitKey({ name, country: normalizedCountry, limit: cappedLimit }));
       logToolCall('eu-registry', 'search_company', { name, country: normalizedCountry, limit: cappedLimit });
@@ -78,14 +101,29 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
         return true;
       });
 
-      const results = await Promise.all(
-        selected.map(async ([, adapter]) => adapter.searchByName(name, cappedLimit)),
-      );
+      const access = await Promise.all(selected.map(async ([adapterCountry,adapter])=>({
+        adapterCountry,adapter,decision:await authorize(options.authorizeLookup,{country:adapterCountry,tool:'search_company',depth:'basic'}),
+      })));
+      const allowed=access.filter((item)=>item.decision.upstreamAllowed);
+      if (normalizedCountry && allowed.length===0) {
+        const denied=access[0]!.decision; denied.record?.(false); return accessErrorResult(denied.error);
+      }
+      for(const item of access) if(!item.decision.upstreamAllowed) item.decision.record?.(false);
+      const results = await Promise.all(allowed.map(async ({adapter,decision}) => {
+        try { return await adapter.searchByName(name,cappedLimit); }
+        finally { decision.record?.(true); }
+      }));
       const companies = results.flatMap((result) => result.companies).slice(0, cappedLimit);
       const total_results = results.reduce((sum, result) => sum + result.total_results, 0);
 
+      const coverage_preview=access.filter((item)=>!item.decision.upstreamAllowed).map((item)=>({
+        country:item.adapterCountry.toUpperCase(),connector_available:true,coverage_tier:'extended',
+        available_field_categories:['identity','registry_status'],upgrade_cta:item.decision.error,
+      }));
+
       return {
-        content: [{ type: 'text', text: JSON.stringify({ companies, total_results }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ companies, total_results,
+          ...(coverage_preview.length>0 ? {coverage_preview}: {}) }, null, 2) }],
       };
     },
   );
@@ -95,15 +133,25 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     'Get a non-Czech company by national ID and country code. Supported: gb (CRN), sk (IČO), pl (KRS number), nl/it/at/es (VAT via VIES), de (LEI), fr (SIREN), no (organization number), dk (CVR number), fi (Business ID), ee (registry code), se (10-digit organisation number via Bolagsverket).',
     {
       id: z.string().min(1).describe('National company ID, e.g. UK Companies House CRN "14356670".'),
-      country: z.string().length(2).describe('ISO 3166-1 alpha-2 country code, e.g. "gb".'),
+      country: z.string().min(2).max(64).describe('ISO alpha-2 code or supported country name.'),
     },
     { title: 'Get Non-Czech Company', readOnlyHint: true, openWorldHint: true },
     async ({ id, country }) => {
-      const normalizedCountry = country.toLowerCase();
+      let normalizedCountry = normalizeRegistryCountry(country,adapters);
+      if (!normalizedCountry) {
+        const decision=await authorize(options.authorizeLookup,{country,tool:'get_company',depth:'basic'});
+        const resolved=decision.country?.toLowerCase();
+        if(decision.upstreamAllowed && resolved && adapters[resolved])normalizedCountry=resolved;
+        else {decision.record?.(false);return decision.error ? accessErrorResult(decision.error):invalidCountryResult(country);}
+      }
       trackQuery(entityIdUnitKey(normalizedCountry, id));
       logToolCall('eu-registry', 'get_company', { id, country: normalizedCountry });
 
-      const company = await getCompany(adapters, id, normalizedCountry);
+      const decision=await authorize(options.authorizeLookup,{country:normalizedCountry,tool:'get_company',depth:'basic'});
+      if(!decision.upstreamAllowed){decision.record?.(false);return accessErrorResult(decision.error);}
+      let company:Company|null;
+      try { company=await getCompany(adapters,id,normalizedCountry); }
+      finally { decision.record?.(true); }
       if (!company) {
         return {
           content: [
@@ -132,7 +180,15 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       trackQuery(entityIdUnitKey('vat', vat));
       logToolCall('eu-registry', 'lookup_company_by_vat', { vat });
 
-      const company = await lookupCompanyByVat(vat);
+      const parsed=parseVat(vat);
+      if(!parsed)return invalidCountryResult(vat);
+      const normalizedCountry=normalizeVatCountry(parsed.country);
+      if(!normalizedCountry)return invalidCountryResult(parsed.country);
+      const decision=await authorize(options.authorizeLookup,{country:normalizedCountry,tool:'lookup_company_by_vat',depth:'basic'});
+      if(!decision.upstreamAllowed){decision.record?.(false);return accessErrorResult(decision.error);}
+      let company:Company|null;
+      try { company=await (options.vatLookup ?? lookupCompanyByVat)(vat); }
+      finally { decision.record?.(true); }
       if (!company) {
         return {
           content: [
@@ -151,6 +207,38 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
   );
 
   return server;
+}
+
+async function authorize(authorizer:RegistryLookupAuthorizer|undefined,request:RegistryLookupRequest):Promise<RegistryLookupAccess> {
+  return authorizer ? authorizer(request) : {upstreamAllowed:true};
+}
+
+function accessErrorResult(error:unknown) {
+  const body=error ?? {error:'access_denied',message:'The hosted lookup is not available.'};
+  return {content:[{type:'text' as const,text:JSON.stringify(body,null,2)}],isError:true};
+}
+
+function invalidCountryResult(input:string) {
+  return accessErrorResult({error:'invalid_country',dimension:'coverage',input,
+    message:'Unknown or unsupported country. Use a supported ISO alpha-2 code or country name.'});
+}
+
+function normalizeRegistryCountry(input:string,adapters:RegistryAdapters):string|null {
+  const value=input.normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleUpperCase('en-US');
+  const aliases:Record<string,string>={UK:'GB','UNITED KINGDOM':'GB','GREAT BRITAIN':'GB',
+    SLOVAKIA:'SK',POLAND:'PL',NETHERLANDS:'NL','THE NETHERLANDS':'NL',ITALY:'IT',AUSTRIA:'AT',
+    SPAIN:'ES',GERMANY:'DE',FRANCE:'FR',NORWAY:'NO',DENMARK:'DK',FINLAND:'FI',ESTONIA:'EE',SWEDEN:'SE'};
+  const canonical=aliases[value] ?? value;
+  const key=canonical.toLowerCase(); return adapters[key] ? key : null;
+}
+
+function normalizeVatCountry(input:string):string|null {
+  const value=input.normalize('NFKC').trim().toUpperCase();
+  if(!/^[A-Z]{2}$/.test(value))return null;
+  // VIES uses EL for Greece. Hosted policy remains ISO-based and therefore sees GR.
+  if(value==='EL')return 'gr';
+  if(value==='UK')return 'gb';
+  return value.toLowerCase();
 }
 
 async function getCompany(

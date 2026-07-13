@@ -50,7 +50,12 @@ export interface McpAuditContext {
 
 export interface DdServerOptions {
   audit?: McpAuditContext;
+  authorizeLookup?: DdLookupAuthorizer;
 }
+
+export interface DdLookupRequest { country:string; tool:string; depth:'basic'|'ddplus'; }
+export interface DdLookupAccess { upstreamAllowed:boolean; error?:unknown; record?:(upstreamCalled:boolean)=>void; }
+export type DdLookupAuthorizer=(request:DdLookupRequest)=>DdLookupAccess|Promise<DdLookupAccess>;
 
 /** Tool gating — returns 403 JSON-RPC error when caller lacks tier. */
 function requireTier(currentTier: DdTier, required: DdTier, toolName: string) {
@@ -95,6 +100,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
     },
   );
   wrapServerTools(server);
+  if(opts.authorizeLookup)wrapDdTools(server,opts.authorizeLookup);
 
   server.tool(
     'person_companies',
@@ -486,6 +492,36 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
 
   return server;
 }
+
+const BASIC_DD_TOOLS=new Set(['get_dd_report']);
+function requestedDdDepth(tool:string,args:unknown):'basic'|'ddplus' {
+  if(tool==='get_dd_report')return isRecord(args) && args.depth==='full'?'ddplus':'basic';
+  return BASIC_DD_TOOLS.has(tool)?'basic':'ddplus';
+}
+function requestedCountry(tool:string,args:unknown):string {
+  if(tool==='get_eu_dd_report' && isRecord(args) && typeof args.country==='string')return args.country;
+  return 'CZ';
+}
+function wrapDdTools(server:McpServer,authorizer:DdLookupAuthorizer):void {
+  const host=server as unknown as Record<string,unknown>;
+  for(const method of ['tool','registerTool'] as const) {
+    const registrar=host[method];if(typeof registrar!=='function')continue;
+    const original=registrar.bind(server) as (...args:unknown[])=>unknown;
+    host[method]=(...args:unknown[])=>{
+      const tool=typeof args[0]==='string'?args[0]:'unknown';const handler=args.at(-1);
+      if(typeof handler!=='function')return original(...args);
+      const wrapped=async(toolArgs:unknown,extra?:unknown)=>{
+        const access=await authorizer({country:requestedCountry(tool,toolArgs),tool,depth:requestedDdDepth(tool,toolArgs)});
+        if(!access.upstreamAllowed){access.record?.(false);return accessError(access.error);}
+        try{return await (handler as (a:unknown,e?:unknown)=>unknown)(toolArgs,extra);}
+        finally{access.record?.(true);}
+      };
+      return original(...args.slice(0,-1),wrapped);
+    };
+  }
+}
+function accessError(error:unknown) { return {content:[{type:'text' as const,text:JSON.stringify(error ?? {error:'access_denied'},null,2)}],isError:true}; }
+function isRecord(value:unknown):value is Record<string,unknown> { return Boolean(value)&&typeof value==='object'&&!Array.isArray(value); }
 
 function findForeignLegalOwnerCandidate(record: AresVrLike | null): {
   name: string;

@@ -8,4 +8,6 @@ coverage/
 .turbo/
 .mcp-auth/
 launch/
-docs/
+docs/*
+!docs/entitlements/
+!docs/entitlements/*.md

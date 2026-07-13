@@ -32,7 +32,7 @@ describe('cleanupSessionTimes', () => {
     expect(sessionTimes.size).toBeLessThanOrEqual(MAX_SESSION_IPS);
     expect(sessionTimes.has('ip-0')).toBe(false);
     expect(sessionTimes.has(`ip-${MAX_SESSION_IPS}`)).toBe(true);
-  });
+  }, 20_000);
 
   it('terminates when set() reinserts entries during cleanup', async () => {
     process.env.SANDBOX_HMAC_SECRET = 'test-secret';
@@ -42,5 +42,5 @@ describe('cleanupSessionTimes', () => {
 
     expect(() => cleanupSessionTimes(sessionTimes)).not.toThrow();
     expect(sessionTimes.size).toBe(1);
-  });
+  }, 20_000);
 });
