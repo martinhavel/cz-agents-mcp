@@ -1,20 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/eu-registry",
-  "description": "EU company registry lookup across 12 countries incl. Estonia RIK.",
+  "description": "EU company registry lookup across 13 countries incl. Sweden Bolagsverket.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",
     "source": "github",
     "subfolder": "packages/eu-registry"
   },
-  "version": "0.5.0",
+  "version": "0.6.0",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/eu-registry",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
