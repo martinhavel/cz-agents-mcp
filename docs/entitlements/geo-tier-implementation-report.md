@@ -138,7 +138,7 @@ Conversion event storage is prepared, but Stripe-to-conversion event ingestion i
 ## Verification results
 
 - MCP monorepo build: passed for all workspaces.
-- MCP monorepo tests: 574 passed, 1 pre-existing skipped.
+- MCP monorepo tests after the approved EE/NO seed and paid-plan regression: 576 passed, 1 pre-existing skipped.
 - Webapp tests: 169 passed across 31 files.
 - Webapp optimized Next.js build: passed, 449 routes/pages generated.
 - Compose interpolation/config validation: passed; only expected warnings for unset local secrets.
