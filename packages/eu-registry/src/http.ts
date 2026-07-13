@@ -19,14 +19,21 @@ import {
   registerSession,
   getClientIp,
   getClientUa,
+  TokenStore,
 } from '@czagents/shared';
+import { EntitlementStore,HostedEntitlementResolver,entitlementMode,authenticateHostedRequest,
+  runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
 import { buildEuRegistryServer } from './server.js';
+import type { RegistryLookupAuthorizer } from './server.js';
 
 const PORT = Number(process.env.PORT ?? 3035);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 60);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
+const ENTITLEMENT_MODE = entitlementMode(process.env.HOSTED_GEO_TIER_ENFORCEMENT);
+const UPGRADE_URL = process.env.HOSTED_UPGRADE_URL ?? 'https://cz-agents.dev/pricing.html';
+const POLICY_CACHE_TTL_MS = Number(process.env.HOSTED_POLICY_CACHE_TTL_MS ?? 30_000);
 const SESSION_LIMIT_MAX = Number(process.env.SESSION_LIMIT_MAX ?? 3);
 const BLOCKED_IPS = new Set(
   (process.env.BLOCKED_IPS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
@@ -75,6 +82,21 @@ export function cleanupSessionTimes(timesByIp: SessionTimesMap = sessionTimes): 
 setInterval(cleanupSessionTimes, 5 * 60_000).unref();
 
 async function main() {
+  const tokenDbPath=process.env.TOKEN_DB ?? './tokens.db';
+  const tokenStore=ENTITLEMENT_MODE === 'off' ? null : new TokenStore(tokenDbPath);
+  const entitlementStore=ENTITLEMENT_MODE === 'off' ? null : new EntitlementStore(tokenDbPath);
+  const entitlementResolver=entitlementStore ? new HostedEntitlementResolver(entitlementStore,{
+    mode:ENTITLEMENT_MODE,upgradeUrl:UPGRADE_URL,cacheTtlMs:POLICY_CACHE_TTL_MS,
+  }) : null;
+  const authorizeLookup:RegistryLookupAuthorizer|undefined=entitlementResolver ? async (lookup)=>{
+    const context=getHostedRequestContext();
+    if(!context) return {upstreamAllowed:false,error:{error:'policy_unavailable',dimension:'coverage',
+      message:'Hosted account context is unavailable.'}};
+    const decision=entitlementResolver.check({account:context.account,country:lookup.country,
+      requestedDepth:lookup.depth,endpoint:`mcp:${lookup.tool}`,requestId:context.requestId});
+    return {upstreamAllowed:decision.upstreamAllowed,country:decision.country?.toLowerCase(),error:decision.error,
+      record:(upstreamCalled)=>entitlementResolver.record(decision,upstreamCalled)};
+  } : undefined;
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
   const restLimiter = createRestRateLimiter();
 
@@ -133,7 +155,7 @@ async function main() {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id',
+        'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id, authorization, x-request-id',
       });
       res.end();
       return;
@@ -151,6 +173,11 @@ async function main() {
       return;
     }
 
+    const hostedContext=tokenStore
+      ? authenticateHostedRequest(req,res,tokenStore,process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement')
+      : null;
+    if(tokenStore && !hostedContext)return;
+
     let transport: StreamableHTTPServerTransport;
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
@@ -165,7 +192,7 @@ async function main() {
       }
 
       const newSessionId = randomUUID();
-      const server = buildEuRegistryServer();
+      const server = buildEuRegistryServer({authorizeLookup});
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,
@@ -187,7 +214,9 @@ async function main() {
     const clientIp = getClientIp(req);
     setRequestIp(clientIp);
     try {
-      await runWithIp(clientIp, () => transport.handleRequest(req, res));
+      const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res));
+      if(hostedContext) await runWithHostedRequestContext(hostedContext,handle);
+      else await handle();
     } finally {
       clearRequestIp();
     }

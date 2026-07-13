@@ -22,6 +22,16 @@ export interface QuotaOptions {
 }
 
 export function createQuotaGuard(opts: QuotaOptions) {
+  const authenticate=createTokenAuthGuard(opts);
+  return function guard(req: IncomingMessage, res: ServerResponse): AuthOutcome {
+    const auth=authenticate(req,res);
+    if(!auth.ok)return auth;
+    return consumeTokenQuota(opts.store,auth.token,res);
+  };
+}
+
+/** Authentication only. Business permission checks can run before quota consumption. */
+export function createTokenAuthGuard(opts: QuotaOptions) {
   const { store, service, allowAnonymous = true } = opts;
 
   return function guard(req: IncomingMessage, res: ServerResponse): AuthOutcome {
@@ -45,8 +55,18 @@ export function createQuotaGuard(opts: QuotaOptions) {
       return { ok: false, status: 401, reason: 'unknown_token' };
     }
 
+    if(record.expires_at != null && Date.now()>record.expires_at) {
+      writeJson(res,402,{error:'trial_expired',message:'Your trial has expired. Upgrade at https://cz-agents.dev/pricing.html'});
+      return {ok:false,status:402,reason:'trial_expired'};
+    }
+    return {ok:true,token:record};
+  };
+}
+
+export function consumeTokenQuota(store:TokenStore,record:TokenRecord,res:ServerResponse):AuthOutcome {
+    if(record.token==='__anonymous__')return {ok:true,token:record};
     try {
-      const updated = store.consume(token);
+      const updated = store.consume(record.token);
       const remaining = computeRemaining(updated);
       res.setHeader('X-Tier', updated.tier);
       if (remaining !== null) {
@@ -83,7 +103,6 @@ export function createQuotaGuard(opts: QuotaOptions) {
       writeJson(res, 500, { error: 'internal', message: 'Token consume failed.' });
       return { ok: false, status: 500, reason: 'internal' };
     }
-  };
 }
 
 function extractBearer(header: string | undefined): string | null {

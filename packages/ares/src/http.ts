@@ -27,16 +27,22 @@ import {
   registerSession,
   getClientIp,
   getClientUa,
+  TokenStore,
 } from '@czagents/shared';
+import { EntitlementStore,HostedEntitlementResolver,entitlementMode,authenticateHostedRequest,
+  runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
 import { AresClient } from './client.js';
 import { checkSandboxLimit, getSandboxIp, getSandboxMeta } from './sandbox.js';
 import { buildAresServer } from './server.js';
+import type { AresLookupAuthorizer } from './server.js';
 
 const PORT = Number(process.env.PORT ?? 3030);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 60);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
+const ENTITLEMENT_MODE=entitlementMode(process.env.HOSTED_GEO_TIER_ENFORCEMENT);
+const UPGRADE_URL=process.env.HOSTED_UPGRADE_URL ?? 'https://cz-agents.dev/pricing.html';
 const SESSION_LIMIT_MAX = Number(process.env.SESSION_LIMIT_MAX ?? 3);
 // Comma-separated IPs to block entirely: BLOCKED_IPS=1.2.3.4,2a02:c207:...
 const BLOCKED_IPS = new Set(
@@ -87,6 +93,18 @@ setInterval(cleanupSessionTimes, 5 * 60_000).unref();
 
 async function main() {
   const client = new AresClient();
+  const tokenDbPath=process.env.TOKEN_DB ?? './tokens.db';
+  const tokenStore=ENTITLEMENT_MODE==='off'?null:new TokenStore(tokenDbPath);
+  const entitlementStore=ENTITLEMENT_MODE==='off'?null:new EntitlementStore(tokenDbPath);
+  const entitlementResolver=entitlementStore?new HostedEntitlementResolver(entitlementStore,{mode:ENTITLEMENT_MODE,
+    upgradeUrl:UPGRADE_URL,cacheTtlMs:Number(process.env.HOSTED_POLICY_CACHE_TTL_MS ?? 30_000)}):null;
+  const authorizeLookup:AresLookupAuthorizer|undefined=entitlementResolver?async(lookup)=>{
+    const context=getHostedRequestContext();
+    if(!context)return {upstreamAllowed:false,error:{error:'policy_unavailable',dimension:'coverage',message:'Hosted account context is unavailable.'}};
+    const decision=entitlementResolver.check({account:context.account,country:lookup.country,requestedDepth:lookup.depth,
+      endpoint:`mcp:${lookup.tool}`,requestId:context.requestId,usageMetric:'requests_per_day'});
+    return {upstreamAllowed:decision.upstreamAllowed,error:decision.error,record:(called)=>entitlementResolver.record(decision,called)};
+  }:undefined;
   // Per-session McpServer instance (SDK forbids connecting the same
   // McpServer to multiple transports).
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
@@ -136,9 +154,9 @@ async function main() {
       res.end();
       return;
     }
-    if (await handleSandboxRest(req, res, client)) return;
+    if (await handleSandboxRest(req, res, client,entitlementResolver,tokenStore)) return;
 
-    if (await handleAresRest(req, res, client, restLimiter)) {
+    if (await handleAresRest(req, res, client, restLimiter,entitlementResolver,tokenStore)) {
       return;
     }
 
@@ -164,7 +182,7 @@ async function main() {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id',
+        'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id, authorization, x-request-id',
       });
       res.end();
       return;
@@ -183,6 +201,10 @@ async function main() {
       return;
     }
 
+    const hostedContext=tokenStore?authenticateHostedRequest(req,res,tokenStore,
+      process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement'):null;
+    if(tokenStore&&!hostedContext)return;
+
     let transport: StreamableHTTPServerTransport;
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
@@ -198,7 +220,7 @@ async function main() {
       }
       // New session — fresh McpServer instance (SDK limitation)
       const newSessionId = randomUUID();
-      const server = buildAresServer();
+      const server = buildAresServer({authorizeLookup});
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,
@@ -220,7 +242,8 @@ async function main() {
     const clientIp = getClientIp(req);
     setRequestIp(clientIp);
     try {
-      await runWithIp(clientIp, () => transport.handleRequest(req, res));
+      const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res));
+      if(hostedContext)await runWithHostedRequestContext(hostedContext,handle);else await handle();
     } finally {
       clearRequestIp();
     }
@@ -237,6 +260,8 @@ async function handleSandboxRest(
   req: import('node:http').IncomingMessage,
   res: import('node:http').ServerResponse,
   client: AresClient,
+  resolver:HostedEntitlementResolver|null,
+  tokenStore:TokenStore|null,
 ): Promise<boolean> {
   if (!req.url) return false;
   const url = new URL(req.url, 'http://localhost');
@@ -252,20 +277,23 @@ async function handleSandboxRest(
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Expose-Headers', 'X-Sandbox-Remaining, X-Sandbox-Reset');
 
-  if (!checkSandboxLimit(req, res)) return true;
-
   const companyMatch = url.pathname.match(/^\/sandbox\/v1\/companies\/([0-9]{7,8})$/);
   if (!companyMatch) {
     jsonErr(res, 404, 'not_found', 'Sandbox endpoint: GET /sandbox/v1/companies/{ico}');
     return true;
   }
 
+  const access=aresRestAccess(req,res,resolver,tokenStore,'rest:sandbox_company');
+  if(!access.allowed)return true;
+  if (!checkSandboxLimit(req, res)) { access.record?.(false); return true; }
+
   const icoRaw = companyMatch[1]!;
   const clientIp = getSandboxIp(req);
 
   await runWithIp(clientIp, async () => {
     try {
-      const result = await client.getByIco(icoRaw);
+      let result;
+      try{result = await client.getByIco(icoRaw);}finally{access.record?.(true);}
       if (!result) {
         jsonErr(res, 404, 'not_found', 'Company ' + icoRaw + ' was not found.');
         return;
@@ -299,6 +327,8 @@ async function handleAresRest(
   res: import('node:http').ServerResponse,
   client: AresClient,
   limiter: ReturnType<typeof createRestRateLimiter>,
+  resolver:HostedEntitlementResolver|null,
+  tokenStore:TokenStore|null,
 ): Promise<boolean> {
   if (!req.url) return false;
   const url = new URL(req.url, 'http://localhost');
@@ -315,15 +345,17 @@ async function handleAresRest(
   await runWithIp(clientIp, async () => {
     try {
       if (url.pathname === '/v1/companies') {
+        const access=aresRestAccess(req,res,resolver,tokenStore,'rest:search_companies');if(!access.allowed)return;
         const query = url.searchParams.get('q') ?? undefined;
         const city = url.searchParams.get('city') ?? undefined;
         const rawLimit = Number(url.searchParams.get('limit') ?? 10);
         const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.floor(rawLimit), 1), 50) : 10;
-        const result = await client.search({
+        let result;
+        try{result = await client.search({
           query,
           sidlo: city ? { nazevObce: city } : undefined,
           pocet: limit,
-        });
+        });}finally{access.record?.(true);}
         jsonOk(res, result, 'ares');
         return;
       }
@@ -331,7 +363,8 @@ async function handleAresRest(
       if (/^\/v1\/companies\/[0-9]{7,8}\/bank-accounts$/.test(url.pathname)) {
         const ico = parseIco(req, res);
         if (!ico) return;
-        const result = await client.getBankAccounts(ico);
+        const access=aresRestAccess(req,res,resolver,tokenStore,'rest:get_bank_accounts');if(!access.allowed)return;
+        let result;try{result = await client.getBankAccounts(ico);}finally{access.record?.(true);}
         jsonOk(res, result, 'ares');
         return;
       }
@@ -339,7 +372,8 @@ async function handleAresRest(
       if (/^\/v1\/companies\/[0-9]{7,8}\/statutaries$/.test(url.pathname)) {
         const ico = parseIco(req, res);
         if (!ico) return;
-        const record = await client.getVrRecord(ico);
+        const access=aresRestAccess(req,res,resolver,tokenStore,'rest:get_statutaries');if(!access.allowed)return;
+        let record;try{record = await client.getVrRecord(ico);}finally{access.record?.(true);}
         jsonOk(res, record?.statutarniOrgany ?? [], 'ares');
         return;
       }
@@ -348,7 +382,8 @@ async function handleAresRest(
       if (companyMatch) {
         const ico = parseIco(req, res);
         if (!ico) return;
-        const result = await client.getByIco(ico);
+        const access=aresRestAccess(req,res,resolver,tokenStore,'rest:get_company');if(!access.allowed)return;
+        let result;try{result = await client.getByIco(ico);}finally{access.record?.(true);}
         if (!result) {
           jsonErr(res, 404, 'not_found', `Company ${ico} was not found.`);
           return;
@@ -366,6 +401,23 @@ async function handleAresRest(
   });
 
   return true;
+}
+
+function aresRestAccess(req:import('node:http').IncomingMessage,res:import('node:http').ServerResponse,
+  resolver:HostedEntitlementResolver|null,tokenStore:TokenStore|null,endpoint:string):{allowed:boolean;record?:(called:boolean)=>void} {
+  if(!resolver||!tokenStore)return {allowed:true};
+  const context=authenticateHostedRequest(req,res,tokenStore,
+    process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement');
+  if(!context)return {allowed:false};
+  const decision=resolver.check({account:context.account,country:'CZ',requestedDepth:'basic',endpoint,
+    requestId:context.requestId,usageMetric:'requests_per_day'});
+  if(!decision.upstreamAllowed){resolver.record(decision,false);writeAresAccessError(res,decision.error);return {allowed:false};}
+  return {allowed:true,record:(called)=>resolver.record(decision,called)};
+}
+function writeAresAccessError(res:import('node:http').ServerResponse,error:unknown):void {
+  if(res.headersSent)return;const body=(error&&typeof error==='object')?error:{error:'access_denied',message:'Access denied.'};
+  const code=(body as {error?:string}).error;const status=code==='invalid_country'?400:code==='policy_unavailable'?503:402;
+  res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(body));
 }
 
 

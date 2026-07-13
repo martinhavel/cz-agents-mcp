@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { TokenStore } from '../tokenStore.js';
-import { createQuotaGuard } from '../quota.js';
+import { createQuotaGuard, createTokenAuthGuard } from '../quota.js';
 
 function mockReq(headers: Record<string, string> = {}): IncomingMessage {
   return { headers, url: '/mcp', method: 'POST' } as IncomingMessage;
@@ -71,6 +71,20 @@ describe('createQuotaGuard', () => {
     expect(r.ok).toBe(true);
     expect(res.headers['x-tier']).toBe('pro');
     expect(res.headers['x-quota-remaining']).toBe('99');
+  });
+
+  it('authenticates a preflight without consuming report quota', () => {
+    const t = store.mint({
+      service: 'dd', tier: 'pro', stripe_customer_id: 'c', stripe_subscription_id: 's',
+      monthly_quota: 100, credits: null,
+    });
+    const guard = createTokenAuthGuard({ store, service: 'dd' });
+    const before = store.find(t.token);
+    const result = guard(mockReq({ authorization: `Bearer ${t.token}` }), mockRes());
+    const after = store.find(t.token);
+
+    expect(result.ok).toBe(true);
+    expect(after?.requests_used).toBe(before?.requests_used);
   });
 
   it('rejects unknown token with 401', () => {

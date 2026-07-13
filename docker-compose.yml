@@ -15,10 +15,16 @@ services:
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
       - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
+      - ENTITLEMENT_ACCOUNT_HASH_SALT=${ENTITLEMENT_ACCOUNT_HASH_SALT:-}
+      - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
+      - HOSTED_UPGRADE_URL=${HOSTED_UPGRADE_URL:-https://cz-agents.dev/pricing.html}
+      - HOSTED_POLICY_CACHE_TTL_MS=${HOSTED_POLICY_CACHE_TTL_MS:-30000}
+      - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - SANDBOX_HMAC_SECRET=${SANDBOX_HMAC_SECRET}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - tool-events:/var/lib/czagents-events
+      - tokens-data:/var/lib/czagents-tokens
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
@@ -113,6 +119,10 @@ services:
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
       - MCP_AUDIT_URL=${MCP_AUDIT_URL:-}
       - MCP_AUDIT_KEY=${MCP_AUDIT_KEY:-}
+      - ENTITLEMENT_ACCOUNT_HASH_SALT=${ENTITLEMENT_ACCOUNT_HASH_SALT:-}
+      - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
+      - HOSTED_UPGRADE_URL=${HOSTED_UPGRADE_URL:-https://cz-agents.dev/pricing.html}
+      - HOSTED_POLICY_CACHE_TTL_MS=${HOSTED_POLICY_CACHE_TTL_MS:-30000}
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions:ro
       - tokens-data:/var/lib/czagents-tokens
@@ -244,6 +254,11 @@ services:
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
       - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
+      - ENTITLEMENT_ACCOUNT_HASH_SALT=${ENTITLEMENT_ACCOUNT_HASH_SALT:-}
+      - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
+      - HOSTED_UPGRADE_URL=${HOSTED_UPGRADE_URL:-https://cz-agents.dev/pricing.html}
+      - HOSTED_POLICY_CACHE_TTL_MS=${HOSTED_POLICY_CACHE_TTL_MS:-30000}
+      - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - CH_API_KEY=${CH_API_KEY:-}
       - DK_CVR_USER=${DK_CVR_USER:-}
       - DK_CVR_PASS=${DK_CVR_PASS:-}
@@ -257,6 +272,7 @@ services:
     volumes:
       - gleif-cache:/var/lib/czagents-gleif-cache
       - ee-rik-data:/var/lib/czagents-ee-rik
+      - tokens-data:/var/lib/czagents-tokens
       - tool-events:/var/lib/czagents-events
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/v1/health"]

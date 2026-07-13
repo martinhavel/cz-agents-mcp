@@ -8,7 +8,9 @@ import { buildAresSummaryMarkdown } from './summary.js';
  * Build an MCP server exposing ARES (Czech Business Register) tools.
  * Transport-agnostic — wrap with stdio or streamable-http in entry files.
  */
-export function buildAresServer(): McpServer {
+export interface AresLookupAccess { upstreamAllowed:boolean; error?:unknown; record?:(upstreamCalled:boolean)=>void; }
+export type AresLookupAuthorizer=(request:{country:'CZ';tool:string;depth:'basic'})=>AresLookupAccess|Promise<AresLookupAccess>;
+export function buildAresServer(options:{authorizeLookup?:AresLookupAuthorizer;client?:AresClient}={}): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/ares',
@@ -28,8 +30,9 @@ export function buildAresServer(): McpServer {
     },
   );
   wrapServerTools(server);
+  if(options.authorizeLookup)wrapAresTools(server,options.authorizeLookup);
 
-  const ares = new AresClient();
+  const ares = options.client ?? new AresClient();
 
   server.tool(
     'lookup_by_ico',
@@ -394,4 +397,24 @@ export function buildAresServer(): McpServer {
   );
 
   return server;
+}
+
+function wrapAresTools(server:McpServer,authorizer:AresLookupAuthorizer):void {
+  const host=server as unknown as Record<string,unknown>;
+  for(const method of ['tool','registerTool'] as const) {
+    const registrar=host[method];if(typeof registrar!=='function')continue;
+    const original=registrar.bind(server) as (...args:unknown[])=>unknown;
+    host[method]=(...args:unknown[])=>{
+      const tool=typeof args[0]==='string'?args[0]:'unknown';const handler=args.at(-1);
+      if(typeof handler!=='function')return original(...args);
+      const wrapped=async(toolArgs:unknown,extra?:unknown)=>{
+        const access=await authorizer({country:'CZ',tool,depth:'basic'});
+        if(!access.upstreamAllowed){access.record?.(false);return {content:[{type:'text' as const,
+          text:JSON.stringify(access.error ?? {error:'access_denied'},null,2)}],isError:true};}
+        try{return await (handler as (a:unknown,e?:unknown)=>unknown)(toolArgs,extra);}
+        finally{access.record?.(true);}
+      };
+      return original(...args.slice(0,-1),wrapped);
+    };
+  }
 }

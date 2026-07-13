@@ -30,6 +30,7 @@ import {
   parseIco,
   TokenStore,
   createQuotaGuard,
+  createTokenAuthGuard,
   handleStripeWebhook,
   WebhookError,
   createSessionRegistry,
@@ -37,11 +38,14 @@ import {
   getClientIp,
   getClientUa,
 } from '@czagents/shared';
+import { EntitlementStore,HostedEntitlementResolver,entitlementMode,accountContextFromToken,
+  runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
 import { AresClient } from '@czagents/ares';
 import { SanctionsDb, SanctionsSearch } from '@czagents/sanctions';
 import { IsirClient } from '@czagents/isir';
 import { AdisClient } from '@czagents/adis';
 import { buildDdServer } from './server.js';
+import type { DdLookupAuthorizer } from './server.js';
 import type { DdClients } from './clients.js';
 import { buildDdBilling } from './billing.js';
 import { buildReport } from './report.js';
@@ -56,6 +60,8 @@ const OAUTH_RESOURCE_METADATA_URL =
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 30);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
+const ENTITLEMENT_MODE=entitlementMode(process.env.HOSTED_GEO_TIER_ENFORCEMENT);
+const UPGRADE_URL=process.env.HOSTED_UPGRADE_URL ?? 'https://cz-agents.dev/pricing.html';
 
 async function main() {
   const ares = new AresClient();
@@ -73,12 +79,31 @@ async function main() {
 
   const tokenDbPath = process.env.TOKEN_DB ?? './tokens.db';
   const tokenStore = new TokenStore(tokenDbPath);
+  const entitlementStore=ENTITLEMENT_MODE==='off'?null:new EntitlementStore(tokenDbPath);
+  const entitlementResolver=entitlementStore?new HostedEntitlementResolver(entitlementStore,{mode:ENTITLEMENT_MODE,
+    upgradeUrl:UPGRADE_URL,cacheTtlMs:Number(process.env.HOSTED_POLICY_CACHE_TTL_MS ?? 30_000)}):null;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   // Build the price→tier map only when the webhook is enabled. Fail-fast: if a
   // required canonical price-id env var is missing, boot aborts with its name
   // rather than silently mapping no prices (= paid checkout, no token minted).
   const billing = webhookSecret ? buildDdBilling() : undefined;
-  const quota = createQuotaGuard({ store: tokenStore, service: 'dd', allowAnonymous: true });
+  const authOnly = createTokenAuthGuard({ store: tokenStore, service: 'dd', allowAnonymous: true });
+  const quota = ENTITLEMENT_MODE==='off'
+    ? createQuotaGuard({ store: tokenStore, service: 'dd', allowAnonymous: true })
+    : authOnly;
+  const authorizeLookup:DdLookupAuthorizer|undefined=entitlementResolver?async(lookup)=>{
+    const context=getHostedRequestContext();
+    if(!context)return {upstreamAllowed:false,error:{error:'policy_unavailable',dimension:'coverage',message:'Hosted account context is unavailable.'}};
+    const decision=entitlementResolver.check({account:context.account,country:lookup.country,requestedDepth:lookup.depth,
+      endpoint:`mcp:${lookup.tool}`,requestId:context.requestId,
+      usageMetric:lookup.depth==='ddplus'?'ddplus_reports_per_month':'requests_per_day'});
+    if(!decision.upstreamAllowed)return {upstreamAllowed:false,error:decision.error,
+      record:(called)=>entitlementResolver.record(decision,called)};
+    const quotaError=consumeForTool(tokenStore,context.account.token);
+    if(quotaError)return {upstreamAllowed:false,error:quotaError,
+      record:(called)=>entitlementResolver.record(decision,called)};
+    return {upstreamAllowed:true,record:(called)=>entitlementResolver.record(decision,called)};
+  }:undefined;
   const ddRestLimiter = createRestRateLimiter({ max: 60, windowMs: 60 * 60 * 1000 });
 
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
@@ -193,7 +218,7 @@ async function main() {
       return;
     }
 
-    if (await handleDdRest(req, res, clients, quota, ddRestLimiter)) return;
+    if (await handleDdRest(req, res, clients, quota, authOnly, ddRestLimiter,entitlementResolver,tokenStore)) return;
 
     if (!req.url?.startsWith(MCP_PATH)) {
       res.writeHead(404);
@@ -247,7 +272,7 @@ async function main() {
       // 'agency' (Agency €199) both unlock pattern detectors; 'agency' adds
       // statutory_chain. Free / unknown tiers see only basic tools.
       const tokenTier = auth.token.tier as string;
-      const ddTier =
+      const ddTier = ENTITLEMENT_MODE!=='off' ? 'agency' as const :
         tokenTier === 'agency' || tokenTier === 're_agency' ? 'agency' as const :
         tokenTier === 'pro' || tokenTier === 're_pro' ? 'compliance' as const :
         tokenTier === 'enterprise' ? 'enterprise' as const :
@@ -255,7 +280,7 @@ async function main() {
       const audit = auth.token.token === '__anonymous__'
         ? undefined
         : { tokenId: auth.token.token, userId: auth.token.stripe_customer_id || undefined };
-      const server = buildDdServer(clients, ddTier, { audit });
+      const server = buildDdServer(clients, ddTier, { audit,authorizeLookup });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         // Allow plain application/json responses for clients (e.g. Anthropic
@@ -279,9 +304,13 @@ async function main() {
     }
 
     const clientIp = getClientIp(req);
+    const hostedContext=entitlementResolver?{account:accountContextFromToken(auth.token,clientIp,
+      process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement'),
+      requestId:(Array.isArray(req.headers['x-request-id'])?req.headers['x-request-id'][0]:req.headers['x-request-id']) ?? randomUUID()}:null;
     setRequestIp(clientIp);
     try {
-      await runWithIp(clientIp, () => transport.handleRequest(req, res));
+      const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res));
+      if(hostedContext)await runWithHostedRequestContext(hostedContext,handle);else await handle();
     } finally {
       clearRequestIp();
     }
@@ -299,7 +328,10 @@ async function handleDdRest(
   res: import('node:http').ServerResponse,
   clients: DdClients,
   quota: ReturnType<typeof createQuotaGuard>,
+  authOnly: ReturnType<typeof createTokenAuthGuard>,
   limiter: ReturnType<typeof createRestRateLimiter>,
+  entitlementResolver:HostedEntitlementResolver|null,
+  tokenStore:TokenStore,
 ): Promise<boolean> {
   if (!req.url) return false;
   const url = new URL(req.url, 'http://localhost');
@@ -312,7 +344,9 @@ async function handleDdRest(
 
   if (!limiter(req, res)) return true;
 
-  const auth = quota(req, res);
+  // The no-upstream entitlement preflight must never consume the legacy report
+  // quota, including while the rollout flag is `off`.
+  const auth = (url.pathname === '/v1/entitlements/check' ? authOnly : quota)(req, res);
   if (!auth.ok) return true;
 
   const isPaid = auth.token.tier !== 'free';
@@ -320,13 +354,30 @@ async function handleDdRest(
 
   await runWithIp(clientIp, async () => {
     try {
+      if(url.pathname==='/v1/entitlements/check') {
+        if(!entitlementResolver) { jsonOk(res,{allowed:true,mode:'off'},'dd');return; }
+        const country=url.searchParams.get('country') ?? 'CZ';
+        const requested=url.searchParams.get('depth')==='ddplus'?'ddplus' as const:'basic' as const;
+        const account=accountContextFromToken(auth.token,clientIp,
+          process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement');
+        const decision=entitlementResolver.check({account,country,requestedDepth:requested,
+          endpoint:'rest:entitlement_check',requestId:randomUUID()});
+        entitlementResolver.record(decision,false);
+        if(!decision.upstreamAllowed){writeRestAccessError(res,decision.error);return;}
+        jsonOk(res,{allowed:true,mode:decision.mode,would_gate:decision.wouldGate,country:decision.country,
+          country_group:decision.countryGroup,coverage_tier:decision.coverageTier,depth_tier:decision.depthTier,
+          policy_version:decision.policyVersion,source:decision.source},'dd');return;
+      }
       // GET /v1/dd/{ico}
       const ddMatch = url.pathname.match(/^\/v1\/dd\/([0-9]{7,8})$/);
       if (ddMatch) {
         const ico = parseIco(req, res);
         if (!ico) return;
         const depth = isPaid ? 'full' : 'basic';
-        const report = await buildReport(ico, clients, { depth });
+        const access=restAccess(entitlementResolver,tokenStore,auth.token,'CZ',depth==='full'?'ddplus':'basic','rest:get_dd_report',req);
+        if(!access.allowed){writeRestAccessError(res,access.error);return;}
+        let report;
+        try{report = await buildReport(ico, clients, { depth });}finally{access.record?.(true);}
         jsonOk(res, report, 'dd');
         return;
       }
@@ -336,7 +387,10 @@ async function handleDdRest(
       if (riskMatch) {
         const ico = parseIco(req, res);
         if (!ico) return;
-        const report = await buildReport(ico, clients, { depth: 'basic' });
+        const access=restAccess(entitlementResolver,tokenStore,auth.token,'CZ','ddplus','rest:get_risk_score',req);
+        if(!access.allowed){writeRestAccessError(res,access.error);return;}
+        let report;
+        try{report=await buildReport(ico,clients,{depth:'basic'});}finally{access.record?.(true);}
         const top = report.red_flags.slice().sort((a: { weight: number }, b: { weight: number }) => b.weight - a.weight).slice(0, 5);
         jsonOk(res, {
           ico,
@@ -358,6 +412,35 @@ async function handleDdRest(
   });
 
   return true;
+}
+
+function consumeForTool(store:TokenStore,token:import('@czagents/shared').TokenRecord|null):unknown|null {
+  if(!token||token.token==='__anonymous__')return null;
+  try{store.consume(token.token);return null;}catch(error){
+    const code=error instanceof Error?error.message:'UNKNOWN';
+    if(code==='QUOTA_EXCEEDED')return {error:'quota_exceeded',dimension:'usage',message:'Monthly quota exceeded.',upgrade_url:UPGRADE_URL};
+    if(code==='CREDITS_EXHAUSTED')return {error:'credits_exhausted',dimension:'usage',message:'No report credits remain.',upgrade_url:UPGRADE_URL};
+    if(code==='TRIAL_EXPIRED')return {error:'trial_expired',dimension:'usage',message:'Trial entitlement expired.',upgrade_url:UPGRADE_URL};
+    return {error:'unauthorized',dimension:'usage',message:'Token is no longer valid.'};
+  }
+}
+
+function restAccess(resolver:HostedEntitlementResolver|null,store:TokenStore,token:import('@czagents/shared').TokenRecord,
+  country:string,depth:'basic'|'ddplus',endpoint:string,req:import('node:http').IncomingMessage):{allowed:boolean;error?:unknown;record?:(called:boolean)=>void} {
+  if(!resolver)return {allowed:true};
+  const ip=getRestIp(req);const account=accountContextFromToken(token,ip,
+    process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement');
+  const decision=resolver.check({account,country,requestedDepth:depth,endpoint,requestId:randomUUID(),
+    usageMetric:depth==='ddplus'?'ddplus_reports_per_month':'requests_per_day'});
+  if(!decision.upstreamAllowed){resolver.record(decision,false);return {allowed:false,error:decision.error};}
+  const quotaError=consumeForTool(store,token);
+  if(quotaError){resolver.record(decision,false);return {allowed:false,error:quotaError};}
+  return {allowed:true,record:(called)=>resolver.record(decision,called)};
+}
+function writeRestAccessError(res:import('node:http').ServerResponse,error:unknown):void {
+  const body=(error&&typeof error==='object')?error:{error:'access_denied',message:'Access denied.'};
+  const code=(body as {error?:string}).error;const status=code==='quota_exceeded'?429:code==='invalid_country'?400:code==='policy_unavailable'?503:402;
+  res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(body));
 }
 
 
