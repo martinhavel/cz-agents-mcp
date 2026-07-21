@@ -362,7 +362,9 @@ async function handleDdRest(
           process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement');
         const decision=entitlementResolver.check({account,country,requestedDepth:requested,
           endpoint:'rest:entitlement_check',requestId:randomUUID()});
-        entitlementResolver.record(decision,false);
+        // This is a self-check probe ("would I be allowed"), not a real attempt at
+        // the gated action — never count it toward the upgrade_cta funnel metric.
+        entitlementResolver.record(decision,false,{isProbe:true});
         if(!decision.upstreamAllowed){writeRestAccessError(res,decision.error);return;}
         jsonOk(res,{allowed:true,mode:decision.mode,would_gate:decision.wouldGate,country:decision.country,
           country_group:decision.countryGroup,coverage_tier:decision.coverageTier,depth_tier:decision.depthTier,

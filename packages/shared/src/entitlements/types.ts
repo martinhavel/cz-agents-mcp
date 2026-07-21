@@ -62,6 +62,16 @@ export interface TierRequiredError {
   country_group?: CoverageGroup;
   upgrade_url: string;
   message: string;
+  /**
+   * What the paid tier concretely unlocks, so an agent relaying this error can
+   * tell the user what they'd get — never a price (prices live on the pricing
+   * page, not in this contract).
+   *   - dimension 'coverage': ISO country codes in the Extended group (from the
+   *     live policy snapshot, not hardcoded — countries can be added/removed
+   *     without a code change).
+   *   - dimension 'depth': ddplus tool/capability names (static list).
+   */
+  available_in_tier: string[];
 }
 
 export interface EntitlementDecision {

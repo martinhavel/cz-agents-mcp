@@ -12,6 +12,19 @@ const SOURCE_PRIORITY: Record<EntitlementSource, number> = {
   plan: 0, trial: 1, grandfathered: 2, promotion: 3, manual: 4,
 };
 
+// What DD+ (paid depth tier) concretely unlocks. Single source of truth for the
+// `available_in_tier` field on depth-gated `tier_required` errors — tool names
+// only (no pricing, no scoring/heuristic detail), matching the public ddplus
+// connector's own tool list.
+export const DDPLUS_CAPABILITIES: readonly string[] = [
+  'get_dd_report_plus', 'assess_person_risk', 'detect_nominee_director_rich',
+  'detect_phoenix_rich', 'detect_address_crowding_rich', 'get_risk_timeline_rich',
+  'analyze_linked_entities_risk', 'get_or_ownership', 'get_ownership_network_full',
+  'get_eu_parent', 'monitor_company', 'list_monitored_companies', 'scan_watchlist',
+  'add_to_watchlist', 'remove_from_watchlist', 'list_watchlist', 'bulk_lookup',
+  'check_bulk_ico_insolvency',
+];
+
 export class HostedEntitlementResolver {
   private snapshot: CountryPolicySnapshot | null = null;
   private lastRefreshAttempt = 0;
@@ -39,16 +52,22 @@ export class HostedEntitlementResolver {
     const allowedOverride = !denied && overrides.some((row) => row.effect === 'allow');
     const coverageAllowed = !denied && (allowedOverride || policy.coverageGroup === 'core' || effective.coverageTier === 'extended');
     if (!coverageAllowed) {
+      const extendedCountries = [...snapshot.countries.values()]
+        .filter((c) => c.enabled && c.coverageGroup === 'extended')
+        .map((c) => c.countryCode)
+        .sort();
       const error: TierRequiredError = { error:'tier_required',dimension:'coverage',required_tier:'extended',
         country:normalized.country,country_group:policy.coverageGroup,upgrade_url:this.options.upgradeUrl,
-        message:`Extended European coverage is required for ${countryDisplayName(normalized.country)}.` };
+        message:`Extended European coverage unlocks lookups for ${countryDisplayName(normalized.country)} and the rest of the Extended country group — activate it at ${this.options.upgradeUrl}.`,
+        available_in_tier:extendedCountries };
       return this.gated(input,effective,normalized.country,policy.coverageGroup,snapshot.version,'coverage','extended',error);
     }
 
     if ((input.requestedDepth ?? 'basic') === 'ddplus' && effective.depthTier !== 'ddplus') {
       const error: TierRequiredError = { error:'tier_required',dimension:'depth',required_tier:'ddplus',
         country:normalized.country,upgrade_url:this.options.upgradeUrl,
-        message:`DD+ is required for advanced analysis in ${normalized.country}.` };
+        message:`DD+ unlocks deeper due-diligence tools (ownership network, nominee/phoenix pattern detection, risk timeline) for ${countryDisplayName(normalized.country)} — activate it at ${this.options.upgradeUrl}.`,
+        available_in_tier:[...DDPLUS_CAPABILITIES] };
       return this.gated(input,effective,normalized.country,policy.coverageGroup,snapshot.version,'depth','ddplus',error);
     }
 
@@ -68,7 +87,16 @@ export class HostedEntitlementResolver {
     return decision;
   }
 
-  record(decision: EntitlementDecision, upstreamCalled: boolean): void {
+  /**
+   * @param options.isProbe - Set for callers that only ask "would I be allowed"
+   *   (e.g. the `/v1/entitlements/check` self-check REST endpoint) without the
+   *   caller ever attempting the gated action itself. Such calls still record
+   *   an `entitlement_check` event (so per-country demand signal stays intact)
+   *   but must never emit an `upgrade_cta` event — that counter tracks real
+   *   users hitting a paywall on an actual attempted action, and a probe endpoint
+   *   called on every page load/tool discovery would silently inflate it.
+   */
+  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean }): void {
     const event: EntitlementEventInput = { accountPseudonym:decision.accountPseudonym,country:decision.country,
       countryGroup:decision.countryGroup,coverageTier:decision.coverageTier,depthTier:decision.depthTier,
       decision:decision.decision,dimension:decision.dimension,requiredTier:decision.requiredTier,
@@ -76,7 +104,7 @@ export class HostedEntitlementResolver {
       upstreamCalled,upstreamAvoided:!upstreamCalled && decision.wouldGate,endpoint:decision.endpoint,
       requestId:decision.requestId };
     this.store.recordEvent(event);
-    if(!upstreamCalled && decision.error?.error==='tier_required') {
+    if(!options?.isProbe && !upstreamCalled && decision.error?.error==='tier_required') {
       this.store.recordEvent({...event,eventKind:'upgrade_cta',upstreamAvoided:false});
     }
   }

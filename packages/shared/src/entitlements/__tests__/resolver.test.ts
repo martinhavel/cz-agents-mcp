@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { normalizeCountry } from '../country.js';
-import { HostedEntitlementResolver, accountContextFromToken } from '../resolver.js';
+import { HostedEntitlementResolver, accountContextFromToken, DDPLUS_CAPABILITIES } from '../resolver.js';
 import { EntitlementStore } from '../store.js';
 import type { HostedAccountContext } from '../types.js';
 import type { TokenRecord } from '../../billing/types.js';
@@ -112,6 +112,41 @@ describe('hosted entitlement resolver', () => {
       country:'DE',unique_accounts:1,requests:1,gated:1,upgrade_ctas:1,upstream_avoided:1,
     });
     expect(JSON.stringify(store.intentReport(Date.now()-1_000))).not.toContain(core().accountId);
+  });
+
+  it('a probe check (would-I-be-allowed, no real attempt) never emits an upgrade_cta',()=>{
+    // Mirrors packages/dd/src/http.ts rest:entitlement_check: it calls record()
+    // with isProbe so the self-check endpoint doesn't inflate the CTA funnel.
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test'});
+    const decision=check(resolver,core(),'DE');
+    resolver.record(decision,false,{isProbe:true});
+
+    expect(store.intentReport(Date.now()-1_000)).toContainEqual({
+      country:'DE',unique_accounts:1,requests:1,gated:1,upgrade_ctas:0,upstream_avoided:1,
+    });
+  });
+
+  it('tier_required errors list what the paid tier unlocks, with no pricing',()=>{
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test/upgrade'});
+
+    const coverageError=check(resolver,core(),'DE').error as import('../types.js').TierRequiredError;
+    expect(coverageError.available_in_tier).toContain('DE');
+    expect(coverageError.available_in_tier).not.toContain('BE'); // disabled in current policy: not actually available
+    expect(coverageError.available_in_tier).toEqual([...coverageError.available_in_tier].sort());
+    expect(coverageError.message).not.toMatch(/€|\$|eur\b|usd\b|\/\s?mo\b/i);
+    expect(coverageError.upgrade_url).toBe('https://example.test/upgrade');
+
+    const depthError=check(resolver,core(),'CZ','ddplus').error as import('../types.js').TierRequiredError;
+    expect(depthError.available_in_tier).toEqual([...DDPLUS_CAPABILITIES]);
+    expect(depthError.message).not.toMatch(/€|\$|eur\b|usd\b|\/\s?mo\b/i);
+    expect(depthError.upgrade_url).toBe('https://example.test/upgrade');
+  });
+
+  it('coverage available_in_tier reflects live policy changes without redeploy',()=>{
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test',cacheTtlMs:0});
+    expect((check(resolver,core(),'DE').error as import('../types.js').TierRequiredError).available_in_tier).not.toContain('BE');
+    store.setCountryPolicy({countryCode:'BE',coverageGroup:'extended',enabled:true,aliases:['Belgium'],actor:'test',changeSource:'unit'});
+    expect((check(resolver,core(),'DE').error as import('../types.js').TierRequiredError).available_in_tier).toContain('BE');
   });
 
   it('fails closed when no valid policy snapshot exists',()=>{
