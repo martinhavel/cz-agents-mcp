@@ -1,6 +1,6 @@
 # @czagents/eu-registry
 
-European business registry lookups in one MCP — verify companies across 15 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 9 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
+European business registry lookups in one MCP — verify companies across 16 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 9 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
 
 Part of the [cz-agents](https://cz-agents.dev) suite.
 
