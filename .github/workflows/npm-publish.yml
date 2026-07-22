@@ -83,23 +83,6 @@ jobs:
           node-version: "22" # trusted publishing requires Node >= 22.14.0
           registry-url: "https://registry.npmjs.org"
 
-      - name: Ensure npm CLI supports trusted publishing (>= 11.5.1)
-        run: |
-          npm install -g npm@latest
-          NPM_VERSION=$(npm --version)
-          echo "npm CLI version: $NPM_VERSION"
-          node -e '
-            const [major, minor, patch] = process.argv[1].split(".").map(Number);
-            const min = [11, 5, 1];
-            const ok = major > min[0]
-              || (major === min[0] && minor > min[1])
-              || (major === min[0] && minor === min[1] && patch >= min[2]);
-            process.exit(ok ? 0 : 1);
-          ' "$NPM_VERSION" || {
-            echo "::error::npm CLI $NPM_VERSION is older than the 11.5.1 minimum required for trusted publishing (OIDC)."
-            exit 1
-          }
-
       - name: Resolve target package
         id: pkg
         env:
@@ -153,6 +136,30 @@ jobs:
             exit 1
           fi
           echo "$PKG_NAME@$PKG_VERSION is not on npm yet -- OK to publish."
+
+      - name: Ensure npm CLI supports trusted publishing (>= 11.5.1)
+        # Deliberately AFTER install/build/test. Upgrading the global npm before
+        # `npm ci` breaks native module installation on the runner: better-sqlite3
+        # ends up without its compiled binding and every test touching TokenStore
+        # fails with "Could not locate the bindings file" (seen 2026-07-22).
+        # ci.yml installs and tests with the runner's stock npm and passes, so we
+        # do the same here and only upgrade for the publish step itself, which is
+        # the only place the >= 11.5.1 OIDC support is actually required.
+        run: |
+          npm install -g npm@latest
+          NPM_VERSION=$(npm --version)
+          echo "npm CLI version: $NPM_VERSION"
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            const min = [11, 5, 1];
+            const ok = major > min[0]
+              || (major === min[0] && minor > min[1])
+              || (major === min[0] && minor === min[1] && patch >= min[2]);
+            process.exit(ok ? 0 : 1);
+          ' "$NPM_VERSION" || {
+            echo "::error::npm CLI $NPM_VERSION is older than the 11.5.1 minimum required for trusted publishing (OIDC)."
+            exit 1
+          }
 
       - name: Publish (dry run)
         if: github.event.inputs.dry_run == 'true'
