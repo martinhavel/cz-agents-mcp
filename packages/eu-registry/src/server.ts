@@ -34,7 +34,7 @@ export interface RegistryLookupAccess {
   upstreamAllowed: boolean;
   country?: string;
   error?: unknown;
-  record?: (upstreamCalled:boolean, options?: { ctaSuppressed?: boolean })=>void;
+  record?: (upstreamCalled:boolean, options?: { ctaSuppressed?: boolean; ctaFanout?: boolean })=>void;
 }
 
 export type RegistryLookupAuthorizer = (request:RegistryLookupRequest)=>RegistryLookupAccess|Promise<RegistryLookupAccess>;
@@ -112,12 +112,18 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       }
       // Fanning out across every non-selected country adapter: each denied adapter still
       // gets its own entitlement_check/upstream_avoided event (per-country demand signal),
-      // but the user sees one response with one combined coverage_preview — so only the
-      // first denial should surface as an upgrade_cta, not one per blocked country.
+      // but the user sees one response with one combined coverage_preview — so exactly one
+      // representative CTA should surface for the whole call, not one per blocked country.
+      // (This loop only ever runs for the true fanout case — a single requested country
+      // either has no denials to iterate, since the sole denial path returns earlier via
+      // `if (normalizedCountry && allowed.length===0)`, above.) That one CTA is emitted as
+      // `upgrade_cta_fanout` (country: null) rather than `upgrade_cta`, because attributing
+      // it to whichever country is first in adapter-registration order would be a
+      // measurement artifact, not a fact about which country users actually want.
       let ctaEmitted = false;
       for (const item of access) {
         if (item.decision.upstreamAllowed) continue;
-        item.decision.record?.(false, ctaEmitted ? { ctaSuppressed: true } : undefined);
+        item.decision.record?.(false, ctaEmitted ? { ctaSuppressed: true } : { ctaFanout: true });
         ctaEmitted = true;
       }
       const results = await Promise.all(allowed.map(async ({adapter,decision}) => {

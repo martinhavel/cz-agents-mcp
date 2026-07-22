@@ -327,6 +327,24 @@ export class EntitlementStore {
       WHERE timestamp >= ? AND country IS NOT NULL GROUP BY country ORDER BY gated DESC,requests DESC`)
       .all(since) as Array<{country:string;unique_accounts:number;requests:number;gated:number;upgrade_ctas:number;upstream_avoided:number}>;
   }
+
+  /**
+   * Count of `upgrade_cta_fanout` events — the single representative CTA a
+   * multi-country `search_company` fanout call emits (see
+   * `HostedEntitlementResolver.record`'s `ctaFanout` option). These events
+   * carry `country: null` by design (attributing the fanout's one CTA to
+   * whichever adapter happens to be first in registration order would be a
+   * measurement artifact, not demand), so `intentReport()` — which groups by
+   * country and filters `country IS NOT NULL` — never sees them. Reported as
+   * a sibling figure here instead of folding it into `upgrade_ctas` on any
+   * country row, so the funnel is visible without contaminating per-country
+   * attribution.
+   */
+  intentReportFanoutCtas(since: number): number {
+    const row = this.db.prepare(`SELECT COUNT(*) count FROM entitlement_events
+      WHERE timestamp >= ? AND event_kind = 'upgrade_cta_fanout'`).get(since) as { count: number };
+    return row.count;
+  }
 }
 
 function parseStringArray(json: string, label: string): string[] {

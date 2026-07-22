@@ -144,5 +144,5 @@ export interface EntitlementEventInput {
   upstreamAvoided: boolean;
   endpoint: string;
   requestId: string;
-  eventKind?: 'entitlement_check' | 'upgrade_cta' | 'conversion';
+  eventKind?: 'entitlement_check' | 'upgrade_cta' | 'upgrade_cta_fanout' | 'conversion';
 }

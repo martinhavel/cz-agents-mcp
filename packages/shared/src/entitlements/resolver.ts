@@ -95,16 +95,25 @@ export class HostedEntitlementResolver {
    *   but must never emit an `upgrade_cta` event — that counter tracks real
    *   users hitting a paywall on an actual attempted action, and a probe endpoint
    *   called on every page load/tool discovery would silently inflate it.
-   * @param options.ctaSuppressed - Set for one gated decision out of several
-   *   that all belong to the *same* user-facing call (e.g. `search_company`
-   *   fanning out across every non-core country adapter when called without a
-   *   `country` filter). Every denied adapter still records its own
+   * @param options.ctaSuppressed - Set for a gated decision that belongs to a
+   *   multi-country fanout call (e.g. `search_company` fanning out across
+   *   every non-core country adapter when called without a `country` filter)
+   *   but is not the one representative CTA for that fanout — see
+   *   `ctaFanout` below. Every denied adapter still records its own
    *   `entitlement_check` event with `upstreamAvoided:true` — that per-country
-   *   demand/savings signal must stay intact — but only one of them should
-   *   surface as `upgrade_cta`, because the user sees a single response with
-   *   one combined `coverage_preview`, not N separate paywall hits.
+   *   demand/savings signal must stay intact — but this decision emits no
+   *   CTA event at all, because `ctaFanout` already covers the call.
+   * @param options.ctaFanout - Set for exactly one gated decision representing
+   *   a whole multi-country fanout call. The user sees a single response with
+   *   one combined `coverage_preview` covering every blocked country, not N
+   *   separate paywall hits — attributing that one CTA to whichever country
+   *   happened to be first in adapter-registration order (e.g. always Italy)
+   *   would be a measurement artifact, not a fact about demand. So this emits
+   *   a distinct `upgrade_cta_fanout` event with `country: null` instead of
+   *   `upgrade_cta`: it is counted (see `EntitlementStore.intentReportFanoutCtas`)
+   *   without polluting any single country's `upgrade_ctas` figure.
    */
-  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean; ctaSuppressed?: boolean }): void {
+  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean; ctaSuppressed?: boolean; ctaFanout?: boolean }): void {
     const event: EntitlementEventInput = { accountPseudonym:decision.accountPseudonym,country:decision.country,
       countryGroup:decision.countryGroup,coverageTier:decision.coverageTier,depthTier:decision.depthTier,
       decision:decision.decision,dimension:decision.dimension,requiredTier:decision.requiredTier,
@@ -112,7 +121,10 @@ export class HostedEntitlementResolver {
       upstreamCalled,upstreamAvoided:!upstreamCalled && decision.wouldGate,endpoint:decision.endpoint,
       requestId:decision.requestId };
     this.store.recordEvent(event);
-    if(!options?.isProbe && !options?.ctaSuppressed && !upstreamCalled && decision.error?.error==='tier_required') {
+    if(options?.isProbe || upstreamCalled || decision.error?.error!=='tier_required') return;
+    if(options?.ctaFanout) {
+      this.store.recordEvent({...event,eventKind:'upgrade_cta_fanout',country:null,countryGroup:null,upstreamAvoided:false});
+    } else if(!options?.ctaSuppressed) {
       this.store.recordEvent({...event,eventKind:'upgrade_cta',upstreamAvoided:false});
     }
   }

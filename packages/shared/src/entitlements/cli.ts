@@ -49,7 +49,9 @@ function main(argv = process.argv.slice(2)): void {
     if (command === 'report') {
       const days=Number(values.get('days') ?? '30');
       if (!Number.isFinite(days)||days<=0) fail('days must be positive');
-      console.log(JSON.stringify({since_days:days,countries:store.intentReport(Date.now()-days*86_400_000)},null,2));
+      const since=Date.now()-days*86_400_000;
+      console.log(JSON.stringify({since_days:days,countries:store.intentReport(since),
+        fanout_upgrade_ctas:store.intentReportFanoutCtas(since)},null,2));
       return;
     }
     fail('command must be seed, set-country, grant, override-country, or report');
