@@ -1,0 +1,184 @@
+name: npm Publish (Trusted Publishing)
+
+# Manual, one-package-at-a-time npm publish using npm Trusted Publishing (OIDC).
+# No npm token anywhere in this workflow: authentication is a short-lived OIDC
+# token exchanged between GitHub Actions and the npm registry at publish time.
+#
+# This workflow is deliberately separate from CI (ci.yml) and from
+# publish-registry.yml (which syncs packages/*/server.json to the MCP
+# Registry on tag push / dispatch and explicitly does NOT publish to npm).
+# It never runs automatically -- only on manual dispatch, one package at a
+# time, so a version bump never accidentally triggers a publish.
+#
+# Requirements (verified against https://docs.npmjs.com/trusted-publishers
+# and the GitHub Changelog announcement, 2026-07-22):
+#   - npm CLI >= 11.5.1 and Node >= 22.14.0 (enforced below; the workflow
+#     upgrades npm itself and fails fast with a clear message if that fails).
+#   - `permissions: id-token: write` at workflow (or job) level.
+#   - `registry-url` set via actions/setup-node so npm knows where to
+#     exchange the OIDC token.
+#   - Provenance is generated automatically by npm when trusted publishing is
+#     used from GitHub Actions -- no extra flag needed.
+#   - A GitHub "environment" is optional on both the npm side and here; this
+#     workflow does not use one (see one-time setup notes below). Adding one
+#     later means updating the npm trusted-publisher config AND this file
+#     together, since the OIDC claims must match on both sides.
+#
+# One-time setup per package on npmjs.com (repeat for each @czagents/* package
+# before its first trusted-publishing run):
+#   1. https://www.npmjs.com/package/<name>/access (or Settings on a package
+#      that doesn't exist on npm yet -- first publish must then happen once
+#      the classic way, or via `npm publish` locally, before a trusted
+#      publisher can be attached).
+#   2. "Trusted Publisher" section -> "GitHub Actions".
+#   3. Organization or user: the GitHub owner of this repo.
+#   4. Repository: this repository's name.
+#   5. Workflow filename: npm-publish.yml (must match this file's name
+#      exactly -- not the full path).
+#   6. Environment name: leave blank (this workflow sets none).
+#   7. Save. No token, no secret is created or needed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Workspace package to publish (packages/<name>)"
+        type: choice
+        required: true
+        options:
+          - adis
+          - ares
+          - cnb
+          - dd
+          - eu-registry
+          - isir
+          - payqr
+          - realestate
+          - sanctions
+          - shared
+      dry_run:
+        description: "Dry run only (npm publish --dry-run) -- nothing is published to npm"
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # required for npm OIDC trusted publishing
+
+concurrency:
+  group: npm-publish-${{ github.event.inputs.package }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22" # trusted publishing requires Node >= 22.14.0
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Ensure npm CLI supports trusted publishing (>= 11.5.1)
+        run: |
+          npm install -g npm@latest
+          NPM_VERSION=$(npm --version)
+          echo "npm CLI version: $NPM_VERSION"
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            const min = [11, 5, 1];
+            const ok = major > min[0]
+              || (major === min[0] && minor > min[1])
+              || (major === min[0] && minor === min[1] && patch >= min[2]);
+            process.exit(ok ? 0 : 1);
+          ' "$NPM_VERSION" || {
+            echo "::error::npm CLI $NPM_VERSION is older than the 11.5.1 minimum required for trusted publishing (OIDC)."
+            exit 1
+          }
+
+      - name: Resolve target package
+        id: pkg
+        env:
+          PKG_INPUT: ${{ github.event.inputs.package }}
+        run: |
+          PKG_DIR="packages/$PKG_INPUT"
+          if [ ! -f "$PKG_DIR/package.json" ]; then
+            echo "::error::No package.json found at $PKG_DIR"
+            exit 1
+          fi
+          PKG_NAME=$(node -pe "require('./$PKG_DIR/package.json').name")
+          PKG_VERSION=$(node -pe "require('./$PKG_DIR/package.json').version")
+          echo "name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$PKG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "dir=$PKG_DIR" >> "$GITHUB_OUTPUT"
+          echo "Resolved $PKG_NAME@$PKG_VERSION at $PKG_DIR"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        # @czagents/dd depends on other local workspace packages (adis, ares,
+        # isir, sanctions) beyond shared, so building only the target package
+        # is not enough -- use the same full build the root package.json /
+        # CI already run, in the same dependency order.
+        run: npm run build
+
+      - name: Build target package (explicit, in case it's not in the root build chain)
+        # The root "build" script above does not currently list every
+        # workspace (e.g. @czagents/payqr is missing from it). Re-running the
+        # target package's own build script here is a safe no-op for
+        # packages already built above, and a required step for any package
+        # the root script doesn't cover.
+        env:
+          PKG_NAME: ${{ steps.pkg.outputs.name }}
+        run: npm run build --workspace="$PKG_NAME"
+
+      - name: Test target package
+        env:
+          PKG_NAME: ${{ steps.pkg.outputs.name }}
+        run: npm test --workspace="$PKG_NAME" --if-present
+
+      - name: Check version is not already on npm
+        env:
+          PKG_NAME: ${{ steps.pkg.outputs.name }}
+          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+          PKG_DIR: ${{ steps.pkg.outputs.dir }}
+        run: |
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "::error::$PKG_NAME@$PKG_VERSION is already published on npm. Bump the version in $PKG_DIR/package.json before running this workflow again."
+            exit 1
+          fi
+          echo "$PKG_NAME@$PKG_VERSION is not on npm yet -- OK to publish."
+
+      - name: Publish (dry run)
+        if: github.event.inputs.dry_run == 'true'
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: npm publish --access public --dry-run
+
+      - name: Publish
+        if: github.event.inputs.dry_run == 'false'
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: npm publish --access public
+
+      - name: Summary
+        if: always()
+        env:
+          PKG_NAME: ${{ steps.pkg.outputs.name }}
+          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          MODE="real publish"
+          if [ "$DRY_RUN" = "true" ]; then
+            MODE="dry run (nothing published)"
+          fi
+          {
+            echo "### npm publish -- ${PKG_NAME}@${PKG_VERSION}"
+            echo ""
+            echo "- Mode: $MODE"
+            echo "- Result: $JOB_STATUS"
+          } >> "$GITHUB_STEP_SUMMARY"
