@@ -1,6 +1,6 @@
 # @czagents/eu-registry
 
-European business registry lookups in one MCP — verify companies across 13 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 9 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
+European business registry lookups in one MCP — verify companies across 15 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 9 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
 
 Part of the [cz-agents](https://cz-agents.dev) suite.
 
@@ -29,11 +29,13 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | IT | GLEIF/LEI + VIES | No auth required |
 | AT | GLEIF/LEI + VIES | No auth required |
 | ES | GLEIF/LEI + VIES | VIES returns validity only for ES (no name/address) |
+| BE | GLEIF/LEI + VIES | No auth required |
+| LT | GLEIF/LEI + VIES | No auth required |
 
 ## Tools
 
 - `search_company(name, country?, limit?)` — search by company name across all or a single country. `country` is ISO 3166-1 alpha-2 (e.g. `"gb"`). Default limit 10, max 20.
-- `get_company(id, country)` — fetch a company by national ID (CRN for GB, IČO for SK, KRS number for PL, SIREN for FR, org.nr for NO, CVR number for DK, Business ID for FI, registry code for EE, Swedish organisation number for SE, LEI for DE/NL, VAT for IT/AT/ES/NL).
+- `get_company(id, country)` — fetch a company by national ID (CRN for GB, IČO for SK, KRS number for PL, SIREN for FR, org.nr for NO, CVR number for DK, Business ID for FI, registry code for EE, Swedish organisation number for SE, LEI for DE/NL, VAT for IT/AT/ES/NL/BE/LT).
 - `lookup_company_by_vat(vat)` — free EU VAT validation via VIES; returns validity plus registered name/address where the member state discloses them (ES/DE return validity only).
 
 ## Configuration
@@ -41,7 +43,7 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `CH_API_KEY` | No | UK Companies House API key. Without it GB adapter returns empty results. |
-| `GLEIF_CACHE_PATH` | No | Path to SQLite cache file for GLEIF responses (DE/NL/IT/AT/ES). Falls back to in-memory if unset. |
+| `GLEIF_CACHE_PATH` | No | Path to SQLite cache file for GLEIF responses (DE/NL/IT/AT/ES/BE/LT). Falls back to in-memory if unset. |
 | `GLEIF_CACHE_TTL_DAYS` | No | Cache TTL in days. Default: 7. |
 | `DK_CVR_USER` / `DK_CVR_PASS` | No | Denmark CVR data credentials (free, request at cvrselvbetjening@erst.dk). Without them the DK adapter uses its public fallback. |
 | `EE_RIK_DB_PATH` | No | Path to SQLite store for Estonia RIK bulk data. Default: `./ee-rik.db`. |
