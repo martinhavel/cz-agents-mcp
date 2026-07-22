@@ -1,20 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "dev.cz-agents/dd",
-  "description": "Czech & EU due diligence in one call \u2014 facts, insolvency, sanctions, VAT, risk score, UBO chain.",
+  "description": "Czech & EU due diligence in one call — facts, insolvency, sanctions, VAT, risk score, UBO chain.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",
     "source": "github",
     "subfolder": "packages/dd"
   },
-  "version": "0.3.6",
+  "version": "0.3.7",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/dd",
-      "version": "0.3.3",
+      "version": "0.3.7",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
