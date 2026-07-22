@@ -95,8 +95,16 @@ export class HostedEntitlementResolver {
    *   but must never emit an `upgrade_cta` event — that counter tracks real
    *   users hitting a paywall on an actual attempted action, and a probe endpoint
    *   called on every page load/tool discovery would silently inflate it.
+   * @param options.ctaSuppressed - Set for one gated decision out of several
+   *   that all belong to the *same* user-facing call (e.g. `search_company`
+   *   fanning out across every non-core country adapter when called without a
+   *   `country` filter). Every denied adapter still records its own
+   *   `entitlement_check` event with `upstreamAvoided:true` — that per-country
+   *   demand/savings signal must stay intact — but only one of them should
+   *   surface as `upgrade_cta`, because the user sees a single response with
+   *   one combined `coverage_preview`, not N separate paywall hits.
    */
-  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean }): void {
+  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean; ctaSuppressed?: boolean }): void {
     const event: EntitlementEventInput = { accountPseudonym:decision.accountPseudonym,country:decision.country,
       countryGroup:decision.countryGroup,coverageTier:decision.coverageTier,depthTier:decision.depthTier,
       decision:decision.decision,dimension:decision.dimension,requiredTier:decision.requiredTier,
@@ -104,7 +112,7 @@ export class HostedEntitlementResolver {
       upstreamCalled,upstreamAvoided:!upstreamCalled && decision.wouldGate,endpoint:decision.endpoint,
       requestId:decision.requestId };
     this.store.recordEvent(event);
-    if(!options?.isProbe && !upstreamCalled && decision.error?.error==='tier_required') {
+    if(!options?.isProbe && !options?.ctaSuppressed && !upstreamCalled && decision.error?.error==='tier_required') {
       this.store.recordEvent({...event,eventKind:'upgrade_cta',upstreamAvoided:false});
     }
   }

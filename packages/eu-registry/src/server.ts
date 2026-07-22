@@ -34,7 +34,7 @@ export interface RegistryLookupAccess {
   upstreamAllowed: boolean;
   country?: string;
   error?: unknown;
-  record?: (upstreamCalled:boolean)=>void;
+  record?: (upstreamCalled:boolean, options?: { ctaSuppressed?: boolean })=>void;
 }
 
 export type RegistryLookupAuthorizer = (request:RegistryLookupRequest)=>RegistryLookupAccess|Promise<RegistryLookupAccess>;
@@ -108,7 +108,16 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       if (normalizedCountry && allowed.length===0) {
         const denied=access[0]!.decision; denied.record?.(false); return accessErrorResult(denied.error);
       }
-      for(const item of access) if(!item.decision.upstreamAllowed) item.decision.record?.(false);
+      // Fanning out across every non-selected country adapter: each denied adapter still
+      // gets its own entitlement_check/upstream_avoided event (per-country demand signal),
+      // but the user sees one response with one combined coverage_preview — so only the
+      // first denial should surface as an upgrade_cta, not one per blocked country.
+      let ctaEmitted = false;
+      for (const item of access) {
+        if (item.decision.upstreamAllowed) continue;
+        item.decision.record?.(false, ctaEmitted ? { ctaSuppressed: true } : undefined);
+        ctaEmitted = true;
+      }
       const results = await Promise.all(allowed.map(async ({adapter,decision}) => {
         try { return await adapter.searchByName(name,cappedLimit); }
         finally { decision.record?.(true); }

@@ -95,7 +95,7 @@ async function main() {
     const decision=entitlementResolver.check({account:context.account,country:lookup.country,
       requestedDepth:lookup.depth,endpoint:`mcp:${lookup.tool}`,requestId:context.requestId});
     return {upstreamAllowed:decision.upstreamAllowed,country:decision.country?.toLowerCase(),error:decision.error,
-      record:(upstreamCalled)=>entitlementResolver.record(decision,upstreamCalled)};
+      record:(upstreamCalled,options)=>entitlementResolver.record(decision,upstreamCalled,options)};
   } : undefined;
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
   const restLimiter = createRestRateLimiter();
