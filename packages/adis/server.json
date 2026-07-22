@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.cz-agents/adis",
   "description": "Czech VAT-payer reliability (ADIS / nespolehliv\u00fd pl\u00e1tce DPH) + registered bank accounts by DI\u010c.",
   "status": "active",

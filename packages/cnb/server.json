@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.cz-agents/cnb",
   "description": "Official \u010cNB exchange rates \u2014 daily & historical CZK vs EUR, USD, 30+ currencies. For accounting.",
   "status": "active",

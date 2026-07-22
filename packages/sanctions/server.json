@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.cz-agents/sanctions",
   "description": "Sanctions screening for KYC/AML \u2014 EU FSF + OFAC SDN checks for Czech companies & individuals.",
   "status": "active",

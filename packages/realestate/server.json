@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.cz-agents/realestate",
   "description": "Czech distressed real estate \u2014 anonymized district aggregates (k\u22655, ISIR + dra\u017eby). Free tier.",
   "status": "active",
