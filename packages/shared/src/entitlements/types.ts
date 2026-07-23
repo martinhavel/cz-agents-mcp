@@ -72,6 +72,19 @@ export interface TierRequiredError {
    *   - dimension 'depth': ddplus tool/capability names (static list).
    */
   available_in_tier: string[];
+  /**
+   * Optional, feature-flagged discovery metadata for a payment experiment.
+   * This is deliberately a preview only: it never accepts or authorizes a
+   * payment and is exposed only for the one supported depth-gated report.
+   */
+  payment_options?: Array<{
+    protocol: 'x402';
+    status: 'preview';
+    intent_url: string;
+    intent_request_id: string;
+    supported_endpoint: string;
+    message: string;
+  }>;
 }
 
 export interface EntitlementDecision {
@@ -144,5 +157,6 @@ export interface EntitlementEventInput {
   upstreamAvoided: boolean;
   endpoint: string;
   requestId: string;
-  eventKind?: 'entitlement_check' | 'upgrade_cta' | 'upgrade_cta_fanout' | 'conversion';
+  eventKind?: 'entitlement_check' | 'upgrade_cta' | 'upgrade_cta_fanout' | 'conversion' |
+    'x402_preview_offered' | 'x402_preview_intent';
 }

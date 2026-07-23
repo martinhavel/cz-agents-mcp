@@ -142,6 +142,25 @@ describe('hosted entitlement resolver', () => {
     expect(depthError.upgrade_url).toBe('https://example.test/upgrade');
   });
 
+  it('records a feature-flagged x402 preview offer only for an enforced DD+ denial',()=>{
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test'});
+    const decision=check(resolver,core(),'CZ','ddplus');
+    resolver.record(decision,false,{x402Preview:true});
+    expect(store.x402PreviewCounts()).toEqual({offered:1,intents:0});
+    expect(store.recordX402PreviewIntent(core().accountPseudonym,'req-1')).toBe(true);
+    expect(store.recordX402PreviewIntent(core().accountPseudonym,'req-1')).toBe(true);
+    expect(store.x402PreviewCounts()).toEqual({offered:1,intents:1});
+    expect(store.x402PreviewCounts(Date.now()+1)).toEqual({offered:0,intents:0});
+  });
+
+  it('does not record a preview for a probe, coverage decision, or allowed request',()=>{
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test'});
+    resolver.record(check(resolver,core(),'CZ','ddplus'),false,{x402Preview:true,isProbe:true});
+    resolver.record(check(resolver,core(),'DE'),false,{x402Preview:true});
+    resolver.record(check(resolver,extended(),'CZ','ddplus'),true,{x402Preview:true});
+    expect(store.x402PreviewCounts()).toEqual({offered:0,intents:0});
+  });
+
   it('coverage available_in_tier reflects live policy changes without redeploy',()=>{
     const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test',cacheTtlMs:0});
     expect((check(resolver,core(),'DE').error as import('../types.js').TierRequiredError).available_in_tier).not.toContain('BE');

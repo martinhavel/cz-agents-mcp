@@ -98,6 +98,8 @@ CREATE INDEX IF NOT EXISTS idx_entitlement_events_country_time
   ON entitlement_events(country, timestamp);
 CREATE INDEX IF NOT EXISTS idx_entitlement_events_decision_time
   ON entitlement_events(decision, timestamp);
+CREATE INDEX IF NOT EXISTS idx_entitlement_events_x402_preview
+  ON entitlement_events(event_kind, account_pseudonym, request_id);
 CREATE TABLE IF NOT EXISTS entitlement_policy_audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp INTEGER NOT NULL,
@@ -144,6 +146,24 @@ interface OverrideRow {
   valid_from: number;
   valid_until: number | null;
   created_at: number;
+}
+
+interface X402PreviewEventRow {
+  timestamp: number;
+  account_pseudonym: string;
+  country: string | null;
+  country_group: 'core' | 'extended' | null;
+  coverage_tier: 'core' | 'extended';
+  depth_tier: 'basic' | 'ddplus';
+  decision: 'allowed' | 'gated' | 'invalid';
+  dimension: 'coverage' | 'depth' | 'usage';
+  required_tier: string | null;
+  policy_version: number | null;
+  source: EntitlementSource;
+  mode: 'off' | 'observe' | 'enforce';
+  would_gate: number;
+  endpoint: string;
+  request_id: string;
 }
 
 export class EntitlementStore {
@@ -246,6 +266,40 @@ export class EntitlementStore {
       event.wouldGate ? 1 : 0, event.upstreamCalled ? 1 : 0, event.upstreamAvoided ? 1 : 0,
       event.endpoint, event.requestId,
     );
+  }
+
+  /**
+   * Records a preview intent only when it is tied to one previously offered
+   * preview for the same pseudonymous account. The request id also makes this
+   * idempotent, so a retry cannot inflate the experiment funnel.
+   */
+  recordX402PreviewIntent(accountPseudonym: string, requestId: string): boolean {
+    return this.db.transaction(() => {
+      const offer = this.db.prepare(`SELECT timestamp,account_pseudonym,country,country_group,
+        coverage_tier,depth_tier,decision,dimension,required_tier,policy_version,source,mode,
+        would_gate,endpoint,request_id FROM entitlement_events
+        WHERE event_kind='x402_preview_offered' AND account_pseudonym=? AND request_id=?
+        ORDER BY id DESC LIMIT 1`).get(accountPseudonym, requestId) as X402PreviewEventRow | undefined;
+      if (!offer) return false;
+      const existing = this.db.prepare(`SELECT 1 FROM entitlement_events
+        WHERE event_kind='x402_preview_intent' AND account_pseudonym=? AND request_id=?`).get(accountPseudonym, requestId);
+      if (existing) return true;
+      this.recordEvent({ timestamp: Date.now(), eventKind:'x402_preview_intent',
+        accountPseudonym:offer.account_pseudonym,country:offer.country,countryGroup:offer.country_group,
+        coverageTier:offer.coverage_tier,depthTier:offer.depth_tier,decision:offer.decision,
+        dimension:offer.dimension,requiredTier:offer.required_tier,policyVersion:offer.policy_version,
+        source:offer.source,mode:offer.mode,wouldGate:offer.would_gate===1,
+        upstreamCalled:false,upstreamAvoided:false,endpoint:offer.endpoint,requestId:offer.request_id });
+      return true;
+    })();
+  }
+
+  x402PreviewCounts(since?: number): { offered: number; intents: number } {
+    const row = this.db.prepare(`SELECT
+      SUM(CASE WHEN event_kind='x402_preview_offered' THEN 1 ELSE 0 END) offered,
+      SUM(CASE WHEN event_kind='x402_preview_intent' THEN 1 ELSE 0 END) intents
+      FROM entitlement_events WHERE (? IS NULL OR timestamp >= ?)`).get(since ?? null, since ?? null) as { offered: number | null; intents: number | null };
+    return { offered: row.offered ?? 0, intents: row.intents ?? 0 };
   }
 
   seedPolicy(actor: string, changeSource: string): number {

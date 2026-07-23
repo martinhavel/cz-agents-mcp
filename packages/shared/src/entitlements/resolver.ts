@@ -113,7 +113,7 @@ export class HostedEntitlementResolver {
    *   `upgrade_cta`: it is counted (see `EntitlementStore.intentReportFanoutCtas`)
    *   without polluting any single country's `upgrade_ctas` figure.
    */
-  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean; ctaSuppressed?: boolean; ctaFanout?: boolean }): void {
+  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean; ctaSuppressed?: boolean; ctaFanout?: boolean; x402Preview?: boolean }): void {
     const event: EntitlementEventInput = { accountPseudonym:decision.accountPseudonym,country:decision.country,
       countryGroup:decision.countryGroup,coverageTier:decision.coverageTier,depthTier:decision.depthTier,
       decision:decision.decision,dimension:decision.dimension,requiredTier:decision.requiredTier,
@@ -126,6 +126,9 @@ export class HostedEntitlementResolver {
       this.store.recordEvent({...event,eventKind:'upgrade_cta_fanout',country:null,countryGroup:null,upstreamAvoided:false});
     } else if(!options?.ctaSuppressed) {
       this.store.recordEvent({...event,eventKind:'upgrade_cta',upstreamAvoided:false});
+    }
+    if (options?.x402Preview && decision.dimension === 'depth' && decision.requiredTier === 'ddplus') {
+      this.store.recordEvent({...event,eventKind:'x402_preview_offered',upstreamAvoided:false});
     }
   }
 

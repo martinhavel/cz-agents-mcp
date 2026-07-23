@@ -62,6 +62,8 @@ const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
 const ENTITLEMENT_MODE=entitlementMode(process.env.HOSTED_GEO_TIER_ENFORCEMENT);
 const UPGRADE_URL=process.env.HOSTED_UPGRADE_URL ?? 'https://cz-agents.dev/pricing.html';
+const X402_PREVIEW_ENABLED=process.env.X402_PREVIEW_ENABLED==='true';
+const X402_PREVIEW_INTENT_URL=process.env.X402_PREVIEW_INTENT_URL ?? 'https://dd.cz-agents.dev/v1/payment-options/x402/intent';
 
 async function main() {
   const ares = new AresClient();
@@ -97,8 +99,15 @@ async function main() {
     const decision=entitlementResolver.check({account:context.account,country:lookup.country,requestedDepth:lookup.depth,
       endpoint:`mcp:${lookup.tool}`,requestId:context.requestId,
       usageMetric:lookup.depth==='ddplus'?'ddplus_reports_per_month':'requests_per_day'});
+    const x402Preview = X402_PREVIEW_ENABLED && lookup.tool==='get_dd_report' && lookup.depth==='ddplus' &&
+      decision.error?.error==='tier_required' && decision.dimension==='depth';
+    if (x402Preview && decision.error?.error === 'tier_required') {
+      decision.error.payment_options=[{protocol:'x402',status:'preview',intent_url:X402_PREVIEW_INTENT_URL,
+        intent_request_id:decision.requestId,supported_endpoint:'mcp:get_dd_report',
+        message:'x402 preview only: no payment is accepted or taken.'}];
+    }
     if(!decision.upstreamAllowed)return {upstreamAllowed:false,error:decision.error,
-      record:(called)=>entitlementResolver.record(decision,called)};
+      record:(called)=>entitlementResolver.record(decision,called,{x402Preview})};
     const quotaError=consumeForTool(tokenStore,context.account.token);
     if(quotaError)return {upstreamAllowed:false,error:quotaError,
       record:(called)=>entitlementResolver.record(decision,called)};
@@ -180,7 +189,8 @@ async function main() {
 
     if (req.url === '/metrics') {
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
-      res.end(getMetrics());
+      const counts=entitlementStore?.x402PreviewCounts() ?? {offered:0,intents:0};
+      res.end(`${getMetrics()}# HELP cz_agents_x402_preview_events_total Durable x402 preview funnel events.\n# TYPE cz_agents_x402_preview_events_total counter\ncz_agents_x402_preview_events_total{kind="offered"} ${counts.offered}\ncz_agents_x402_preview_events_total{kind="intent"} ${counts.intents}\n`);
       return;
     }
 
@@ -218,7 +228,7 @@ async function main() {
       return;
     }
 
-    if (await handleDdRest(req, res, clients, quota, authOnly, ddRestLimiter,entitlementResolver,tokenStore)) return;
+    if (await handleDdRest(req, res, clients, quota, authOnly, ddRestLimiter,entitlementResolver,entitlementStore,tokenStore)) return;
 
     if (!req.url?.startsWith(MCP_PATH)) {
       res.writeHead(404);
@@ -331,18 +341,49 @@ async function handleDdRest(
   authOnly: ReturnType<typeof createTokenAuthGuard>,
   limiter: ReturnType<typeof createRestRateLimiter>,
   entitlementResolver:HostedEntitlementResolver|null,
+  entitlementStore:EntitlementStore|null,
   tokenStore:TokenStore,
 ): Promise<boolean> {
   if (!req.url) return false;
   const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/v1/')) return false;
 
+  if (!limiter(req, res)) return true;
+
+  if (url.pathname==='/v1/payment-options/x402/intent') {
+    if (req.method !== 'POST') {
+      jsonErr(res,405,'method_not_allowed','Use POST for a payment preview intent.');
+      return true;
+    }
+    if (!X402_PREVIEW_ENABLED || !entitlementResolver) {
+      jsonErr(res,404,'not_found','x402 payment preview is disabled.');
+      return true;
+    }
+    const auth=authOnly(req,res);
+    if(!auth.ok) return true;
+    const clientIp=getRestIp(req);
+    const account=accountContextFromToken(auth.token,clientIp,
+      process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement');
+    let body: unknown;
+    try { body=JSON.parse(await readRawBody(req,MAX_BODY_BYTES)); }
+    catch { jsonErr(res,400,'invalid_request','A JSON body with request_id is required.'); return true; }
+    const requestId=body && typeof body==='object' && !Array.isArray(body) &&
+      typeof (body as {request_id?:unknown}).request_id==='string'
+      ? (body as {request_id:string}).request_id : '';
+    if (!/^[A-Za-z0-9._:-]{1,160}$/.test(requestId)) {
+      jsonErr(res,400,'invalid_request','request_id is invalid.'); return true;
+    }
+    if (!entitlementStore?.recordX402PreviewIntent(account.accountPseudonym,requestId)) {
+      jsonErr(res,404,'preview_not_found','No eligible x402 preview was found for this request.'); return true;
+    }
+    jsonOk(res,{protocol:'x402',status:'preview',payment_accepted:false},'dd');
+    return true;
+  }
+
   if (req.method !== 'GET') {
     jsonErr(res, 405, 'method_not_allowed', 'Use GET for REST requests.');
     return true;
   }
-
-  if (!limiter(req, res)) return true;
 
   // The no-upstream entitlement preflight must never consume the legacy report
   // quota, including while the rollout flag is `off`.
