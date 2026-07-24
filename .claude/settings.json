@@ -1,50 +1,12 @@
 {
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'f=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"; pkg=$(echo \"$f\" | grep -oP \"packages/\\K[^/]+\" | head -1); [ -n \"$pkg\" ] && cd /home/martin/projects/cz-agents-mcp && npm test --workspace=\"@czagents/$pkg\" --passWithNoTests 2>&1 | tail -8 || true'"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'f=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"; pkg=$(echo \"$f\" | grep -oP \"packages/\\K[^/]+\" | head -1); [ -n \"$pkg\" ] && [ -f \"/home/martin/projects/cz-agents-mcp/packages/$pkg/tsconfig.json\" ] && cd /home/martin/projects/cz-agents-mcp && npx tsc -p packages/$pkg/tsconfig.json --noEmit 2>&1 | head -20 || true'"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'cmd=\"${CLAUDE_TOOL_INPUT_COMMAND:-}\"; [[ \"$cmd\" == *\"docker compose up -d\"* && \"$cmd\" == *\"91.98.119\"* ]] && sleep 3 && ssh -i ~/.ssh/id_rsa_macbook martin@91.98.119.223 \"docker ps --format \\\"{{.Names}}\\t{{.Status}}\\\" | grep cz-agents\" || true'"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'f=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"; [[ \"$f\" == *.env* || \"$f\" == *tokens.db* || \"$f\" == *secrets* || \"$f\" == *package-lock.json ]] && echo \"BLOCKED: sensitive file — edit manually\" && exit 2 || exit 0'"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'f=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"; [[ \"$f\" == */dist/* ]] && echo \"WARNING: editing generated dist/ file — use src/ instead\" && exit 2 || exit 0'"
+            "command": "bash /home/martin/projects/cz-agents-mcp/.claude/hooks/pre-edit-guard.sh"
           }
         ]
       },
@@ -53,7 +15,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'cmd=\"${CLAUDE_TOOL_INPUT_COMMAND:-}\"; [[ \"$cmd\" == *\"push --force\"* || \"$cmd\" == *\"push -f\"* ]] && echo \"BLOCKED: force push zakázán — použij --force-with-lease nebo potvrď manuálně\" && exit 2 || exit 0'"
+            "command": "bash /home/martin/projects/cz-agents-mcp/.claude/hooks/pre-bash-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/martin/projects/cz-agents-mcp/.claude/hooks/post-edit-tests.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/martin/projects/cz-agents-mcp/.claude/hooks/post-deploy-verify.sh"
           }
         ]
       }
