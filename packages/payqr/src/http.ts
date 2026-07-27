@@ -7,6 +7,17 @@ import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, r
   getClientUa,
 } from '@czagents/shared';
 import { buildPayqrServer } from './server.js';
+import { loadX402Config, createX402Gate, HttpFacilitator, type X402Gate } from '@czagents/shared/x402';
+
+// Vypnuto => null a placený nástroj se neregistruje. Zapnuto a špatně
+// nakonfigurováno => loadX402Config hodí a boot padne se jménem proměnné.
+const x402Config = loadX402Config();
+const x402Gate: X402Gate | null = x402Config
+  ? createX402Gate(x402Config, new HttpFacilitator({
+      url: x402Config.facilitatorUrl,
+      authMode: x402Config.facilitatorAuth,
+    }))
+  : null;
 import { getQr, getPrefill } from './qr-store.js';
 
 const PORT = Number(process.env.PORT ?? 3032);
@@ -109,7 +120,7 @@ async function main() {
       const clientIpEarly = getClientIp(req);
       const clientUaEarly = getClientUa(req);
       const newSessionId = randomUUID();
-      const server = buildPayqrServer();
+      const server = buildPayqrServer(x402Gate ?? undefined);
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,

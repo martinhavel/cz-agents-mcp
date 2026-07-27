@@ -62,6 +62,14 @@ const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
 const ENTITLEMENT_MODE=entitlementMode(process.env.HOSTED_GEO_TIER_ENFORCEMENT);
 const UPGRADE_URL=process.env.HOSTED_UPGRADE_URL ?? 'https://cz-agents.dev/pricing.html';
+const X402_PREVIEW_ENABLED=process.env.X402_PREVIEW_ENABLED==='true';
+const X402_PREVIEW_INTENT_URL=process.env.X402_PREVIEW_INTENT_URL ?? 'https://dd.cz-agents.dev/v1/payment-options/x402/intent';
+// Where an anonymous caller goes to acquire an identity. This must point at the
+// FREE credential (the 14-day trial), not at the price list: the whole point of
+// the identity gate is that a declaration costs reputation, not money. Charging
+// money for the right to declare interest would measure the thing the preview
+// deliberately does not build.
+const X402_PREVIEW_IDENTITY_URL=process.env.X402_PREVIEW_IDENTITY_URL ?? 'https://cz-agents.dev/pricing.html#trial';
 
 async function main() {
   const ares = new AresClient();
@@ -97,8 +105,15 @@ async function main() {
     const decision=entitlementResolver.check({account:context.account,country:lookup.country,requestedDepth:lookup.depth,
       endpoint:`mcp:${lookup.tool}`,requestId:context.requestId,
       usageMetric:lookup.depth==='ddplus'?'ddplus_reports_per_month':'requests_per_day'});
+    const x402Preview = X402_PREVIEW_ENABLED && lookup.tool==='get_dd_report' && lookup.depth==='ddplus' &&
+      decision.error?.error==='tier_required' && decision.dimension==='depth';
+    if (x402Preview && decision.error?.error === 'tier_required') {
+      decision.error.payment_options=[{protocol:'x402',status:'preview',intent_url:X402_PREVIEW_INTENT_URL,
+        intent_request_id:decision.requestId,supported_endpoint:'mcp:get_dd_report',
+        message:'x402 preview only: no payment is accepted or taken.'}];
+    }
     if(!decision.upstreamAllowed)return {upstreamAllowed:false,error:decision.error,
-      record:(called)=>entitlementResolver.record(decision,called)};
+      record:(called)=>entitlementResolver.record(decision,called,{x402Preview})};
     const quotaError=consumeForTool(tokenStore,context.account.token);
     if(quotaError)return {upstreamAllowed:false,error:quotaError,
       record:(called)=>entitlementResolver.record(decision,called)};
@@ -180,7 +195,11 @@ async function main() {
 
     if (req.url === '/metrics') {
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
-      res.end(getMetrics());
+      // kind="intent" stays the sum of both identity classes so the series that
+      // has been scraped since 23. 7. keeps its meaning; the split is added as
+      // two new labels rather than by redefining an existing one.
+      const counts=entitlementStore?.x402PreviewCounts() ?? {offered:0,intents:0,intentsAnonymous:0,intentsIdentified:0};
+      res.end(`${getMetrics()}# HELP cz_agents_x402_preview_events_total Durable x402 preview funnel events.\n# TYPE cz_agents_x402_preview_events_total counter\ncz_agents_x402_preview_events_total{kind="offered"} ${counts.offered}\ncz_agents_x402_preview_events_total{kind="intent"} ${counts.intents}\ncz_agents_x402_preview_events_total{kind="intent_anonymous"} ${counts.intentsAnonymous}\ncz_agents_x402_preview_events_total{kind="intent_identified"} ${counts.intentsIdentified}\n`);
       return;
     }
 
@@ -218,7 +237,7 @@ async function main() {
       return;
     }
 
-    if (await handleDdRest(req, res, clients, quota, authOnly, ddRestLimiter,entitlementResolver,tokenStore)) return;
+    if (await handleDdRest(req, res, clients, quota, authOnly, ddRestLimiter,entitlementResolver,entitlementStore,tokenStore)) return;
 
     if (!req.url?.startsWith(MCP_PATH)) {
       res.writeHead(404);
@@ -331,18 +350,61 @@ async function handleDdRest(
   authOnly: ReturnType<typeof createTokenAuthGuard>,
   limiter: ReturnType<typeof createRestRateLimiter>,
   entitlementResolver:HostedEntitlementResolver|null,
+  entitlementStore:EntitlementStore|null,
   tokenStore:TokenStore,
 ): Promise<boolean> {
   if (!req.url) return false;
   const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/v1/')) return false;
 
+  if (!limiter(req, res)) return true;
+
+  if (url.pathname==='/v1/payment-options/x402/intent') {
+    if (req.method !== 'POST') {
+      jsonErr(res,405,'method_not_allowed','Use POST for a payment preview intent.');
+      return true;
+    }
+    if (!X402_PREVIEW_ENABLED || !entitlementResolver) {
+      jsonErr(res,404,'not_found','x402 payment preview is disabled.');
+      return true;
+    }
+    const auth=authOnly(req,res);
+    if(!auth.ok) return true;
+    const clientIp=getRestIp(req);
+    const account=accountContextFromToken(auth.token,clientIp,
+      process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement');
+    let body: unknown;
+    try { body=JSON.parse(await readRawBody(req,MAX_BODY_BYTES)); }
+    catch { jsonErr(res,400,'invalid_request','A JSON body with request_id is required.'); return true; }
+    const requestId=body && typeof body==='object' && !Array.isArray(body) &&
+      typeof (body as {request_id?:unknown}).request_id==='string'
+      ? (body as {request_id:string}).request_id : '';
+    if (!/^[A-Za-z0-9._:-]{1,160}$/.test(requestId)) {
+      jsonErr(res,400,'invalid_request','request_id is invalid.'); return true;
+    }
+    // The offer must exist for this pseudonym before anything is logged, so an
+    // arbitrary request id cannot write rows into the funnel. Anonymous callers
+    // are still recorded — the declaration is kept as the weak signal it is —
+    // but the declaration itself is refused: a click that costs nothing measures
+    // curiosity, not trust. Identity is the only price this preview charges.
+    if (!entitlementStore?.recordX402PreviewIntent(account.accountPseudonym,requestId,
+      {identityClass:account.identityClass,identityAgeDays:account.identityAgeDays})) {
+      jsonErr(res,404,'preview_not_found','No eligible x402 preview was found for this request.'); return true;
+    }
+    if (account.identityClass!=='identified') {
+      res.setHeader('WWW-Authenticate','Bearer realm="cz-agents/dd"');
+      jsonErr(res,401,'identity_required',
+        `Declaring a payment intent requires an authenticated account, so the declaration costs reputation rather than nothing. Your call was recorded as an anonymous declaration. A free credential is available at ${X402_PREVIEW_IDENTITY_URL}.`);
+      return true;
+    }
+    jsonOk(res,{protocol:'x402',status:'preview',payment_accepted:false,identity:'identified'},'dd');
+    return true;
+  }
+
   if (req.method !== 'GET') {
     jsonErr(res, 405, 'method_not_allowed', 'Use GET for REST requests.');
     return true;
   }
-
-  if (!limiter(req, res)) return true;
 
   // The no-upstream entitlement preflight must never consume the legacy report
   // quota, including while the rollout flag is `off`.

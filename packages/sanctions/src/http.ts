@@ -39,6 +39,8 @@ import { SanctionsDb } from './db.js';
 import { SanctionsSearch } from './search.js';
 import { buildSanctionsServer } from './server.js';
 import { buildSanctionsBilling } from './billing.js';
+import { handleX402Rescreen } from './x402-rest.js';
+import { loadX402Config, createX402Gate, HttpFacilitator, type X402Gate } from '@czagents/shared/x402';
 
 const PORT = Number(process.env.PORT ?? 3030);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
@@ -59,6 +61,20 @@ async function main() {
   // rather than silently mapping no prices (= paid checkout, no token minted).
   const billing = webhookSecret ? buildSanctionsBilling() : undefined;
   const quota = createQuotaGuard({ store: tokenStore, service: 'sanctions', allowAnonymous: true });
+
+  // x402: vypnuto => gate je null a placeny endpoint neexistuje. Zapnuto a
+  // spatne nakonfigurovane => loadX402Config hodi a boot padne se jmenem
+  // promenne. Nikdy nedegraduje na testnet ani na "bezi, ale neplati se".
+  const x402Config = loadX402Config();
+  const x402Gate: X402Gate | null = x402Config
+    ? createX402Gate(x402Config, new HttpFacilitator({
+        url: x402Config.facilitatorUrl,
+        authMode: x402Config.facilitatorAuth,
+      }))
+    : null;
+  if (x402Config) {
+    console.error(`[sanctions] x402 zapnuto: ${x402Config.network}, ${x402Config.priceUsd} USD`);
+  }
 
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
   const restLimiter = createRestRateLimiter();
@@ -143,6 +159,13 @@ async function main() {
       return;
     }
 
+    // Placená cesta první, ale jen pro svou jedinou pathname: `handleX402Rescreen`
+    // vrací false pro cokoli jiného, takže existující REST chování zůstává beze
+    // změny. Když je x402 vypnuté, vrací 404 jako každá neznámá cesta.
+    if (await handleX402Rescreen(req, res, { db, gate: x402Gate })) {
+      return;
+    }
+
     if (await handleSanctionsRest(req, res, search, restLimiter, quota)) {
       return;
     }
@@ -185,7 +208,7 @@ async function main() {
       const clientIpEarly = getClientIp(req);
       const clientUaEarly = getClientUa(req);
       const newSessionId = randomUUID();
-      const server = buildSanctionsServer({ db, search });
+      const server = buildSanctionsServer({ db, search, x402: x402Gate ?? undefined });
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,

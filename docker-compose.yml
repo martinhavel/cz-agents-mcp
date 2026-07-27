@@ -123,6 +123,9 @@ services:
       - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
       - HOSTED_UPGRADE_URL=${HOSTED_UPGRADE_URL:-https://cz-agents.dev/pricing.html}
       - HOSTED_POLICY_CACHE_TTL_MS=${HOSTED_POLICY_CACHE_TTL_MS:-30000}
+      # Preview only — no wallet, settlement or payment authorization.
+      - X402_PREVIEW_ENABLED=${X402_PREVIEW_ENABLED:-false}
+      - X402_PREVIEW_INTENT_URL=${X402_PREVIEW_INTENT_URL:-https://dd.cz-agents.dev/v1/payment-options/x402/intent}
     volumes:
       - sanctions-data:/var/lib/czagents-sanctions:ro
       - tokens-data:/var/lib/czagents-tokens

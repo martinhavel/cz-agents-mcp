@@ -83,7 +83,8 @@ export class HostedEntitlementResolver {
       coverageTier:effective.coverageTier,depthTier:effective.depthTier,policyVersion:snapshot.version,
       source:effective.source,requiredTier:null,wouldGate:false,upstreamAllowed:true,
       usageLimits:effective.usageLimits,endpoint:input.endpoint,requestId:input.requestId,
-      accountPseudonym:input.account.accountPseudonym };
+      accountPseudonym:input.account.accountPseudonym,identityClass:input.account.identityClass,
+      identityAgeDays:input.account.identityAgeDays };
     return decision;
   }
 
@@ -113,7 +114,7 @@ export class HostedEntitlementResolver {
    *   `upgrade_cta`: it is counted (see `EntitlementStore.intentReportFanoutCtas`)
    *   without polluting any single country's `upgrade_ctas` figure.
    */
-  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean; ctaSuppressed?: boolean; ctaFanout?: boolean }): void {
+  record(decision: EntitlementDecision, upstreamCalled: boolean, options?: { isProbe?: boolean; ctaSuppressed?: boolean; ctaFanout?: boolean; x402Preview?: boolean }): void {
     const event: EntitlementEventInput = { accountPseudonym:decision.accountPseudonym,country:decision.country,
       countryGroup:decision.countryGroup,coverageTier:decision.coverageTier,depthTier:decision.depthTier,
       decision:decision.decision,dimension:decision.dimension,requiredTier:decision.requiredTier,
@@ -126,6 +127,14 @@ export class HostedEntitlementResolver {
       this.store.recordEvent({...event,eventKind:'upgrade_cta_fanout',country:null,countryGroup:null,upstreamAvoided:false});
     } else if(!options?.ctaSuppressed) {
       this.store.recordEvent({...event,eventKind:'upgrade_cta',upstreamAvoided:false});
+    }
+    if (options?.x402Preview && decision.dimension === 'depth' && decision.requiredTier === 'ddplus') {
+      // The offer carries the identity dimension too, so the report can tell
+      // "nobody with an identity declared" from "nobody with an identity was
+      // ever asked" — the second is a fact about our signup, not about trust.
+      this.store.recordEvent({...event,eventKind:'x402_preview_offered',upstreamAvoided:false,
+        identity:{identityClass:decision.identityClass,identityAgeDays:decision.identityAgeDays,
+          identityCalls:this.store.identityCallCount(decision.accountPseudonym)}});
     }
   }
 
@@ -157,7 +166,8 @@ export class HostedEntitlementResolver {
     return {decision:'gated',dimension,mode:this.options.mode,country,countryGroup:group,
       coverageTier:effective.coverageTier,depthTier:effective.depthTier,policyVersion:version,source:effective.source,
       requiredTier:required,wouldGate,upstreamAllowed:!enforce,usageLimits:effective.usageLimits,
-      endpoint:input.endpoint,requestId:input.requestId,accountPseudonym:input.account.accountPseudonym,error};
+      endpoint:input.endpoint,requestId:input.requestId,accountPseudonym:input.account.accountPseudonym,
+      identityClass:input.account.identityClass,identityAgeDays:input.account.identityAgeDays,error};
   }
 
   private invalid(input:EntitlementCheckInput,effective:ReturnType<HostedEntitlementResolver['effectiveAccount']>,
@@ -168,6 +178,7 @@ export class HostedEntitlementResolver {
       coverageTier:effective.coverageTier,depthTier:effective.depthTier,policyVersion:version,source:effective.source,
       requiredTier:null,wouldGate:true,upstreamAllowed:!enforce,usageLimits:effective.usageLimits,
       endpoint:input.endpoint,requestId:input.requestId,accountPseudonym:input.account.accountPseudonym,
+      identityClass:input.account.identityClass,identityAgeDays:input.account.identityAgeDays,
       error:{error:code,dimension,country:country ?? undefined,policy_version:version ?? undefined,message}};
   }
 }
@@ -175,9 +186,22 @@ export class HostedEntitlementResolver {
 export function accountContextFromToken(token:TokenRecord|null,pseudonymSeed:string,salt:string):HostedAccountContext {
   const paid = token ? ['pro','agency','enterprise','unlimited'].includes(String(token.tier)) : false;
   const accountId=token?.stripe_customer_id || `anonymous:${pseudonymSeed}`;
+  // Identified requires BOTH a stored token and a stable account id. A token
+  // without a customer id falls back to an IP-derived accountId above, so its
+  // pseudonym dies with the IP — counting that as an identity would let a
+  // throwaway caller look like a returning one in the x402 funnel.
+  const identified = token !== null && token.token !== '__anonymous__' && Boolean(token.stripe_customer_id);
   return {accountId,accountPseudonym:createHash('sha256').update(`${salt}|${accountId}`).digest('hex').slice(0,24),
     token,planCoverageTier:paid?'extended':'core',planDepthTier:paid?'ddplus':'basic',
-    source:token?.expires_at ? 'trial':'plan'};
+    source:token?.expires_at ? 'trial':'plan',
+    identityClass:identified?'identified':'anonymous',
+    identityAgeDays:identified?identityAgeDays(token!.created_at):null};
+}
+
+/** Whole days since the credential was minted. Negative clocks floor at 0. */
+function identityAgeDays(createdAt:number,now=Date.now()):number {
+  if(!Number.isFinite(createdAt)||createdAt<=0)return 0;
+  return Math.max(0,Math.floor((now-createdAt)/86_400_000));
 }
 
 export function entitlementMode(value:string|undefined):EntitlementMode {
