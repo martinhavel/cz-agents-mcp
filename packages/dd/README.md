@@ -56,7 +56,7 @@ Example prompts:
 | **Compliance** | Adds `detect_nominee_director` and `get_risk_timeline`. Higher rate limits, batch endpoints. |
 | **Agency** | Multi-tenant (white-label), API key per analyst, even higher limits, REST API + webhooks. |
 
-Tier details and pricing: https://cz-agents.dev/pricing
+Tier details and pricing: https://cz-agents.dev/pricing.html
 
 ## Self-host
 

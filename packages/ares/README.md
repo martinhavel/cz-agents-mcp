@@ -117,7 +117,7 @@ node packages/ares/dist/index.js
 
 ## Free tier & pricing
 
-ARES itself is a free public API. The hosted endpoint at `https://ares.cz-agents.dev/mcp` is rate-limited per IP. Higher limits and commercial use: https://cz-agents.dev/pricing
+ARES itself is a free public API. The hosted endpoint at `https://ares.cz-agents.dev/mcp` is rate-limited per IP. Higher limits and commercial use: https://cz-agents.dev/pricing.html
 
 ## License
 

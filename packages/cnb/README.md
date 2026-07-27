@@ -61,7 +61,7 @@ node packages/cnb/dist/index.js
 
 ## Free tier & pricing
 
-ČNB exposes the rate sheet for free. The hosted endpoint at `https://cnb.cz-agents.dev/mcp` is rate-limited per IP. Higher limits and commercial use: https://cz-agents.dev/pricing
+ČNB exposes the rate sheet for free. The hosted endpoint at `https://cnb.cz-agents.dev/mcp` is rate-limited per IP. Higher limits and commercial use: https://cz-agents.dev/pricing.html
 
 ## License
 

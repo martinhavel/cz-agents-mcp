@@ -97,7 +97,7 @@ SANCTIONS_DB=$PWD/sanctions.db node packages/sanctions/dist/index.js
 
 ## Free tier & pricing
 
-Free tier rate-limited. Higher limits and commercial use: https://cz-agents.dev/pricing
+Free tier rate-limited. Higher limits and commercial use: https://cz-agents.dev/pricing.html
 
 ## License
 

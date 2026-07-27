@@ -5,7 +5,7 @@
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-listed-blue)](https://registry.modelcontextprotocol.io/v0/servers?search=cz-agents)
 [![Glama](https://img.shields.io/badge/glama.ai-listed-success)](https://glama.ai/mcp/servers/lgs0fwjrl8)
 
-Model Context Protocol servers for **Czech & EU due diligence and KYC/AML** — company facts, insolvency (ISIR), EU + OFAC sanctions screening, VAT-payer reliability, phoenix & nominee-director detection, quantified risk score and statutory-chain (UBO) ownership analysis. Built on native access to ARES (company registry), ČNB (FX rates), ADIS (VAT-payer status) and EU business registries (GB/SK/PL/NL/DE/FR).
+Model Context Protocol servers for **Czech & EU due diligence and KYC/AML** — company facts, insolvency (ISIR), EU + OFAC sanctions screening, VAT-payer reliability, phoenix & nominee-director detection, quantified risk score and statutory-chain (UBO) ownership analysis. Built on native access to ARES (company registry), ČNB (FX rates), ADIS (VAT-payer status) and 16 EU business registries (GB, SK, PL, NL, IT, AT, ES, BE, LT, DE, FR, NO, DK, FI, EE, SE).
 
 > **Want a hosted, production-ready version?**
 > [cz-agents.dev](https://cz-agents.dev) — managed API with a 14-day free trial (no credit card).
@@ -36,7 +36,7 @@ Don't want to wire an MCP client? The same data is available as a web applicatio
 | [`@czagents/adis`](./packages/adis) | ADIS — unreliable VAT payer (nespolehlivý plátce DPH) + transparent accounts | ✅ live |
 | [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + ADIS + statutory chain) | ✅ live |
 | [`@czagents/realestate`](./packages/realestate) | Czech distress real estate intelligence (ISIR sales + portál dražeb) | ✅ live (v0.1) |
-| [`@czagents/eu-registry`](./packages/eu-registry) | EU business registries — GB (Companies House), SK, PL, NL, DE, FR via GLEIF/LEI | ✅ live |
+| [`@czagents/eu-registry`](./packages/eu-registry) | EU business registries — 16 countries (GB, SK, PL, NL, IT, AT, ES, BE, LT, DE, FR, NO, DK, FI, EE, SE) via Companies House / ORSR / KRS / SIRENE / BRREG / CVR / PRH / RIK / Bolagsverket / VIES / GLEIF | ✅ live |
 | [`@czagents/payqr`](./packages/payqr) | Payment QR codes (SPAYD / EPC-GiroCode) — bonus utility | ✅ live |
 
 ### Premium tier — closed source
@@ -59,7 +59,8 @@ Don't want to wire an MCP client? The same data is available as a web applicatio
     "adis":      { "command": "npx", "args": ["-y", "@czagents/adis"], "env": { "ADIS_SOAP_ENABLED": "1" } },
     "dd":          { "command": "npx", "args": ["-y", "@czagents/dd"], "env": { "SANCTIONS_DB": "/path/to/sanctions.db", "ADIS_SOAP_ENABLED": "1" } },
     "eu-registry": { "command": "npx", "args": ["-y", "@czagents/eu-registry"] },
-    "payqr":       { "command": "npx", "args": ["-y", "@czagents/payqr"] }
+    "payqr":       { "command": "npx", "args": ["-y", "@czagents/payqr"] },
+    "realestate":  { "command": "npx", "args": ["-y", "@czagents/realestate"] }
   }
 }
 ```
@@ -76,14 +77,15 @@ Don't want to wire an MCP client? The same data is available as a web applicatio
     "adis":        { "url": "https://adis.cz-agents.dev/mcp" },
     "dd":          { "url": "https://dd.cz-agents.dev/mcp" },
     "eu-registry": { "url": "https://eu-registry.cz-agents.dev/mcp" },
-    "payqr":       { "url": "https://payqr.cz-agents.dev/mcp" }
+    "payqr":       { "url": "https://payqr.cz-agents.dev/mcp" },
+    "realestate":  { "url": "https://realestate.cz-agents.dev/mcp" }
   }
 }
 ```
 
 ## Tools
 
-### `@czagents/ares` (9 tools)
+### `@czagents/ares` (10 tools)
 
 - `lookup_by_ico({ ico })` — full company record
 - `search_companies({ query, city, street, psc, nace, pocet })` — combined search
@@ -94,6 +96,7 @@ Don't want to wire an MCP client? The same data is available as a web applicatio
 - `check_vat_payer({ ico })` — VAT registration + transparent accounts
 - `get_bank_accounts({ ico })` — DPH-published accounts
 - `get_history({ ico })` — previous names, address changes
+- `watch_entity({ ico })` — start free monitoring onboarding for one company
 
 ### `@czagents/cnb` (3 tools)
 
@@ -101,13 +104,14 @@ Don't want to wire an MCP client? The same data is available as a web applicatio
 - `convert({ amount, from, to, date? })` — CZK-crossed conversion
 - `get_rate({ code, date? })` — single currency rate
 
-### `@czagents/sanctions` (5 tools)
+### `@czagents/sanctions` (6 tools)
 
 - `search_person({ name, dob?, nationality?, threshold? })` — fuzzy KYC screen against EU + OFAC
 - `search_entity({ name, country?, threshold? })` — entity / company screen
 - `check_ico({ ico, name? })` — direct lookup of a Czech IČO on sanctions lists
 - `get_listing({ id })` — full record by `${source}:${id}`
 - `list_recent_updates({ since, source? })` — daily monitoring (added/removed/modified)
+- `rescreen_portfolio({ subjects[], since, source? })` *(paid; available when x402 is enabled)* — re-screen your own subject list against sanctions-list changes
 
 ### `@czagents/isir` (3 tools)
 
@@ -121,17 +125,39 @@ Don't want to wire an MCP client? The same data is available as a web applicatio
 - `check_bulk_dph_payer({ icos[] OR dics[] })` — batch up to 100 subjects (lighter response, status + accounts only)
 - `list_unreliable_payers()` — full list of currently unreliable payers (50–100 MB, intended for daily mirroring)
 
-### `@czagents/dd` (3 tools)
+### `@czagents/dd` (12 tools)
 
+- `person_companies({ name, birth_year? })` — Czech VR companies connected to a person (free, anonymous)
+- `get_owners({ ico })` — direct + upstream Czech VR ownership tree (free, anonymous)
 - `get_dd_report({ ico, depth })` — unified ARES + sanctions + ISIR report with risk score
+- `watch_entity({ ico })` — start free monitoring onboarding for one company
 - `get_risk_score({ ico })` — fast 0–100 score + top red flags
-- `get_statutory_chain({ ico, max_depth })` — UBO / shell-company tree walk
+- `get_statutory_chain({ ico, max_depth })` — surname-based statutory-body walk for shell-company unwinding
+- `detect_nominee_director({ ico })` — 3-indicator "white horse" director detection (Compliance tier+)
+- `detect_phoenix({ ico })` — phoenix-company pattern detection (Compliance tier+)
+- `get_risk_timeline({ ico })` — chronological company lifecycle/risk timeline (Compliance tier+)
+- `detect_address_crowding({ ico })` — shell-firm "address hotel" detection (Compliance tier+)
+- `get_eu_dd_report({ lei OR name, country? })` — EU DD report: GLEIF entity data + EU/OFAC sanctions check (Compliance tier+)
+- `get_eu_parent({ ico })` — find EU/international parent via ARES → GLEIF LEI matching (Compliance tier+)
 
 ### `@czagents/eu-registry` (3 tools)
 
-- `get_eu_company({ country, id })` — company record from GB (Companies House), SK (ORSR), PL (KRS), NL/DE/FR (GLEIF/LEI), SIRENE
-- `get_eu_parent({ ico })` — find EU parent/group via ARES → GLEIF LEI matching with confidence scoring
-- `get_eu_dd_report({ country, id })` — EU DD report: company facts + EU + OFAC sanctions check
+- `search_company({ name, country?, limit? })` — search non-Czech registries by company name across 16 countries
+- `get_company({ id, country })` — company record by national ID (CRN / IČO / KRS / SIREN / LEI / VAT / …)
+- `lookup_company_by_vat({ vat })` — free VIES VAT validity + name/address lookup
+
+### `@czagents/payqr` (6 tools)
+
+- `qr_payment({ iban, bic?, amount?, ... })` — payment QR (auto SPAYD for CZ/SK, EPC/GiroCode for other SEPA)
+- `qr_text({ text })` — plain-text QR
+- `qr_wifi({ ssid, password?, security? })` — Wi-Fi network QR
+- `qr_vcard({ name, phone?, email?, ... })` — vCard 3.0 contact QR
+- `qr_read({ image_data })` — decode + classify a QR code from a base64 image
+- `qr_payment_batch({ payments[] })` *(paid; available when x402 is configured)* — payment QRs for a whole invoice run in one call
+
+### `@czagents/realestate` (1 tool, free tier only)
+
+- `get_district_aggregate({ okres, window_days? })` — anonymised district-level distress real-estate stats (ISIR insolvencies + portál dražeb/CEVD forced sales); counts under 5 are banded to protect individual identification
 
 ## What this is good for
 
@@ -140,7 +166,7 @@ A toolkit for compliance, KYC/AML, accounting and cross-border checks over Czech
 - **VAT & invoicing** — verify VAT-payer status (ADIS) and convert at official ČNB FX rates before booking.
 - **Counterparty screening** — ARES identity, EU + OFAC sanctions, ISIR insolvency.
 - **Due diligence (flagship)** — the `@czagents/dd` aggregator combines the above into a risk score, statutory-chain / UBO walk, and EU-parent lookup.
-- **Cross-border** — company lookups across GB / SK / PL / NL / DE / FR registries (`@czagents/eu-registry`).
+- **Cross-border** — company lookups across 16 EU registries (`@czagents/eu-registry`).
 
 Use a single-source server when you need just one dataset; use the due-diligence aggregator for combined, scored output.
 

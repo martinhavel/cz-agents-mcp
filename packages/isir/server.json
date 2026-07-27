@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@czagents/isir",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

@@ -78,7 +78,7 @@ ADIS_SOAP_ENABLED=1 node packages/adis/dist/index.js
 
 ## Free tier & pricing
 
-ADIS itself is a free public service. The hosted endpoint at `https://adis.cz-agents.dev/mcp` is rate-limited per IP. Higher limits and commercial use: https://cz-agents.dev/pricing
+ADIS itself is a free public service. The hosted endpoint at `https://adis.cz-agents.dev/mcp` is rate-limited per IP. Higher limits and commercial use: https://cz-agents.dev/pricing.html
 
 ## License
 
