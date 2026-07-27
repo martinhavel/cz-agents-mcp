@@ -34,9 +34,11 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 
 ## Tools
 
-- `search_company(name, country?, limit?)` — search by company name across all or a single country. `country` is ISO 3166-1 alpha-2 (e.g. `"gb"`). Default limit 10, max 20.
-- `get_company(id, country)` — fetch a company by national ID (CRN for GB, IČO for SK, KRS number for PL, SIREN for FR, org.nr for NO, CVR number for DK, Business ID for FI, registry code for EE, Swedish organisation number for SE, LEI for DE/NL, VAT for IT/AT/ES/NL/BE/LT).
-- `lookup_company_by_vat(vat)` — free EU VAT validation via VIES; returns validity plus registered name/address where the member state discloses them (ES/DE return validity only).
+Each example is an MCP tool-call argument object.
+
+- `search_company` — searches supported non-Czech registries by full or partial company name. Do not use it when you already have an exact national ID, or expect full national-registry data for GLEIF-only countries. Example: `{"name":"Tesco","country":"GB","limit":5}`.
+- `get_company` — fetches a supported non-Czech company by its national ID and country. Do not use it for Czech companies, or with a name instead of the country-specific identifier. Example: `{"id":"14356670","country":"GB"}`.
+- `lookup_company_by_vat` — validates an EU VAT number through VIES and returns disclosed registration details. Do not use it to obtain director/board data, or assume name/address are available for every member state. Example: `{"vat":"NL123456789B01"}`.
 
 ## Configuration
 

@@ -26,9 +26,29 @@ npm install -g @czagents/adis
 
 ## Tools
 
-- `check_dph_payer` — full reliability check for a single subject (by IČO or DIČ). Returns status, subject type, name, address, transparent bank accounts, and `unreliable-since` date when applicable.
-- `check_bulk_dph_payer` — batch up to 100 subjects in one ADIS request (lighter response: status + accounts only).
-- `list_unreliable_payers` — full list of currently unreliable Czech VAT payers from ADIS. Large response (50–100 MB) — intended for daily mirroring rather than ad-hoc lookup.
+### `check_dph_payer`
+
+Use it to check one Czech subject’s VAT-payer reliability, registered accounts, and tax-registry details by IČO or DIČ. Do not use it for a supplier portfolio; use the bulk tool instead.
+
+```json
+{"ico":"26168685"}
+```
+
+### `check_bulk_dph_payer`
+
+Use it to screen a list of Czech IČOs and/or DIČs in one request, up to the service limit. Do not use it when full name and address details for one subject are required; use `check_dph_payer`.
+
+```json
+{"dics":["CZ26168685","CZ00006947"]}
+```
+
+### `list_unreliable_payers`
+
+Use it for a scheduled mirror or local-data refresh of all currently unreliable VAT payers. Do not use it for an ad-hoc lookup: the source list is 50–100 MB and may contain tens of thousands of entries; use `check_dph_payer` instead.
+
+```json
+{}
+```
 
 ### Status meanings
 

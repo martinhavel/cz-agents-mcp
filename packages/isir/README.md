@@ -30,15 +30,29 @@ npm install -g @czagents/isir
 
 ## Tools
 
-- `check_ico_insolvency` — check whether a Czech company (by IČO) has an active insolvency proceeding. Returns spisová značka, start date, and current phase if found.
-- `search_person_insolvency` — find an individual (FO) by name + optional date of birth (or birth number / IČO). Returns active oddlužení / osobní bankrot. Used to screen statutory persons in KYC/DD workflows.
-- `poll_isir_events` — pull a batch of recent ISIR events since `since_id`. ISIR is an append-only feed (~1000 events per call). Use `last_id` from the response as the next `since_id`. Useful for compliance monitoring or back-filling an index.
+### `check_ico_insolvency`
 
-Example prompts:
+Use it to check whether a Czech company identified by IČO has an active ISIR insolvency proceeding. Do not use a clean result as a historical insolvency screen: this tool checks active proceedings only, and an unavailable/unconfigured service yields no verdict.
 
-> Is IČO 12345678 in active insolvency?
+```json
+{"ico":"26168685"}
+```
 
-> Search ISIR for a person born 1980-05-15 named Jan Novák.
+### `search_person_insolvency`
+
+Use it to search an individual by name, preferably with date of birth, for active personal insolvency proceedings; set `only_active` to `false` to include closed or dismissed cases. Do not use a name alone for an identity-critical decision when the person has a common name; provide the date of birth or verify manually.
+
+```json
+{"name":"Jan Novák","dob":"1980-05-15","only_active":true}
+```
+
+### `poll_isir_events`
+
+Use it to consume the append-only ISIR event feed for monitoring or index backfill, advancing the next request with the returned `last_id`. Do not use it to answer an ad-hoc question about one company or person; use the dedicated lookup tool.
+
+```json
+{"since_id":0}
+```
 
 ## Self-host
 

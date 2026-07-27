@@ -24,9 +24,11 @@ npm install -g @czagents/realestate
 }
 ```
 
-## Tools (free tier)
+## Tools
 
-- `get_district_aggregate` — distress real-estate statistics for a Czech okres (district): counts by category (insolvency / auction) and average market data, aggregated from the public ISIR and portál dražeb / CEVD registries. Districts with **1–4 distress leads** return `null` counts + `counts_band: "<5"` and `low_activity: true` — the exact figure is withheld so a single distressed person cannot be identified, but the band makes clear records exist (it is **not** zero). `0` is reported as `0`; `≥5` is exact. The `data_source` field always states the provenance and this rule. Free tier — no per-person PII.
+### Free tier
+
+- `get_district_aggregate` — returns Czech district-level distress statistics from ISIR and portál dražeb / CEVD, with category counts and average market data. Do not use it to find a specific property, owner, address, or to infer a withheld count: 1–4 leads are deliberately returned as `null` with `counts_band: "<5"`. Example: `{"okres":"Beroun","window_days":90}`.
 
 ## Paid tools (hosted realestate-pro only)
 

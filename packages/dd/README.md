@@ -27,11 +27,20 @@ npm install -g @czagents/dd
 
 ## Tools
 
-- `get_dd_report` — full DD report for an IČO: company facts, statutory body with per-member sanctions check, transparent risk score with all triggered red flags.
-- `get_risk_score` — lightweight 0-100 score + risk level + top red flags. Faster when you only need a yes/no/maybe screen.
-- `get_statutory_chain` — surname-based heuristic walk through statutory bodies of related companies. Useful for shell-company unwinding in small s.r.o. with rare surnames. **Not** a true UBO source — for actual beneficial ownership use the ESM (evidence skutečných majitelů, separate registry).
-- `detect_nominee_director` *(Compliance tier+)* — detect "white horse" / nominee director patterns across 8 indicators: residence at municipal office, multi-board membership, personal insolvency, prior bankrupt companies, recent appointment, shared flagged address, HQ matching residence, etc. Returns indicator-by-indicator breakdown for compliance audit.
-- `get_risk_timeline` *(Compliance tier+)* — chronologically sorted lifecycle timeline (formation, statutory changes, insolvency, sanctions matches, VAT reliability flips). For audit narrative and "story so far" reports.
+Each example is an MCP tool-call argument object.
+
+- `person_companies` — finds Czech registry companies connected to a person, preserving separate same-name registry identities. Do not use it to identify someone from a full birth date or to infer a person from a partial name. Example: `{"name":"Jan Novak","birth_year":1975}`.
+- `get_owners` — returns direct and upstream active Czech company owners, with recursive company ownership. Do not use it as an official beneficial-owner (ESM) record or for personal addresses/full birth dates. Example: `{"ico":"12345678","max_depth":3}`.
+- `get_dd_report` — full Czech company due-diligence report: facts, statutory body, sanctions checks, and risk flags. Do not use it for a non-Czech entity or when only a quick screening score is needed. Example: `{"ico":"12345678","depth":"full"}`.
+- `watch_entity` — starts the human onboarding flow for monitoring one Czech company and returns its next step; it does not persist monitoring yet. Do not use it to complete consent, open the returned URL, or assume a watch is active. Example: `{"ico":"12345678"}`.
+- `get_risk_score` — a fast 0–100 score, level, and top risk flags for a Czech IČO. Do not use it when you need the underlying company facts or full evidence. Example: `{"ico":"12345678"}`.
+- `get_statutory_chain` *(Agency tier+)* — follows related statutory bodies using surname heuristics. Do not use it as a true UBO source, especially for common surnames or large public-company boards. Example: `{"ico":"12345678","max_depth":2}`.
+- `detect_nominee_director` *(Compliance tier+)* — checks surface “white horse” indicators such as age outliers, multi-board membership, and recent appointments. Do not use it as a complete eight-indicator forensic assessment; use the richer ddplus tool for that. Example: `{"ico":"12345678"}`.
+- `detect_phoenix` *(Compliance tier+)* — checks surface indicators of a phoenix-company pattern using ARES and ISIR data. Do not use it as proof of asset transfer or a complete phoenix investigation. Example: `{"ico":"12345678"}`.
+- `get_risk_timeline` *(Compliance tier+)* — produces a chronological risk timeline for formation, appointments, insolvency, sanctions, and VAT events. Do not use it when a full enriched cross-entity narrative is required. Example: `{"ico":"12345678"}`.
+- `detect_address_crowding` *(Compliance tier+)* — measures registered-address crowding and classifies possible virtual-office or shell-firm-hotel risk. Do not use it as evidence that every company at a shared address is illegitimate. Example: `{"ico":"12345678"}`.
+- `get_eu_dd_report` *(Compliance tier+)* — performs GLEIF-based international entity due diligence plus EU/OFAC sanctions screening. Do not use it for SMEs that may have no LEI, or as a substitute for national registry/UBO data. Example: `{"identifier":"W38RGI023J3WT1HWRP32"}`.
+- `get_eu_parent` *(Compliance tier+)* — looks for an international parent of a Czech company through ARES and GLEIF. Do not use it to conclude that no parent exists when the entity has no LEI coverage. Example: `{"ico":"12345678"}`.
 
 Example prompts:
 

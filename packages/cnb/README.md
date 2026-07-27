@@ -23,15 +23,29 @@ npm install -g @czagents/cnb
 
 ## Tools
 
-- `get_rates` — full daily FX sheet (~31 majors). Optional `date` (YYYY-MM-DD) for historical rates; otherwise latest.
-- `convert` — convert an amount between two currencies via the official CZK cross-rate. Optional `date` for historical conversion.
-- `get_rate` — single-currency lookup; returns just the CZK rate for one currency code.
+### `get_rates`
 
-Example prompts:
+Use it to obtain the full ČNB daily currency sheet, either latest or for a valid historical ISO date. Do not use it when only one currency rate is needed; use `get_rate`.
 
-> What's the CZK/EUR rate today?
+```json
+{"date":"2024-01-15"}
+```
 
-> Convert 100 USD to CZK at the rate from 2024-01-15.
+### `convert`
+
+Use it to convert a numeric amount between ISO 4217 currencies with ČNB’s official daily rates, including a historical date when necessary. Do not use it for a rate quotation without an amount; use `get_rate`.
+
+```json
+{"amount":100,"from":"USD","to":"CZK","date":"2024-01-15"}
+```
+
+### `get_rate`
+
+Use it to retrieve one currency’s official CZK rate from the latest or a historical ČNB sheet. Do not use it for a cross-currency conversion such as USD to EUR; use `convert`.
+
+```json
+{"code":"EUR","date":"2024-01-15"}
+```
 
 ## Self-host
 
