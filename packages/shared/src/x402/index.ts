@@ -10,6 +10,7 @@ export * from './checks.js';
 export * from './config.js';
 export * from './asset-manifest.js';
 export * from './facilitator.js';
+export * from './cdpAuth.js';
 export * from './metrics.js';
 export * from './httpAdapter.js';
 export * from './gate.js';

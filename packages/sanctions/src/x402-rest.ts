@@ -18,6 +18,7 @@
  * jako lidsky čitelná nápověda, protokol na něm nestojí.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { createRestRateLimiter } from '@czagents/shared';
 import type { SanctionsDb } from './db.js';
 import { rescreenPortfolio, RescreenValidationError, type PortfolioSubject } from './rescreen.js';
 import type { X402Gate } from '@czagents/shared/x402';
@@ -49,7 +50,7 @@ function decodeHeader(raw: string | string[] | undefined): unknown {
 export async function handleX402Rescreen(
   req: IncomingMessage,
   res: ServerResponse,
-  deps: { db: SanctionsDb; gate: X402Gate | null },
+  deps: { db: SanctionsDb; gate: X402Gate | null; limiter: ReturnType<typeof createRestRateLimiter> },
 ): Promise<boolean> {
   if (!req.url) return false;
   const url = new URL(req.url, 'http://localhost');
@@ -61,6 +62,11 @@ export async function handleX402Rescreen(
     json(res, 404, { error: 'not_found', message: 'Endpoint not found.' });
     return true;
   }
+
+  // Neautentizovaný útočník by jinak mohl bez limitu opakovat 402 nabídky
+  // a nechat parsovat 256 KB tělo na request — tohle je stejný limiter jako
+  // u `/v1/*`, sdílený přes klientskou IP (viz http.ts).
+  if (!deps.limiter(req, res)) return true;
 
   if (req.method !== 'POST') {
     json(res, 405, { error: 'method_not_allowed', message: 'Use POST with a JSON body.' });

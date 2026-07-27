@@ -11,3 +11,8 @@ launch/
 docs/*
 !docs/entitlements/
 !docs/entitlements/*.md
+
+# SQLite artefakty z primeho spusteni sluzeb a starych testu
+*.db
+*.db-shm
+*.db-wal

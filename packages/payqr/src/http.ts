@@ -7,16 +7,24 @@ import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, r
   getClientUa,
 } from '@czagents/shared';
 import { buildPayqrServer } from './server.js';
-import { loadX402Config, createX402Gate, HttpFacilitator, type X402Gate } from '@czagents/shared/x402';
+import {
+  loadX402Config, createX402Gate, HttpFacilitator, type X402Gate,
+  facilitatorAuthHeadersFor, createX402MetricsListener, getX402Metrics,
+} from '@czagents/shared/x402';
 
 // Vypnuto => null a placený nástroj se neregistruje. Zapnuto a špatně
 // nakonfigurováno => loadX402Config hodí a boot padne se jménem proměnné.
 const x402Config = loadX402Config();
 const x402Gate: X402Gate | null = x402Config
-  ? createX402Gate(x402Config, new HttpFacilitator({
-      url: x402Config.facilitatorUrl,
-      authMode: x402Config.facilitatorAuth,
-    }))
+  ? createX402Gate(
+      x402Config,
+      new HttpFacilitator({
+        url: x402Config.facilitatorUrl,
+        authMode: x402Config.facilitatorAuth,
+        createAuthHeaders: facilitatorAuthHeadersFor(x402Config.facilitatorAuth),
+      }),
+      { onEvent: createX402MetricsListener({ service: 'payqr', tool: 'qr_payment_batch' }) },
+    )
   : null;
 import { getQr, getPrefill } from './qr-store.js';
 
@@ -51,7 +59,7 @@ async function main() {
 
     if (req.url === '/metrics') {
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
-      res.end(getMetrics());
+      res.end(`${getMetrics()}${getX402Metrics()}`);
       return;
     }
 

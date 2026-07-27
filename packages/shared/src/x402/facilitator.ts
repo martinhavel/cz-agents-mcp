@@ -122,8 +122,15 @@ export interface HttpFacilitatorOptions {
    * volající (fáze 2/3, nebo `config.ts`), tahle třída jen hlavičky přimíchá.
    */
   authMode?: FacilitatorAuthMode;
-  /** Povinné, pokud `authMode === 'cdp'`. Vrací hlavičky přidané ke každému requestu. */
-  createAuthHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
+  /**
+   * Povinné, pokud `authMode === 'cdp'`. Vrací hlavičky přidané ke každému
+   * requestu. Dostává metodu a plnou URL toho KONKRÉTNÍHO volání — CDP JWT nese
+   * `uri` claim vázaný na "METHOD host/path" a platí jen 120 s, takže se musí
+   * generovat znovu pro `/supported`, `/verify` i `/settle` zvlášť, ne jednou
+   * při startu.
+   */
+  createAuthHeaders?: (context: { method: 'GET' | 'POST'; url: string }) =>
+    Record<string, string> | Promise<Record<string, string>>;
   /** Timeout na KAŽDÉ volání (supported/verify/settle) zvlášť. Default 10 s. */
   timeoutMs?: number;
   /** Injektovatelné pro testy; default `globalThis.fetch`. */
@@ -138,7 +145,8 @@ export interface HttpFacilitatorOptions {
 export class HttpFacilitator implements Facilitator {
   private readonly url: string;
   private readonly authMode: FacilitatorAuthMode;
-  private readonly createAuthHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
+  private readonly createAuthHeaders?: (context: { method: 'GET' | 'POST'; url: string }) =>
+    Record<string, string> | Promise<Record<string, string>>;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
@@ -188,7 +196,7 @@ export class HttpFacilitator implements Facilitator {
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
       if (this.authMode === 'cdp' && this.createAuthHeaders) {
-        Object.assign(headers, await this.createAuthHeaders());
+        Object.assign(headers, await this.createAuthHeaders({ method, url: `${this.url}${path}` }));
       }
 
       let response: Response;

@@ -14,10 +14,27 @@ import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createRestRateLimiter, createQuotaGuard, TokenStore } from '@czagents/shared';
 import { SanctionsDb } from '../db.js';
 import { SanctionsSearch } from '../search.js';
+import { handleSanctionsRest } from '../http.js';
 import { handleX402Rescreen, resourceIdFor } from '../x402-rest.js';
-import type { X402Gate } from '@czagents/shared/x402';
+import { loadX402Config, createX402Gate, type X402Gate, type Facilitator } from '@czagents/shared/x402';
+
+/** Nikdy skutečně nevolaná — testy níž nechodí cestou, kde by na ni gate sáhl. */
+const unusedFacilitator: Facilitator = {
+  supported: vi.fn(() => { throw new Error('facilitator se v tomhle testu nemá volat'); }),
+  verify: vi.fn(() => { throw new Error('facilitator se v tomhle testu nemá volat'); }),
+  settle: vi.fn(() => { throw new Error('facilitator se v tomhle testu nemá volat'); }),
+};
+
+/** Bez limitu — pro testy, které limiter samy neprověřují. */
+const passLimiter: ReturnType<typeof createRestRateLimiter> = () => true;
+
+function withSocket(req: IncomingMessage, remoteAddress: string): IncomingMessage {
+  (req as unknown as { socket: { remoteAddress: string } }).socket = { remoteAddress };
+  return req;
+}
 
 const ENTITY = {
   id: 'eu-1', source: 'eu' as const, source_list_id: 'eu-1', type: 'entity' as const,
@@ -78,7 +95,7 @@ const gateStub = (over: Partial<X402Gate> = {}): X402Gate => ({
 describe('placený endpoint — když je x402 vypnuté, neexistuje', () => {
   it('vrací 404, ne 402 ani 503', async () => {
     const { res, captured } = fakeRes();
-    const handled = await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen'), res, { db, gate: null });
+    const handled = await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen'), res, { db, gate: null, limiter: passLimiter });
     expect(handled).toBe(true);
     expect(captured.status).toBe(404);
   });
@@ -86,7 +103,7 @@ describe('placený endpoint — když je x402 vypnuté, neexistuje', () => {
   it('cizí cesty nechává projít dál — existující REST se nemění', async () => {
     for (const path of ['/v1/sanctions/check?ico=27074358', '/health', '/metrics', '/mcp']) {
       const { res } = fakeRes();
-      const handled = await handleX402Rescreen(fakeReq('GET', path), res, { db, gate: gateStub() });
+      const handled = await handleX402Rescreen(fakeReq('GET', path), res, { db, gate: gateStub(), limiter: passLimiter });
       expect(handled, `cesta ${path} nesmí být pohlcena`).toBe(false);
     }
   });
@@ -97,7 +114,7 @@ describe('placený endpoint — bez platby vrací 402 podle x402 v2', () => {
     const { res, captured } = fakeRes();
     await handleX402Rescreen(
       fakeReq('POST', '/v1/sanctions/rescreen', {}, { subjects: [{ ref: 'a', ico: '27074358' }], since: '2026-07-01' }),
-      res, { db, gate: gateStub() },
+      res, { db, gate: gateStub(), limiter: passLimiter },
     );
     expect(captured.status).toBe(402);
     const header = captured.headers['PAYMENT-REQUIRED'];
@@ -110,7 +127,7 @@ describe('placený endpoint — bez platby vrací 402 podle x402 v2', () => {
   it('odmítne nečitelné tělo i chybějící since', async () => {
     for (const body of [{ subjects: [] }, { subjects: [], since: 'nesmysl' }]) {
       const { res, captured } = fakeRes();
-      await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', {}, body), res, { db, gate: gateStub() });
+      await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', {}, body), res, { db, gate: gateStub(), limiter: passLimiter });
       expect(captured.status).toBe(400);
     }
   });
@@ -123,7 +140,7 @@ describe('placený endpoint — data se vydají jen po zaplacení', () => {
   it('neúspěšná platba nevydá data a nabídne znovu zaplatit', async () => {
     const gate = gateStub({ redeem: vi.fn().mockResolvedValue({ released: false, code: 'settle_failed', reason: 'neusadilo se' }) });
     const { res, captured } = fakeRes();
-    await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', paidHeaders, body), res, { db, gate });
+    await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', paidHeaders, body), res, { db, gate, limiter: passLimiter });
     expect(captured.status).toBe(402);
     expect(JSON.parse(captured.body)).toMatchObject({ error: 'payment_failed', code: 'settle_failed' });
     // Nejdůležitější: v těle nesmí být výsledek screeningu.
@@ -134,7 +151,7 @@ describe('placený endpoint — data se vydají jen po zaplacení', () => {
     db.upsertSource('eu', [ENTITY]);
     const gate = gateStub();
     const { res, captured } = fakeRes();
-    await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', paidHeaders, body), res, { db, gate });
+    await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', paidHeaders, body), res, { db, gate, limiter: passLimiter });
     expect(captured.status).toBe(200);
     expect(JSON.parse(captured.body)).toHaveProperty('summary.subjects_screened', 1);
     const settlement = JSON.parse(Buffer.from(captured.headers['PAYMENT-RESPONSE']!, 'base64').toString('utf8'));
@@ -153,41 +170,77 @@ describe('placený endpoint — data se vydají jen po zaplacení', () => {
 });
 
 describe('TVRDÁ PODMÍNKA — existující chování se nesmí zhoršit', () => {
-  it('výstupy existujících nástrojů jsou byte-shodné se zapnutým i vypnutým x402', () => {
-    db.upsertSource('eu', [ENTITY]);
-    const search = new SanctionsSearch(db);
-
-    const callAll = () => JSON.stringify({
-      byIco: search.searchByIco('27074358'),
-      byName: search.searchByName('Testovaná firma s.r.o.'),
-      byDoc: search.searchByDocument('ico', '27074358'),
-      changes: db.changesSince(0),
-      stats: db.stats(),
-    });
-
-    const withoutX402 = callAll();
-    process.env.X402_ENABLED = 'true';
-    process.env.X402_NETWORK = 'eip155:84532';
-    try {
-      const withX402 = callAll();
-      // Ne toEqual — doslovná shoda řetězců. Kdyby x402 cokoli přidalo do
-      // odpovědi existujícího nástroje, tenhle test padne.
-      expect(withX402).toBe(withoutX402);
-    } finally {
-      delete process.env.X402_ENABLED;
-      delete process.env.X402_NETWORK;
-    }
+  /**
+   * Předchozí verze tohohle testu nastavovala `process.env.X402_ENABLED` a
+   * porovnávala výstup `search.searchByIco()` atd. — kód, který ten env
+   * proměnnou vůbec nečte. Test nemohl spadnout, ať se pokazí cokoli
+   * (divadlo). Poctivá verze pošle skutečný požadavek přes SKUTEČNÉ produkční
+   * funkce ve STEJNÉM pořadí jako `main()` v `http.ts` (`handleX402Rescreen`
+   * → `handleSanctionsRest`), jednou se skutečnou branou (reálný
+   * `loadX402Config`+`createX402Gate`), jednou bez — a porovná byte po bytu,
+   * stejně jako `x402-mcp.test.ts` dělá pro MCP nástroje.
+   */
+  const testnetEnv = (): NodeJS.ProcessEnv => ({
+    X402_ENABLED: 'true',
+    X402_NETWORK: 'eip155:84532',
+    X402_ASSET: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    X402_PAY_TO: '0x1111111111111111111111111111111111111111',
+    X402_FACILITATOR_URL: 'https://x402.org/facilitator',
+    X402_PRICE_USD: '0.005',
   });
 
-  it('denní cap zůstává nedotčený — x402 ho neobchází ani nezpřísňuje', () => {
-    // x402 se ptá až tam, kde dnes nic není (nový endpoint). Existující kvótová
-    // brána se nemění, takže kdo dnes narazí na cap, narazí na něj dál.
-    const before = db.stats();
-    process.env.X402_ENABLED = 'true';
-    try {
-      expect(db.stats()).toEqual(before);
-    } finally {
-      delete process.env.X402_ENABLED;
-    }
+  async function dispatch(
+    gate: X402Gate | null,
+    req: IncomingMessage,
+    res: ServerResponse,
+    deps: { search: SanctionsSearch; limiter: ReturnType<typeof createRestRateLimiter>; quota: ReturnType<typeof createQuotaGuard> },
+  ): Promise<void> {
+    if (await handleX402Rescreen(req, res, { db, gate, limiter: deps.limiter })) return;
+    await handleSanctionsRest(req, res, deps.search, deps.limiter, deps.quota);
+  }
+
+  it('/v1/sanctions/check je byte-shodné se zapnutou i vypnutou branou x402', async () => {
+    db.upsertSource('eu', [ENTITY]);
+    const search = new SanctionsSearch(db);
+    const tokenStore = new TokenStore(join(dir, 'tokens.db'));
+    const quota = createQuotaGuard({ store: tokenStore, service: 'sanctions', allowAnonymous: true });
+
+    const call = async (gate: X402Gate | null) => {
+      const req = withSocket(fakeReq('GET', '/v1/sanctions/check?ico=27074358'), '203.0.113.1');
+      const { res, captured } = fakeRes();
+      await dispatch(gate, req, res, { search, limiter: createRestRateLimiter(), quota });
+      // `fetched_at` je čas requestu — normalizuje se pryč, jinak by dva reálné
+      // requesty nikdy nemohly být doslovně shodné.
+      return { status: captured.status, body: captured.body.replace(/"fetched_at":"[^"]+"/, '"fetched_at":"<ts>"') };
+    };
+
+    const withoutGate = await call(null);
+    const realGate = createX402Gate(loadX402Config(testnetEnv())!, unusedFacilitator);
+    const withGate = await call(realGate);
+
+    expect(withGate).toEqual(withoutGate);
+    tokenStore.close();
+  });
+});
+
+describe('placený endpoint — sdílí rate limit s existujícím REST (Úkol 3)', () => {
+  it('neplacené 402 nabídky jsou omezené — před opravou limiter vůbec neběžel', async () => {
+    // max: 2 — třetí požadavek ze stejné IP musí narazit na 429, ne na další 402.
+    // Tohle je test, který by BEZ opravy `handleX402Rescreen` (chybějící volání
+    // limiteru) nikdy nevrátil 429 — útočník by mohl generovat nabídky bez konce.
+    const limiter = createRestRateLimiter({ max: 2, windowMs: 60_000 });
+    const gate = gateStub();
+    const body = { subjects: [], since: '2026-07-01' };
+
+    const hit = async () => {
+      const req = withSocket(fakeReq('POST', '/v1/sanctions/rescreen', {}, body), '198.51.100.7');
+      const { res, captured } = fakeRes();
+      await handleX402Rescreen(req, res, { db, gate, limiter });
+      return captured.status;
+    };
+
+    expect(await hit()).toBe(402);
+    expect(await hit()).toBe(402);
+    expect(await hit()).toBe(429);
   });
 });

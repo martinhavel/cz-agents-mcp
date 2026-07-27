@@ -14,6 +14,9 @@ import { findManifestEntry } from './asset-manifest.js';
 import type {
   Facilitator, Network, PaymentPayload, PaymentRequirements, ResourceInfo, SettleResponse,
 } from './facilitator.js';
+import {
+  x402OffersTotal, x402SettlementsTotal, x402FacilitatorErrorsTotal, x402CheckRejectionsTotal,
+} from './metrics.js';
 
 /** Kolik atomických jednotek je jeden USD u aktiva se šesti desetinnými místy. */
 const USDC_DECIMALS = 6;
@@ -155,7 +158,10 @@ export function createX402Gate(
         // Nonce se uvolní: legitimní retry po výpadku facilitátora nemá být
         // trestaný. Škodlivý replay se stejně zastaví na kontraktu.
         replayStore.release(auth.nonce);
-        emit({ kind: 'facilitator_error', resource: expectedResource, phase: 'verify' });
+        emit({
+          kind: 'facilitator_error', resource: expectedResource, phase: 'verify',
+          detail: error instanceof Error ? error.message : String(error),
+        });
         return deny('facilitator_unavailable', 'ověření platby se nepodařilo dokončit', checked.amounts);
       }
 
@@ -185,7 +191,10 @@ export function createX402Gate(
         return { released: true, settlement, amounts: checked.amounts };
       } catch (error) {
         replayStore.release(auth.nonce);
-        emit({ kind: 'facilitator_error', resource: expectedResource, phase: 'settle' });
+        emit({
+          kind: 'facilitator_error', resource: expectedResource, phase: 'settle',
+          detail: error instanceof Error ? error.message : String(error),
+        });
         // Nejednoznačný výsledek: platba mohla projít i neprojít. Data se
         // NEVYDAJÍ — z dvou špatných možností je nevydat to menší zlo, protože
         // nevydaná data jdou vydat později, vydaná se nedají vzít zpátky.
@@ -243,4 +252,66 @@ export type GateEvent =
   | { kind: 'settled'; resource: string; transaction: string }
   | { kind: 'settle_failed'; resource: string; detail?: string }
   | { kind: 'released_before_settlement'; resource: string }
-  | { kind: 'facilitator_error'; resource: string; phase: 'verify' | 'settle' };
+  | { kind: 'facilitator_error'; resource: string; phase: 'verify' | 'settle'; detail?: string };
+
+export interface X402MetricsListenerOptions {
+  /** Jméno služby pro label `service` (`sanctions`, `payqr`, ...). */
+  service: string;
+  /**
+   * Jméno placeného nástroje pro label `tool`. Pevný řetězec zvolený volajícím
+   * PŘI KONSTRUKCI brány — NIKDY `event.resource`: ten nese proměnné části
+   * (počet položek, timestamp) a jako label by rozbil kardinalitu čítače.
+   */
+  tool: string;
+}
+
+/**
+ * Napojí čtyři čítače z `metrics.ts` na proud událostí brány a odloguje detail
+ * u selhání facilitátora. Bez tohohle by `getX402Metrics()` navěky vracel jen
+ * prázdné HELP/TYPE hlavičky — brána se dnes konstruuje bez `onEvent` a
+ * opakované selhání settlementu by nikde nebylo vidět.
+ *
+ * Volá se jednou při konstrukci gate v `http.ts` každé služby
+ * (`options.onEvent` u `createX402Gate`).
+ */
+export function createX402MetricsListener({ service, tool }: X402MetricsListenerOptions): (event: GateEvent) => void {
+  return (event) => {
+    switch (event.kind) {
+      case 'offer_created':
+        x402OffersTotal.inc({ service, tool });
+        break;
+      case 'check_rejected':
+        x402CheckRejectionsTotal.inc({ service, check: event.check });
+        break;
+      case 'verify_failed':
+        x402SettlementsTotal.inc({ service, tool, result: 'verify_failed' });
+        break;
+      case 'settled':
+        x402SettlementsTotal.inc({ service, tool, result: 'success' });
+        break;
+      case 'settle_failed':
+        x402SettlementsTotal.inc({ service, tool, result: 'settle_failed' });
+        // Kód facilitátoru (např. `invalid_exact_evm_transaction_failed`) se
+        // nesmí ztratit — 27. 7. jedna ostrá platba na Base Sepolia takhle
+        // selhala a příčina se dodatečně nedala zjistit.
+        console.error(`[x402] ${service}/${tool} settlement selhal: ${event.detail ?? 'bez detailu'}`);
+        break;
+      case 'released_before_settlement':
+        x402SettlementsTotal.inc({ service, tool, result: 'released_before_settlement' });
+        break;
+      case 'facilitator_error': {
+        x402FacilitatorErrorsTotal.inc({ service, phase: event.phase });
+        x402SettlementsTotal.inc({
+          service, tool,
+          result: event.phase === 'settle' ? 'settlement_unknown' : 'facilitator_unavailable',
+        });
+        console.error(`[x402] ${service}/${tool} facilitátor (${event.phase}) selhal: ${event.detail ?? 'bez detailu'}`);
+        break;
+      }
+      // payload_received/verify_started/settle_started: mezikroky bez vlastního
+      // čítače — nesou se jen jako signál pro budoucí trasování, ne pro metriku.
+      default:
+        break;
+    }
+  };
+}

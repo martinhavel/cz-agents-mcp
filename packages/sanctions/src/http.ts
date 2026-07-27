@@ -13,6 +13,7 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import {
   createRateLimiter,
   createRestRateLimiter,
@@ -40,7 +41,10 @@ import { SanctionsSearch } from './search.js';
 import { buildSanctionsServer } from './server.js';
 import { buildSanctionsBilling } from './billing.js';
 import { handleX402Rescreen } from './x402-rest.js';
-import { loadX402Config, createX402Gate, HttpFacilitator, type X402Gate } from '@czagents/shared/x402';
+import {
+  loadX402Config, createX402Gate, HttpFacilitator, type X402Gate,
+  facilitatorAuthHeadersFor, createX402MetricsListener, getX402Metrics,
+} from '@czagents/shared/x402';
 
 const PORT = Number(process.env.PORT ?? 3030);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
@@ -67,10 +71,15 @@ async function main() {
   // promenne. Nikdy nedegraduje na testnet ani na "bezi, ale neplati se".
   const x402Config = loadX402Config();
   const x402Gate: X402Gate | null = x402Config
-    ? createX402Gate(x402Config, new HttpFacilitator({
-        url: x402Config.facilitatorUrl,
-        authMode: x402Config.facilitatorAuth,
-      }))
+    ? createX402Gate(
+        x402Config,
+        new HttpFacilitator({
+          url: x402Config.facilitatorUrl,
+          authMode: x402Config.facilitatorAuth,
+          createAuthHeaders: facilitatorAuthHeadersFor(x402Config.facilitatorAuth),
+        }),
+        { onEvent: createX402MetricsListener({ service: 'sanctions', tool: 'rescreen_portfolio' }) },
+      )
     : null;
   if (x402Config) {
     console.error(`[sanctions] x402 zapnuto: ${x402Config.network}, ${x402Config.priceUsd} USD`);
@@ -122,7 +131,7 @@ async function main() {
 
     if (req.url === '/metrics') {
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
-      res.end(getMetrics());
+      res.end(`${getMetrics()}${getX402Metrics()}`);
       return;
     }
 
@@ -162,7 +171,7 @@ async function main() {
     // Placená cesta první, ale jen pro svou jedinou pathname: `handleX402Rescreen`
     // vrací false pro cokoli jiného, takže existující REST chování zůstává beze
     // změny. Když je x402 vypnuté, vrací 404 jako každá neznámá cesta.
-    if (await handleX402Rescreen(req, res, { db, gate: x402Gate })) {
+    if (await handleX402Rescreen(req, res, { db, gate: x402Gate, limiter: restLimiter })) {
       return;
     }
 
@@ -243,7 +252,7 @@ async function main() {
   });
 }
 
-async function handleSanctionsRest(
+export async function handleSanctionsRest(
   req: import('node:http').IncomingMessage,
   res: import('node:http').ServerResponse,
   search: SanctionsSearch,
@@ -307,7 +316,17 @@ function readRawBody(req: import('node:http').IncomingMessage, maxBytes: number)
   });
 }
 
-main().catch((err) => {
-  console.error('[cz-agents/sanctions] fatal:', err);
-  process.exit(1);
-});
+// Stejná pojistka jako v index.ts: `handleSanctionsRest` se teď importuje i
+// z testů (x402-rest.test.ts), a bez ní by import tohohle modulu vždycky
+// nastartoval skutečný server (port, reálné .db soubory na disku). Produkci
+// (`CMD node dist/http.js` v Dockerfile) se to nedotýká — tam je vždy `isDirectRun`.
+const isDirectRun =
+  process.argv[1] !== undefined &&
+  fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error('[cz-agents/sanctions] fatal:', err);
+    process.exit(1);
+  });
+}
