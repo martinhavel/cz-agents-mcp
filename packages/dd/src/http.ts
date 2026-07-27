@@ -64,6 +64,12 @@ const ENTITLEMENT_MODE=entitlementMode(process.env.HOSTED_GEO_TIER_ENFORCEMENT);
 const UPGRADE_URL=process.env.HOSTED_UPGRADE_URL ?? 'https://cz-agents.dev/pricing.html';
 const X402_PREVIEW_ENABLED=process.env.X402_PREVIEW_ENABLED==='true';
 const X402_PREVIEW_INTENT_URL=process.env.X402_PREVIEW_INTENT_URL ?? 'https://dd.cz-agents.dev/v1/payment-options/x402/intent';
+// Where an anonymous caller goes to acquire an identity. This must point at the
+// FREE credential (the 14-day trial), not at the price list: the whole point of
+// the identity gate is that a declaration costs reputation, not money. Charging
+// money for the right to declare interest would measure the thing the preview
+// deliberately does not build.
+const X402_PREVIEW_IDENTITY_URL=process.env.X402_PREVIEW_IDENTITY_URL ?? 'https://cz-agents.dev/pricing.html#trial';
 
 async function main() {
   const ares = new AresClient();
@@ -189,8 +195,11 @@ async function main() {
 
     if (req.url === '/metrics') {
       res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4' });
-      const counts=entitlementStore?.x402PreviewCounts() ?? {offered:0,intents:0};
-      res.end(`${getMetrics()}# HELP cz_agents_x402_preview_events_total Durable x402 preview funnel events.\n# TYPE cz_agents_x402_preview_events_total counter\ncz_agents_x402_preview_events_total{kind="offered"} ${counts.offered}\ncz_agents_x402_preview_events_total{kind="intent"} ${counts.intents}\n`);
+      // kind="intent" stays the sum of both identity classes so the series that
+      // has been scraped since 23. 7. keeps its meaning; the split is added as
+      // two new labels rather than by redefining an existing one.
+      const counts=entitlementStore?.x402PreviewCounts() ?? {offered:0,intents:0,intentsAnonymous:0,intentsIdentified:0};
+      res.end(`${getMetrics()}# HELP cz_agents_x402_preview_events_total Durable x402 preview funnel events.\n# TYPE cz_agents_x402_preview_events_total counter\ncz_agents_x402_preview_events_total{kind="offered"} ${counts.offered}\ncz_agents_x402_preview_events_total{kind="intent"} ${counts.intents}\ncz_agents_x402_preview_events_total{kind="intent_anonymous"} ${counts.intentsAnonymous}\ncz_agents_x402_preview_events_total{kind="intent_identified"} ${counts.intentsIdentified}\n`);
       return;
     }
 
@@ -373,10 +382,22 @@ async function handleDdRest(
     if (!/^[A-Za-z0-9._:-]{1,160}$/.test(requestId)) {
       jsonErr(res,400,'invalid_request','request_id is invalid.'); return true;
     }
-    if (!entitlementStore?.recordX402PreviewIntent(account.accountPseudonym,requestId)) {
+    // The offer must exist for this pseudonym before anything is logged, so an
+    // arbitrary request id cannot write rows into the funnel. Anonymous callers
+    // are still recorded — the declaration is kept as the weak signal it is —
+    // but the declaration itself is refused: a click that costs nothing measures
+    // curiosity, not trust. Identity is the only price this preview charges.
+    if (!entitlementStore?.recordX402PreviewIntent(account.accountPseudonym,requestId,
+      {identityClass:account.identityClass,identityAgeDays:account.identityAgeDays})) {
       jsonErr(res,404,'preview_not_found','No eligible x402 preview was found for this request.'); return true;
     }
-    jsonOk(res,{protocol:'x402',status:'preview',payment_accepted:false},'dd');
+    if (account.identityClass!=='identified') {
+      res.setHeader('WWW-Authenticate','Bearer realm="cz-agents/dd"');
+      jsonErr(res,401,'identity_required',
+        `Declaring a payment intent requires an authenticated account, so the declaration costs reputation rather than nothing. Your call was recorded as an anonymous declaration. A free credential is available at ${X402_PREVIEW_IDENTITY_URL}.`);
+      return true;
+    }
+    jsonOk(res,{protocol:'x402',status:'preview',payment_accepted:false,identity:'identified'},'dd');
     return true;
   }
 

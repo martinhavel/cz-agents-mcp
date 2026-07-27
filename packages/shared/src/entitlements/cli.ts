@@ -50,9 +50,27 @@ function main(argv = process.argv.slice(2)): void {
       const days=Number(values.get('days') ?? '30');
       if (!Number.isFinite(days)||days<=0) fail('days must be positive');
       const since=Date.now()-days*86_400_000;
+      const preview=store.x402PreviewReport(since);
       console.log(JSON.stringify({since_days:days,countries:store.intentReport(since),
         fanout_upgrade_ctas:store.intentReportFanoutCtas(since),
-        x402_preview:store.x402PreviewCounts(since)},null,2));
+        x402_preview:{
+          // Denominator first, on purpose: the 26. 7. review found a funnel
+          // reported without one, where a zero could not be told from an empty
+          // window. Numerators are only meaningful under these two numbers.
+          gate_calls:preview.gateCalls,
+          gated_calls:preview.gatedCalls,
+          offers:preview.offers,
+          offers_anonymous:preview.offersAnonymous,
+          offers_identified:preview.offersIdentified,
+          intent_anonymous:preview.intentsAnonymous,
+          intent_identified:preview.intentsIdentified,
+          identified_identities:preview.identifiedIdentities,
+          identified_repeat_identities:preview.identifiedRepeatIdentities,
+          by_endpoint:preview.byEndpoint.map((row)=>({endpoint:row.endpoint,gate_calls:row.gateCalls,
+            gated_calls:row.gatedCalls,offers:row.offers,intent_anonymous:row.intentsAnonymous,
+            intent_identified:row.intentsIdentified})),
+          interpretation:preview.interpretation,
+        }},null,2));
       return;
     }
     fail('command must be seed, set-country, grant, override-country, or report');

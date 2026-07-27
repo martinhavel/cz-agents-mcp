@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -146,11 +147,12 @@ describe('hosted entitlement resolver', () => {
     const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test'});
     const decision=check(resolver,core(),'CZ','ddplus');
     resolver.record(decision,false,{x402Preview:true});
-    expect(store.x402PreviewCounts()).toEqual({offered:1,intents:0});
-    expect(store.recordX402PreviewIntent(core().accountPseudonym,'req-1')).toBe(true);
-    expect(store.recordX402PreviewIntent(core().accountPseudonym,'req-1')).toBe(true);
-    expect(store.x402PreviewCounts()).toEqual({offered:1,intents:1});
-    expect(store.x402PreviewCounts(Date.now()+1)).toEqual({offered:0,intents:0});
+    expect(store.x402PreviewCounts()).toEqual({offered:1,intents:0,intentsAnonymous:0,intentsIdentified:0});
+    const anon={identityClass:'anonymous' as const,identityAgeDays:null};
+    expect(store.recordX402PreviewIntent(core().accountPseudonym,'req-1',anon)).toBe(true);
+    expect(store.recordX402PreviewIntent(core().accountPseudonym,'req-1',anon)).toBe(true);
+    expect(store.x402PreviewCounts()).toEqual({offered:1,intents:1,intentsAnonymous:1,intentsIdentified:0});
+    expect(store.x402PreviewCounts(Date.now()+1)).toEqual({offered:0,intents:0,intentsAnonymous:0,intentsIdentified:0});
   });
 
   it('does not record a preview for a probe, coverage decision, or allowed request',()=>{
@@ -158,7 +160,122 @@ describe('hosted entitlement resolver', () => {
     resolver.record(check(resolver,core(),'CZ','ddplus'),false,{x402Preview:true,isProbe:true});
     resolver.record(check(resolver,core(),'DE'),false,{x402Preview:true});
     resolver.record(check(resolver,extended(),'CZ','ddplus'),true,{x402Preview:true});
-    expect(store.x402PreviewCounts()).toEqual({offered:0,intents:0});
+    expect(store.x402PreviewCounts()).toEqual({offered:0,intents:0,intentsAnonymous:0,intentsIdentified:0});
+  });
+
+  it('classifies a stored token with a stable account id as identified, everything else as anonymous',()=>{
+    const twoDaysAgo=Date.now()-2*86_400_000;
+    const token=(over:Partial<TokenRecord>={}):TokenRecord=>({token:'tok-live',service:'dd',tier:'pay-per-report',
+      stripe_customer_id:'cus-live',stripe_subscription_id:null,monthly_quota:null,counter:0,credits:3,
+      period_started_at:twoDaysAgo,created_at:twoDaysAgo,updated_at:twoDaysAgo,revoked_at:null,...over});
+    expect(accountContextFromToken(token(),'1.2.3.4','test-salt'))
+      .toMatchObject({identityClass:'identified',identityAgeDays:2});
+    // No token at all — the pseudonym is only an IP hash.
+    expect(accountContextFromToken(null,'1.2.3.4','test-salt'))
+      .toMatchObject({identityClass:'anonymous',identityAgeDays:null});
+    // The synthetic free-tier record the auth guard hands to anonymous callers.
+    expect(accountContextFromToken(token({token:'__anonymous__',stripe_customer_id:''}),'1.2.3.4','test-salt'))
+      .toMatchObject({identityClass:'anonymous',identityAgeDays:null});
+    // A real token whose account id is empty falls back to an IP-derived
+    // pseudonym, so it must not be counted as a durable identity.
+    expect(accountContextFromToken(token({stripe_customer_id:''}),'1.2.3.4','test-salt'))
+      .toMatchObject({identityClass:'anonymous',identityAgeDays:null});
+  });
+
+  it('separates anonymous from identified declarations and reports the denominator',()=>{
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test'});
+    const paidCreditToken:TokenRecord={token:'tok-ppr',service:'dd',tier:'pay-per-report',
+      stripe_customer_id:'cus-ppr',stripe_subscription_id:null,monthly_quota:null,counter:0,credits:2,
+      period_started_at:Date.now()-5*86_400_000,created_at:Date.now()-5*86_400_000,
+      updated_at:Date.now(),revoked_at:null};
+    const identified=accountContextFromToken(paidCreditToken,'9.9.9.9','test-salt');
+    const anonymous=core();
+
+    // Both callers hit the DD+ depth gate and are offered the preview.
+    resolver.record(resolver.check({account:anonymous,country:'CZ',requestedDepth:'ddplus',
+      endpoint:'mcp:get_dd_report',requestId:'req-anon'}),false,{x402Preview:true});
+    resolver.record(resolver.check({account:identified,country:'CZ',requestedDepth:'ddplus',
+      endpoint:'mcp:get_dd_report',requestId:'req-id'}),false,{x402Preview:true});
+
+    expect(store.recordX402PreviewIntent(anonymous.accountPseudonym,'req-anon',
+      {identityClass:'anonymous',identityAgeDays:null})).toBe(true);
+    expect(store.recordX402PreviewIntent(identified.accountPseudonym,'req-id',
+      {identityClass:'identified',identityAgeDays:identified.identityAgeDays})).toBe(true);
+    // An intent for an offer that was never made to this pseudonym is refused.
+    expect(store.recordX402PreviewIntent(identified.accountPseudonym,'req-anon',
+      {identityClass:'identified',identityAgeDays:5})).toBe(false);
+
+    const report=store.x402PreviewReport();
+    expect(report).toMatchObject({gateCalls:2,gatedCalls:2,offers:2,offersAnonymous:1,offersIdentified:1,
+      intentsAnonymous:1,intentsIdentified:1,identifiedIdentities:1,identifiedRepeatIdentities:0});
+    expect(report.byEndpoint).toEqual([{endpoint:'mcp:get_dd_report',gateCalls:2,gatedCalls:2,offers:2,
+      intentsAnonymous:1,intentsIdentified:1}]);
+    expect(report.interpretation).toMatch(/^POSITIVE SIGNAL/);
+  });
+
+  it('stores age and call volume on the declaration, and never any account identifier',()=>{
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test'});
+    const token:TokenRecord={token:'tok-age',service:'dd',tier:'pay-per-report',stripe_customer_id:'cus-age',
+      stripe_subscription_id:null,monthly_quota:null,counter:0,credits:1,
+      period_started_at:Date.now()-11*86_400_000,created_at:Date.now()-11*86_400_000,
+      updated_at:Date.now(),revoked_at:null};
+    const account=accountContextFromToken(token,'8.8.8.8','test-salt');
+    // Two earlier checks give this identity a history to lose.
+    for (const requestId of ['hist-1','hist-2']) {
+      resolver.record(resolver.check({account,country:'CZ',requestedDepth:'basic',
+        endpoint:'mcp:get_company',requestId}),true);
+    }
+    resolver.record(resolver.check({account,country:'CZ',requestedDepth:'ddplus',
+      endpoint:'mcp:get_dd_report',requestId:'req-age'}),false,{x402Preview:true});
+    store.recordX402PreviewIntent(account.accountPseudonym,'req-age',
+      {identityClass:'identified',identityAgeDays:account.identityAgeDays});
+
+    const rows=readEvents(join(dir,'tokens.db'),'x402_preview_intent');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({identity_class:'identified',identity_age_days:11,identity_calls:3});
+    expect(JSON.stringify(rows[0])).not.toContain('cus-age');
+    expect(JSON.stringify(rows[0])).not.toContain('tok-age');
+    expect(JSON.stringify(rows[0])).not.toContain('8.8.8.8');
+  });
+
+  it('reads an empty window as empty, not as a finding',()=>{
+    expect(store.x402PreviewReport().interpretation).toMatch(/^EMPTY WINDOW/);
+    const resolver=new HostedEntitlementResolver(store,{mode:'enforce',upgradeUrl:'https://example.test'});
+    resolver.record(resolver.check({account:core(),country:'CZ',requestedDepth:'ddplus',
+      endpoint:'mcp:get_dd_report',requestId:'req-only-anon'}),false,{x402Preview:true});
+    // Offers exist but every one went to an anonymous caller: an identified
+    // zero here is a fact about signup, not about willingness to pay.
+    expect(store.x402PreviewReport().interpretation).toMatch(/^IDENTITY CEILING/);
+  });
+
+  it('adds the identity columns to a database created before they existed',()=>{
+    const legacyPath=join(dir,'legacy.db');
+    const legacy=new Database(legacyPath);
+    legacy.exec(`CREATE TABLE entitlement_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL,
+      event_kind TEXT NOT NULL DEFAULT 'entitlement_check', account_pseudonym TEXT NOT NULL,
+      country TEXT, country_group TEXT, coverage_tier TEXT NOT NULL, depth_tier TEXT NOT NULL,
+      decision TEXT NOT NULL, dimension TEXT NOT NULL, required_tier TEXT, policy_version INTEGER,
+      source TEXT NOT NULL, mode TEXT NOT NULL, would_gate INTEGER NOT NULL,
+      upstream_called INTEGER NOT NULL, upstream_avoided INTEGER NOT NULL,
+      endpoint TEXT NOT NULL, request_id TEXT NOT NULL)`);
+    legacy.prepare(`INSERT INTO entitlement_events(timestamp,event_kind,account_pseudonym,coverage_tier,
+      depth_tier,decision,dimension,source,mode,would_gate,upstream_called,upstream_avoided,endpoint,request_id)
+      VALUES(?,'x402_preview_offered','old-pseudo','core','basic','gated','depth','plan','enforce',1,0,1,'mcp:get_dd_report','old-req')`)
+      .run(Date.now());
+    legacy.close();
+
+    const migrated=new EntitlementStore(legacyPath);
+    try {
+      const report=migrated.x402PreviewReport();
+      // The pre-existing row keeps a NULL identity class: it is counted as an
+      // offer, but never silently attributed to either identity class.
+      expect(report).toMatchObject({offers:1,offersAnonymous:0,offersIdentified:0,
+        intentsAnonymous:0,intentsIdentified:0});
+      expect(migrated.recordX402PreviewIntent('old-pseudo','old-req',
+        {identityClass:'identified',identityAgeDays:3})).toBe(true);
+      expect(migrated.x402PreviewReport()).toMatchObject({intentsIdentified:1});
+    } finally { migrated.close(); }
   });
 
   it('coverage available_in_tier reflects live policy changes without redeploy',()=>{
@@ -185,3 +302,15 @@ describe('hosted entitlement resolver', () => {
     expect(resolver.check({...input,requestId:'two'})).toMatchObject({decision:'invalid',dimension:'usage',error:{error:'usage_limit_exceeded'}});
   });
 });
+
+/**
+ * Reads the rows back through a second connection rather than through the
+ * store's own reporting methods — a report that agrees with the writer proves
+ * nothing about what was actually persisted.
+ */
+function readEvents(dbPath:string,eventKind:string):Array<Record<string,unknown>> {
+  const db=new Database(dbPath,{readonly:true});
+  try { return db.prepare('SELECT * FROM entitlement_events WHERE event_kind=? ORDER BY id')
+    .all(eventKind) as Array<Record<string,unknown>>; }
+  finally { db.close(); }
+}

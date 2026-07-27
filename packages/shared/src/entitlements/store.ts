@@ -11,11 +11,19 @@ import type {
   CountryPolicySnapshot,
   EntitlementEventInput,
   EntitlementSource,
+  IdentityClass,
   UsageLimits,
   UsageMetric,
+  X402PreviewReport,
 } from './types.js';
 
-const SCHEMA = `
+// Two-phase init, same contract as TokenStore (which shares this DB file):
+//   1) CREATE_TABLES — base tables only
+//   2) MIGRATIONS — columns absent on legacy DBs (production tokens.db predates
+//      the x402 identity dimension and would otherwise never gain the columns,
+//      because CREATE TABLE IF NOT EXISTS is a no-op on an existing table)
+//   3) CREATE_INDEXES — indexes, may reference migrated columns
+const CREATE_TABLES = `
 CREATE TABLE IF NOT EXISTS entitlement_policy_meta (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   active_version INTEGER NOT NULL,
@@ -47,8 +55,6 @@ CREATE TABLE IF NOT EXISTS account_entitlements (
   updated_by TEXT NOT NULL,
   change_source TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_account_entitlements_active
-  ON account_entitlements(account_id, valid_from, valid_until);
 CREATE TABLE IF NOT EXISTS account_country_overrides (
   id TEXT PRIMARY KEY,
   account_id TEXT NOT NULL,
@@ -63,8 +69,6 @@ CREATE TABLE IF NOT EXISTS account_country_overrides (
   updated_by TEXT NOT NULL,
   change_source TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_account_country_overrides_active
-  ON account_country_overrides(account_id, country_code, valid_from, valid_until);
 CREATE TABLE IF NOT EXISTS entitlement_usage (
   account_id TEXT NOT NULL,
   metric TEXT NOT NULL,
@@ -94,12 +98,6 @@ CREATE TABLE IF NOT EXISTS entitlement_events (
   endpoint TEXT NOT NULL,
   request_id TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_entitlement_events_country_time
-  ON entitlement_events(country, timestamp);
-CREATE INDEX IF NOT EXISTS idx_entitlement_events_decision_time
-  ON entitlement_events(decision, timestamp);
-CREATE INDEX IF NOT EXISTS idx_entitlement_events_x402_preview
-  ON entitlement_events(event_kind, account_pseudonym, request_id);
 CREATE TABLE IF NOT EXISTS entitlement_policy_audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp INTEGER NOT NULL,
@@ -111,6 +109,40 @@ CREATE TABLE IF NOT EXISTS entitlement_policy_audit (
   after_json TEXT,
   policy_version INTEGER NOT NULL
 );
+`;
+
+// Additive and nullable by design: every row written before the identity
+// dimension existed keeps NULL, which the report counts separately from a
+// measured zero. Never backfill these — a guessed identity class would be
+// indistinguishable from an observed one.
+const MIGRATIONS: Array<{ check: string; apply: string }> = [
+  {
+    check: "SELECT 1 FROM pragma_table_info('entitlement_events') WHERE name='identity_class'",
+    apply: 'ALTER TABLE entitlement_events ADD COLUMN identity_class TEXT',
+  },
+  {
+    check: "SELECT 1 FROM pragma_table_info('entitlement_events') WHERE name='identity_age_days'",
+    apply: 'ALTER TABLE entitlement_events ADD COLUMN identity_age_days INTEGER',
+  },
+  {
+    check: "SELECT 1 FROM pragma_table_info('entitlement_events') WHERE name='identity_calls'",
+    apply: 'ALTER TABLE entitlement_events ADD COLUMN identity_calls INTEGER',
+  },
+];
+
+const CREATE_INDEXES = `
+CREATE INDEX IF NOT EXISTS idx_account_entitlements_active
+  ON account_entitlements(account_id, valid_from, valid_until);
+CREATE INDEX IF NOT EXISTS idx_account_country_overrides_active
+  ON account_country_overrides(account_id, country_code, valid_from, valid_until);
+CREATE INDEX IF NOT EXISTS idx_entitlement_events_country_time
+  ON entitlement_events(country, timestamp);
+CREATE INDEX IF NOT EXISTS idx_entitlement_events_decision_time
+  ON entitlement_events(decision, timestamp);
+CREATE INDEX IF NOT EXISTS idx_entitlement_events_x402_preview
+  ON entitlement_events(event_kind, account_pseudonym, request_id);
+CREATE INDEX IF NOT EXISTS idx_entitlement_events_kind_time
+  ON entitlement_events(event_kind, timestamp);
 `;
 
 interface CountryRow {
@@ -174,7 +206,11 @@ export class EntitlementStore {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('busy_timeout = 5000');
-    this.db.exec(SCHEMA);
+    this.db.exec(CREATE_TABLES);
+    for (const migration of MIGRATIONS) {
+      if (!this.db.prepare(migration.check).get()) this.db.exec(migration.apply);
+    }
+    this.db.exec(CREATE_INDEXES);
   }
 
   close(): void { this.db.close(); }
@@ -258,22 +294,44 @@ export class EntitlementStore {
     this.db.prepare(`INSERT INTO entitlement_events(
       timestamp,event_kind,account_pseudonym,country,country_group,coverage_tier,depth_tier,
       decision,dimension,required_tier,policy_version,source,mode,would_gate,
-      upstream_called,upstream_avoided,endpoint,request_id)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      upstream_called,upstream_avoided,endpoint,request_id,
+      identity_class,identity_age_days,identity_calls)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       event.timestamp ?? Date.now(), event.eventKind ?? 'entitlement_check', event.accountPseudonym,
       event.country, event.countryGroup, event.coverageTier, event.depthTier, event.decision,
       event.dimension, event.requiredTier, event.policyVersion, event.source, event.mode,
       event.wouldGate ? 1 : 0, event.upstreamCalled ? 1 : 0, event.upstreamAvoided ? 1 : 0,
       event.endpoint, event.requestId,
+      event.identity?.identityClass ?? null, event.identity?.identityAgeDays ?? null,
+      event.identity?.identityCalls ?? null,
     );
+  }
+
+  /**
+   * How many entitlement checks this pseudonym has behind it, all time. This is
+   * the "volume" half of the identity signal: an identity used once is cheaper
+   * to burn than one with a history. Counts only `entitlement_check` events, so
+   * the preview's own offer/intent rows can never inflate it.
+   */
+  identityCallCount(accountPseudonym: string): number {
+    const row = this.db.prepare(`SELECT COUNT(*) count FROM entitlement_events
+      WHERE event_kind='entitlement_check' AND account_pseudonym=?`).get(accountPseudonym) as { count: number };
+    return row.count;
   }
 
   /**
    * Records a preview intent only when it is tied to one previously offered
    * preview for the same pseudonymous account. The request id also makes this
    * idempotent, so a retry cannot inflate the experiment funnel.
+   *
+   * `identity` is the caller's identity class at declaration time, not at offer
+   * time — an anonymous caller who registers between the two is measured as
+   * identified, which is exactly the behaviour change the gate is meant to
+   * produce. The call volume is read here rather than passed in, so it is the
+   * store's own count and not something an HTTP caller can influence.
    */
-  recordX402PreviewIntent(accountPseudonym: string, requestId: string): boolean {
+  recordX402PreviewIntent(accountPseudonym: string, requestId: string,
+    identity: { identityClass: IdentityClass; identityAgeDays: number | null }): boolean {
     return this.db.transaction(() => {
       const offer = this.db.prepare(`SELECT timestamp,account_pseudonym,country,country_group,
         coverage_tier,depth_tier,decision,dimension,required_tier,policy_version,source,mode,
@@ -289,17 +347,90 @@ export class EntitlementStore {
         coverageTier:offer.coverage_tier,depthTier:offer.depth_tier,decision:offer.decision,
         dimension:offer.dimension,requiredTier:offer.required_tier,policyVersion:offer.policy_version,
         source:offer.source,mode:offer.mode,wouldGate:offer.would_gate===1,
-        upstreamCalled:false,upstreamAvoided:false,endpoint:offer.endpoint,requestId:offer.request_id });
+        upstreamCalled:false,upstreamAvoided:false,endpoint:offer.endpoint,requestId:offer.request_id,
+        identity:{...identity,identityCalls:this.identityCallCount(accountPseudonym)} });
       return true;
     })();
   }
 
-  x402PreviewCounts(since?: number): { offered: number; intents: number } {
+  /**
+   * Flat counters for `/metrics`. `intents` stays the sum of both classes so the
+   * existing Prometheus series keeps its meaning across this change; the split
+   * is exposed as two additional labels rather than by redefining it.
+   */
+  x402PreviewCounts(since?: number): { offered: number; intents: number; intentsAnonymous: number; intentsIdentified: number } {
     const row = this.db.prepare(`SELECT
       SUM(CASE WHEN event_kind='x402_preview_offered' THEN 1 ELSE 0 END) offered,
-      SUM(CASE WHEN event_kind='x402_preview_intent' THEN 1 ELSE 0 END) intents
-      FROM entitlement_events WHERE (? IS NULL OR timestamp >= ?)`).get(since ?? null, since ?? null) as { offered: number | null; intents: number | null };
-    return { offered: row.offered ?? 0, intents: row.intents ?? 0 };
+      SUM(CASE WHEN event_kind='x402_preview_intent' THEN 1 ELSE 0 END) intents,
+      SUM(CASE WHEN event_kind='x402_preview_intent' AND identity_class='anonymous' THEN 1 ELSE 0 END) intents_anonymous,
+      SUM(CASE WHEN event_kind='x402_preview_intent' AND identity_class='identified' THEN 1 ELSE 0 END) intents_identified
+      FROM entitlement_events WHERE (? IS NULL OR timestamp >= ?)`).get(since ?? null, since ?? null) as
+      { offered: number | null; intents: number | null; intents_anonymous: number | null; intents_identified: number | null };
+    return { offered: row.offered ?? 0, intents: row.intents ?? 0,
+      intentsAnonymous: row.intents_anonymous ?? 0, intentsIdentified: row.intents_identified ?? 0 };
+  }
+
+  /**
+   * The full preview funnel for one window, numerator and denominator together.
+   *
+   * `gateCalls` is the denominator the 26. 7. review found missing: how many
+   * calls reached a depth decision at all. Zero intents out of zero calls says
+   * nothing about willingness to pay; zero intents out of hundreds of gated
+   * calls says a great deal. Both readings are only possible when the two
+   * numbers are printed side by side, so they are never returned separately.
+   */
+  x402PreviewReport(since?: number): X402PreviewReport {
+    const window = since ?? null;
+    const totals = this.db.prepare(`SELECT
+      SUM(CASE WHEN event_kind='entitlement_check' AND dimension='depth' THEN 1 ELSE 0 END) gate_calls,
+      SUM(CASE WHEN event_kind='entitlement_check' AND dimension='depth' AND decision='gated' THEN 1 ELSE 0 END) gated_calls,
+      SUM(CASE WHEN event_kind='x402_preview_offered' THEN 1 ELSE 0 END) offers,
+      SUM(CASE WHEN event_kind='x402_preview_offered' AND identity_class='anonymous' THEN 1 ELSE 0 END) offers_anonymous,
+      SUM(CASE WHEN event_kind='x402_preview_offered' AND identity_class='identified' THEN 1 ELSE 0 END) offers_identified,
+      SUM(CASE WHEN event_kind='x402_preview_intent' AND identity_class='anonymous' THEN 1 ELSE 0 END) intents_anonymous,
+      SUM(CASE WHEN event_kind='x402_preview_intent' AND identity_class='identified' THEN 1 ELSE 0 END) intents_identified
+      FROM entitlement_events WHERE (? IS NULL OR timestamp >= ?)`).get(window, window) as Record<string, number | null>;
+
+    const identities = this.db.prepare(`SELECT COUNT(*) identities,
+      SUM(CASE WHEN declarations > 1 THEN 1 ELSE 0 END) repeat_identities FROM (
+        SELECT account_pseudonym, COUNT(*) declarations FROM entitlement_events
+        WHERE event_kind='x402_preview_intent' AND identity_class='identified'
+          AND (? IS NULL OR timestamp >= ?) GROUP BY account_pseudonym)`)
+      .get(window, window) as { identities: number | null; repeat_identities: number | null };
+
+    const byEndpoint = this.db.prepare(`SELECT endpoint,
+      SUM(CASE WHEN event_kind='entitlement_check' AND dimension='depth' THEN 1 ELSE 0 END) gate_calls,
+      SUM(CASE WHEN event_kind='entitlement_check' AND dimension='depth' AND decision='gated' THEN 1 ELSE 0 END) gated_calls,
+      SUM(CASE WHEN event_kind='x402_preview_offered' THEN 1 ELSE 0 END) offers,
+      SUM(CASE WHEN event_kind='x402_preview_intent' AND identity_class='anonymous' THEN 1 ELSE 0 END) intents_anonymous,
+      SUM(CASE WHEN event_kind='x402_preview_intent' AND identity_class='identified' THEN 1 ELSE 0 END) intents_identified
+      FROM entitlement_events WHERE (? IS NULL OR timestamp >= ?)
+      GROUP BY endpoint HAVING gate_calls > 0 OR offers > 0 OR intents_anonymous > 0 OR intents_identified > 0
+      ORDER BY offers DESC, gate_calls DESC`).all(window, window) as Array<Record<string, string | number>>;
+
+    const report: X402PreviewReport = {
+      since: window,
+      gateCalls: Number(totals.gate_calls ?? 0),
+      gatedCalls: Number(totals.gated_calls ?? 0),
+      offers: Number(totals.offers ?? 0),
+      offersAnonymous: Number(totals.offers_anonymous ?? 0),
+      offersIdentified: Number(totals.offers_identified ?? 0),
+      intentsAnonymous: Number(totals.intents_anonymous ?? 0),
+      intentsIdentified: Number(totals.intents_identified ?? 0),
+      identifiedIdentities: Number(identities.identities ?? 0),
+      identifiedRepeatIdentities: Number(identities.repeat_identities ?? 0),
+      byEndpoint: byEndpoint.map((row) => ({
+        endpoint: String(row.endpoint),
+        gateCalls: Number(row.gate_calls ?? 0),
+        gatedCalls: Number(row.gated_calls ?? 0),
+        offers: Number(row.offers ?? 0),
+        intentsAnonymous: Number(row.intents_anonymous ?? 0),
+        intentsIdentified: Number(row.intents_identified ?? 0),
+      })),
+      interpretation: '',
+    };
+    report.interpretation = interpretX402Preview(report);
+    return report;
   }
 
   seedPolicy(actor: string, changeSource: string): number {
@@ -399,6 +530,39 @@ export class EntitlementStore {
       WHERE timestamp >= ? AND event_kind = 'upgrade_cta_fanout'`).get(since) as { count: number };
     return row.count;
   }
+}
+
+/**
+ * Turns the funnel into the sentence a reader would otherwise have to derive,
+ * and refuses to let a zero pass as a finding when its denominator is also
+ * zero. Order matters: each branch rules out a cheaper explanation before the
+ * expensive one ("nobody trusts us") is allowed to be stated.
+ */
+function interpretX402Preview(report: X402PreviewReport): string {
+  if (report.gateCalls === 0) {
+    return 'EMPTY WINDOW: no call reached a depth decision, so nothing could be offered. ' +
+      'Zero intents here is not a signal about willingness to pay — it is a signal about traffic.';
+  }
+  if (report.offers === 0) {
+    return `NO OFFERS: ${report.gateCalls} depth decisions (${report.gatedCalls} gated) but no preview was offered. ` +
+      'Check the flag and the offer conditions before reading anything into the intent counters.';
+  }
+  if (report.offersIdentified === 0) {
+    // Known structural cause as of 27. 7.: the free credential (14-day trial)
+    // is minted at tier `pro`, which already carries DD+, so a caller who has
+    // an identity never reaches the depth gate that would offer the preview.
+    return `IDENTITY CEILING: all ${report.offers} offers went to anonymous callers, so intent_identified could ` +
+      'only ever be 0. Nobody holding an identity ever reached the gate — this says nothing about trust. ' +
+      `Anonymous declarations: ${report.intentsAnonymous} (weak signal — free to make, free to discard).`;
+  }
+  if (report.intentsIdentified === 0) {
+    return `NEGATIVE SIGNAL HOLDS: ${report.offersIdentified} offers reached callers who had an identity to spend, ` +
+      'and none of them declared. That is a reading about trust or price, not about traffic. ' +
+      `Anonymous declarations: ${report.intentsAnonymous} (weak signal).`;
+  }
+  return `POSITIVE SIGNAL: ${report.intentsIdentified} identified declarations from ${report.identifiedIdentities} ` +
+    `identities, ${report.identifiedRepeatIdentities} of them repeatedly, against ${report.offersIdentified} ` +
+    'offers to identified callers. Repetition is the part worth trusting; a single declaration still costs only a signup.';
 }
 
 function parseStringArray(json: string, label: string): string[] {
