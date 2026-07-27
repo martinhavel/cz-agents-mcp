@@ -20,7 +20,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { createRestRateLimiter } from '@czagents/shared';
 import type { SanctionsDb } from './db.js';
-import { rescreenPortfolio, RescreenValidationError, type PortfolioSubject } from './rescreen.js';
+import {
+  rescreenPortfolio, RescreenValidationError, MAX_PORTFOLIO_SUBJECTS_X402, type PortfolioSubject,
+} from './rescreen.js';
 import type { X402Gate } from '@czagents/shared/x402';
 
 const RESOURCE_PATH = '/v1/sanctions/rescreen';
@@ -122,6 +124,9 @@ export async function handleX402Rescreen(
       subjects: body.subjects ?? [],
       sinceMs,
       source: body.source as never,
+      // x402 je placené za volání, ne za subjekt — nižší strop než tokenová
+      // cesta (MAX_PORTFOLIO_SUBJECTS), viz derivace u MAX_PORTFOLIO_SUBJECTS_X402.
+      maxSubjects: MAX_PORTFOLIO_SUBJECTS_X402,
     });
     if (outcome.settlement) {
       res.setHeader(HEADER_RESPONSE, b64(outcome.settlement));

@@ -7,6 +7,7 @@ import {
   rescreenPortfolio,
   RescreenValidationError,
   MAX_PORTFOLIO_SUBJECTS,
+  MAX_PORTFOLIO_SUBJECTS_X402,
   type PortfolioSubject,
 } from '../rescreen.js';
 import type { SanctionedEntity } from '../types.js';
@@ -87,6 +88,43 @@ describe('rescreenPortfolio', () => {
       name: `Person ${i}`,
     }));
     expect(() => rescreenPortfolio({ db }, { subjects, sinceMs: Date.now() - 1000 })).not.toThrow();
+  });
+
+  // --- maxSubjects override (x402 pricing gap) -------------------------
+
+  it('a maxSubjects override rejects a batch that would pass the default 500 cap', () => {
+    // The whole point of the override: a caller sized for the x402 per-call
+    // price must not be able to slip in a portfolio sized for the token path.
+    const subjects: PortfolioSubject[] = Array.from({ length: MAX_PORTFOLIO_SUBJECTS_X402 + 1 }, (_, i) => ({
+      ref: `c${i}`,
+      name: `Person ${i}`,
+    }));
+    expect(subjects.length).toBeLessThan(MAX_PORTFOLIO_SUBJECTS); // sanity: still under the default cap
+    expect(() =>
+      rescreenPortfolio({ db }, { subjects, sinceMs: Date.now() - 1000, maxSubjects: MAX_PORTFOLIO_SUBJECTS_X402 }),
+    ).toThrow(/over the cap of 11/);
+  });
+
+  it('a maxSubjects override accepts exactly its own cap, not silently truncating', () => {
+    const subjects: PortfolioSubject[] = Array.from({ length: MAX_PORTFOLIO_SUBJECTS_X402 }, (_, i) => ({
+      ref: `c${i}`,
+      name: `Person ${i}`,
+    }));
+    const result = rescreenPortfolio(
+      { db },
+      { subjects, sinceMs: Date.now() - 1000, maxSubjects: MAX_PORTFOLIO_SUBJECTS_X402 },
+    );
+    // Screened count must equal what was submitted — no truncation to the cap.
+    expect(result.summary.subjects_screened).toBe(MAX_PORTFOLIO_SUBJECTS_X402);
+  });
+
+  it('not passing maxSubjects still allows the full 500-subject default (token path unaffected)', () => {
+    const subjects: PortfolioSubject[] = Array.from({ length: MAX_PORTFOLIO_SUBJECTS }, (_, i) => ({
+      ref: `c${i}`,
+      name: `Person ${i}`,
+    }));
+    const result = rescreenPortfolio({ db }, { subjects, sinceMs: Date.now() - 1000 });
+    expect(result.summary.subjects_screened).toBe(MAX_PORTFOLIO_SUBJECTS);
   });
 
   it('rejects a non-array subjects value', () => {

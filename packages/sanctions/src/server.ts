@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { withX402Tool, type X402Gate } from '@czagents/shared/x402';
-import { rescreenPortfolio, RescreenValidationError } from './rescreen.js';
+import { rescreenPortfolio, RescreenValidationError, MAX_PORTFOLIO_SUBJECTS_X402 } from './rescreen.js';
 import { entityIdUnitKey, logToolCall, queryUnitKey, trackIco, trackQuery, wrapServerTools, yearFromInput } from '@czagents/shared';
 import { SanctionsDb, type DbStats } from './db.js';
 import { SanctionsSearch } from './search.js';
@@ -208,7 +208,10 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
           ref: z.string().describe('Your own identifier — returned back so you can match results.'),
           name: z.string().optional(),
           ico: z.string().optional(),
-        })).describe('Up to 500 subjects. Each needs at least a name or an ICO.'),
+        })).describe(
+          `Up to ${MAX_PORTFOLIO_SUBJECTS_X402} subjects per paid call (batch cap sized to the per-call ` +
+            'price, not per-subject). Each needs at least a name or an ICO.',
+        ),
         since: z.string().describe('ISO date of the last screening, e.g. "2026-07-01".'),
         source: z.enum(['eu', 'ofac', 'un', 'ofsi', 'fau']).optional(),
       },
@@ -226,6 +229,9 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
               subjects: args.subjects,
               sinceMs: Date.parse(args.since),
               source: args.source,
+              // x402 je placené za volání, ne za subjekt — nižší strop než tokenová
+              // cesta (MAX_PORTFOLIO_SUBJECTS), viz derivace u MAX_PORTFOLIO_SUBJECTS_X402.
+              maxSubjects: MAX_PORTFOLIO_SUBJECTS_X402,
             });
             return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
           } catch (error) {

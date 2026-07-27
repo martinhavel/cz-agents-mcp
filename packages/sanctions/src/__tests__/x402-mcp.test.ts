@@ -18,6 +18,7 @@ import { SanctionsDb } from '../db.js';
 import { SanctionsSearch } from '../search.js';
 import { buildSanctionsServer } from '../server.js';
 import { MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY, type X402Gate } from '@czagents/shared/x402';
+import { MAX_PORTFOLIO_SUBJECTS_X402 } from '../rescreen.js';
 
 const ENTITY = {
   id: 'eu-1', source: 'eu' as const, source_list_id: 'eu-1', type: 'entity' as const,
@@ -130,6 +131,20 @@ describe('placený nástroj přes skutečný MCP transport', () => {
     expect(result.isError).toBeFalsy();
     expect(JSON.parse(result.content[0]!.text)).toHaveProperty('summary.subjects_screened', 1);
     expect(result._meta?.[MCP_PAYMENT_RESPONSE_META_KEY]).toMatchObject({ transaction: '0xtx' });
+  });
+
+  it('placený nástroj odmítne dávku nad x402 stropem srozumitelnou chybou, i po zaplacení', async () => {
+    const client = await connect(gateStub());
+    const subjects = Array.from({ length: MAX_PORTFOLIO_SUBJECTS_X402 + 1 }, (_, i) => ({ ref: `c${i}`, name: `P${i}` }));
+    const result = await client.callTool({
+      name: 'rescreen_portfolio',
+      arguments: { subjects, since: '2026-07-01' },
+      _meta: { [MCP_PAYMENT_META_KEY]: { x402Version: 2 } },
+    }) as { isError?: boolean; content: Array<{ text: string }> };
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toMatch(/over the cap of 11/);
+    expect(JSON.stringify(result.content)).not.toContain('subjects_screened');
   });
 
   it('neúspěšná platba nevydá data ani přes transport', async () => {

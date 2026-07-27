@@ -19,6 +19,7 @@ import { SanctionsDb } from '../db.js';
 import { SanctionsSearch } from '../search.js';
 import { handleSanctionsRest } from '../http.js';
 import { handleX402Rescreen, resourceIdFor } from '../x402-rest.js';
+import { MAX_PORTFOLIO_SUBJECTS_X402 } from '../rescreen.js';
 import { loadX402Config, createX402Gate, type X402Gate, type Facilitator } from '@czagents/shared/x402';
 
 /** Nikdy skutečně nevolaná — testy níž nechodí cestou, kde by na ni gate sáhl. */
@@ -220,6 +221,49 @@ describe('TVRDÁ PODMÍNKA — existující chování se nesmí zhoršit', () =>
 
     expect(withGate).toEqual(withoutGate);
     tokenStore.close();
+  });
+});
+
+describe('placený endpoint — dávka je omezená cenou, ne 500 z tokenové cesty', () => {
+  const paidHeaders = { 'payment-signature': Buffer.from(JSON.stringify({ x402Version: 2 }), 'utf8').toString('base64') };
+
+  it('dávka nad x402 stropem se odmítne srozumitelnou chybou, data se NEVYDAJÍ (i když je zaplaceno)', async () => {
+    const subjects = Array.from({ length: MAX_PORTFOLIO_SUBJECTS_X402 + 1 }, (_, i) => ({ ref: `c${i}`, name: `P${i}` }));
+    const body = { subjects, since: Date.now() - 86_400_000 };
+    const gate = gateStub();
+    const { res, captured } = fakeRes();
+    await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', paidHeaders, body), res, { db, gate, limiter: passLimiter });
+
+    expect(captured.status).toBe(400);
+    const parsed = JSON.parse(captured.body);
+    expect(parsed.error).toBe('invalid_request');
+    expect(parsed.message).toMatch(/over the cap of 11/);
+    expect(parsed.paid).toBe(true);
+    // Ticho by znamenalo, že si zákazník myslí, že proškrtal celou dávku —
+    // žádný výsledek screeningu smí uniknout ven.
+    expect(captured.body).not.toContain('subjects_screened');
+  });
+
+  it('dávka o 500 subjektech (dřívější token cap) na x402 cestě neprojde — díra je zavřená', async () => {
+    const subjects = Array.from({ length: 500 }, (_, i) => ({ ref: `c${i}`, name: `P${i}` }));
+    const body = { subjects, since: Date.now() - 86_400_000 };
+    const gate = gateStub();
+    const { res, captured } = fakeRes();
+    await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', paidHeaders, body), res, { db, gate, limiter: passLimiter });
+
+    expect(captured.status).toBe(400);
+    expect(JSON.parse(captured.body).message).toMatch(/over the cap of 11/);
+  });
+
+  it('dávka přesně na x402 stropu projde', async () => {
+    const subjects = Array.from({ length: MAX_PORTFOLIO_SUBJECTS_X402 }, (_, i) => ({ ref: `c${i}`, name: `P${i}` }));
+    const body = { subjects, since: Date.now() - 86_400_000 };
+    const gate = gateStub();
+    const { res, captured } = fakeRes();
+    await handleX402Rescreen(fakeReq('POST', '/v1/sanctions/rescreen', paidHeaders, body), res, { db, gate, limiter: passLimiter });
+
+    expect(captured.status).toBe(200);
+    expect(JSON.parse(captured.body)).toHaveProperty('summary.subjects_screened', MAX_PORTFOLIO_SUBJECTS_X402);
   });
 });
 

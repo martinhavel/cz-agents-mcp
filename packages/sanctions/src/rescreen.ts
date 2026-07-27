@@ -46,6 +46,13 @@ export interface RescreenOptions {
    *  manual `search_person` call would have caught it at, so results don't
    *  silently diverge from what an analyst would find by hand. */
   threshold?: number;
+  /**
+   * Overrides `MAX_PORTFOLIO_SUBJECTS` for this call. Set explicitly by a
+   * call site (e.g. the x402 paid path uses `MAX_PORTFOLIO_SUBJECTS_X402`) —
+   * never derive this from caller-supplied input, or the cap it's meant to
+   * enforce becomes optional. Defaults to `MAX_PORTFOLIO_SUBJECTS`.
+   */
+  maxSubjects?: number;
 }
 
 /**
@@ -59,6 +66,32 @@ export interface RescreenOptions {
  * connection for a long-running batch score.
  */
 export const MAX_PORTFOLIO_SUBJECTS = 500;
+
+/**
+ * Portfolio size cap for the x402 paid path (anonymous, pay-per-call),
+ * separate from `MAX_PORTFOLIO_SUBJECTS` above.
+ *
+ * `X402_PRICE_USD` is a flat fee for the whole call, not per subject. At the
+ * recommended (not yet confirmed) price of $0.10/call and the Agency-tier
+ * subscription rate of $0.0086/subject, `MAX_PORTFOLIO_SUBJECTS` (500) would
+ * let a caller screen 500 subjects for $0.0002 each — ~40x below what a
+ * subscriber pays per subject. That's not a pricing choice, it's a hole: pay
+ * ten cents once, get what otherwise costs a EUR 4,990/mo Agency plan.
+ *
+ * The cap here is derived, not guessed: `floor($0.10 / $0.0086) = 11` is the
+ * largest batch size for which the effective per-subject price still meets
+ * or exceeds the Agency rate (12 subjects would price at $0.0083/subject —
+ * *below* Agency, reopening the same gap on a smaller scale). If
+ * `X402_PRICE_USD` changes, re-derive this constant against the then-current
+ * Agency per-subject rate — it is not read from config automatically.
+ *
+ * This does not touch `MAX_PORTFOLIO_SUBJECTS` or its 500-subject default:
+ * any caller of `rescreenPortfolio` that doesn't pass `maxSubjects` (unit
+ * tests, and any future subscription/token-authenticated route) keeps that
+ * cap unchanged. Only the x402 call sites (`x402-rest.ts`, the paid MCP tool
+ * in `server.ts`) pass this lower one explicitly.
+ */
+export const MAX_PORTFOLIO_SUBJECTS_X402 = 11;
 
 /** Default fuzzy name-match threshold — mirrors search.ts's `searchByName` default. */
 const DEFAULT_THRESHOLD = 80;
@@ -293,6 +326,7 @@ function diffEntities(before: SanctionedEntity, after: SanctionedEntity): Rescre
 
 function validateOptions(options: RescreenOptions): void {
   const { subjects, sinceMs, threshold } = options;
+  const cap = options.maxSubjects ?? MAX_PORTFOLIO_SUBJECTS;
 
   if (!Array.isArray(subjects)) {
     throw new RescreenValidationError('subjects must be an array of PortfolioSubject.');
@@ -300,10 +334,14 @@ function validateOptions(options: RescreenOptions): void {
   if (subjects.length === 0) {
     throw new RescreenValidationError('subjects is empty — nothing to rescreen. Pass at least one subject.');
   }
-  if (subjects.length > MAX_PORTFOLIO_SUBJECTS) {
+  if (subjects.length > cap) {
+    const why = cap === MAX_PORTFOLIO_SUBJECTS_X402
+      ? 'this is the paid per-call batch cap (see MAX_PORTFOLIO_SUBJECTS_X402 doc comment for why it is ' +
+        `smaller than the ${MAX_PORTFOLIO_SUBJECTS}-subject cap on other paths)`
+      : 'see MAX_PORTFOLIO_SUBJECTS doc comment for why';
     throw new RescreenValidationError(
-      `subjects has ${subjects.length} entries, over the cap of ${MAX_PORTFOLIO_SUBJECTS}. ` +
-        'Split the portfolio across multiple calls (see MAX_PORTFOLIO_SUBJECTS doc comment for why).',
+      `subjects has ${subjects.length} entries, over the cap of ${cap}. ` +
+        `Split the portfolio across multiple calls (${why}).`,
     );
   }
 
