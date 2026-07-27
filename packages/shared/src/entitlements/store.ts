@@ -141,9 +141,11 @@ CREATE INDEX IF NOT EXISTS idx_entitlement_events_decision_time
   ON entitlement_events(decision, timestamp);
 CREATE INDEX IF NOT EXISTS idx_entitlement_events_x402_preview
   ON entitlement_events(event_kind, account_pseudonym, request_id);
-CREATE INDEX IF NOT EXISTS idx_entitlement_events_kind_time
-  ON entitlement_events(event_kind, timestamp);
 `;
+// Deliberately NOT adding an index for the report's aggregate scans: building
+// one at boot takes a write lock over the whole event table, and the webapp
+// mints Stripe tokens into this same file with a 5s busy timeout. A slow report
+// run by hand is cheaper than a failed token mint for a paying customer.
 
 interface CountryRow {
   country_code: string;
@@ -198,6 +200,29 @@ interface X402PreviewEventRow {
   request_id: string;
 }
 
+/**
+ * Applies one migration, tolerating exactly one failure: the column already
+ * being there.
+ *
+ * Three services (dd, ares, eu-registry) open this same SQLite file. Booting
+ * together, two of them can both see the column missing and both issue the
+ * ALTER — check and apply cannot be made atomic across processes. The loser
+ * must not take its container into a restart loop over a column that now
+ * exists. Every other schema error still propagates and aborts the boot:
+ * starting up on a database whose shape we do not understand is worse than
+ * not starting at all.
+ *
+ * Exported for the test that proves both halves of that sentence.
+ */
+export function applyMigration(db: DatabaseType, migration: { check: string; apply: string }): void {
+  if (db.prepare(migration.check).get()) return;
+  try { db.exec(migration.apply); }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/duplicate column name/i.test(message)) throw error;
+  }
+}
+
 export class EntitlementStore {
   private readonly db: DatabaseType;
 
@@ -207,9 +232,7 @@ export class EntitlementStore {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('busy_timeout = 5000');
     this.db.exec(CREATE_TABLES);
-    for (const migration of MIGRATIONS) {
-      if (!this.db.prepare(migration.check).get()) this.db.exec(migration.apply);
-    }
+    for (const migration of MIGRATIONS) applyMigration(this.db, migration);
     this.db.exec(CREATE_INDEXES);
   }
 

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { normalizeCountry } from '../country.js';
 import { HostedEntitlementResolver, accountContextFromToken, DDPLUS_CAPABILITIES } from '../resolver.js';
-import { EntitlementStore } from '../store.js';
+import { EntitlementStore, applyMigration } from '../store.js';
 import type { HostedAccountContext } from '../types.js';
 import type { TokenRecord } from '../../billing/types.js';
 
@@ -246,6 +246,25 @@ describe('hosted entitlement resolver', () => {
     // Offers exist but every one went to an anonymous caller: an identified
     // zero here is a fact about signup, not about willingness to pay.
     expect(store.x402PreviewReport().interpretation).toMatch(/^IDENTITY CEILING/);
+  });
+
+  it('survives losing the migration race, but still dies on any other schema error',()=>{
+    // dd, ares and eu-registry all open the same tokens.db. Booting together,
+    // two of them can both see a column missing and both issue the ALTER.
+    const db=new Database(join(dir,'raced.db'));
+    try {
+      db.exec('CREATE TABLE t (a TEXT)');
+      // A check that lies — exactly what the losing process sees, because the
+      // winner added the column between its check and its apply.
+      const lying={check:"SELECT 1 FROM pragma_table_info('t') WHERE name='nonexistent'",
+        apply:'ALTER TABLE t ADD COLUMN a TEXT'};
+      expect(()=>applyMigration(db,lying)).not.toThrow();
+      // ...and the column is there, which is the only outcome that matters.
+      expect(db.prepare("SELECT 1 FROM pragma_table_info('t') WHERE name='a'").get()).toBeTruthy();
+      // Any other schema failure must still abort the boot.
+      expect(()=>applyMigration(db,{check:lying.check,apply:'ALTER TABLE does_not_exist ADD COLUMN x TEXT'}))
+        .toThrow(/no such table/i);
+    } finally { db.close(); }
   });
 
   it('adds the identity columns to a database created before they existed',()=>{
