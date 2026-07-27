@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PayqrClient, type QrResult, type PaymentInput } from './client.js';
 import { putQr, putPrefill } from './qr-store.js';
 import { logToolCall, wrapServerTools } from '@czagents/shared';
+import { withX402Tool, type X402Gate } from '@czagents/shared/x402';
 
 // Set only on the hosted HTTP server (compose env). When present, generated QRs are
 // exposed as short temporary URLs the client can render inline; absent (npx/stdio) we
@@ -33,7 +34,14 @@ function buildWebUrl(input: PaymentInput): string | undefined {
   return `${WEB_APP_URL}/?p=${id}`;
 }
 
-export function buildPayqrServer(): McpServer {
+/**
+ * @param x402 Placená brána. `undefined` = dávkový nástroj se neregistruje.
+ *   Payqr je v x402 testu **kontrolní vzorek jiného typu plnění**: jeho výsledek
+ *   nese image blok, kdežto sanctions vrací jen text. Otázka, kterou tím měříme,
+ *   není „umí payqr vybrat peníze", ale „přežije `_meta` s settlementem výsledek,
+ *   ve kterém je obrázek?".
+ */
+export function buildPayqrServer(x402?: X402Gate): McpServer {
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
@@ -144,6 +152,77 @@ export function buildPayqrServer(): McpServer {
     { title: 'Read QR Image', readOnlyHint: true, openWorldHint: false },
     async ({ image_data }) => { logToolCall('payqr', 'qr_read'); return jsonResult(await payqr.read(image_data)); },
   );
+
+  // ── Placené plnění (x402): dávková generace ───────────────────────────
+  //
+  // Nové plnění, ne zpoplatnění stávajícího. Čtyři existující nástroje dělají
+  // jeden QR na volání a zůstávají zdarma; tenhle vyrobí celou dávku najednou,
+  // což dnes nejde vůbec (fakturační běh = N volání).
+  if (x402) {
+    server.tool(
+      'qr_payment_batch',
+      'PAID. Create payment QR codes for a whole batch of payments in one call — e.g. an invoice run. ' +
+        'The free qr_payment tool handles one payment per call; this one returns the whole set. ' +
+        'Requires payment via x402; call without payment first to receive the terms.',
+      {
+        payments: z.array(z.object({
+          ref: z.string().describe('Your own identifier — returned back so you can match results.'),
+          iban: z.string(),
+          amount: z.number().optional(),
+          currency: z.string().regex(/^[A-Za-z]{3}$/).optional(),
+          message: z.string().optional(),
+          variable_symbol: z.string().optional(),
+          recipient_name: z.string().optional(),
+        })).max(50).describe('Up to 50 payments. Each QR is generated and verified independently.'),
+      },
+      { title: 'Create Payment QR Batch (paid)', readOnlyHint: true, openWorldHint: false },
+      withX402Tool(
+        x402,
+        // Zdroj se váže na ROZSAH dávky. IBANy do identifikátoru nepatří — jde
+        // do payloadu i do logu a je to platební údaj.
+        (args: { payments?: unknown[] }) => `payqr:batch:n=${args.payments?.length ?? 0}`,
+        async (args: { payments: Array<{ ref: string; iban: string; [k: string]: unknown }> }) => {
+          logToolCall('payqr', 'qr_payment_batch');
+          const results: Array<Record<string, unknown>> = [];
+          const images: Array<{ type: 'image'; data: string; mimeType: string }> = [];
+
+          for (const payment of args.payments) {
+            const { ref, ...input } = payment;
+            try {
+              const qr = await payqr.payment(input as Parameters<typeof payqr.payment>[0]);
+              // `qr_data_uri` je `data:image/png;base64,…` — pro image blok se
+              // bere jen ta část za čárkou.
+              const base64 = qr.qr_data_uri.split(',')[1] ?? '';
+              images.push({ type: 'image', data: base64, mimeType: 'image/png' });
+              results.push({ ref, ok: true, standard: qr.standard, payload: qr.payload, self_verified: qr.self_verified });
+            } catch (error) {
+              // Jedna vadná platba nesmí shodit celou dávku — zákazník za ni
+              // zaplatil a ostatní QR jsou v pořádku.
+              results.push({ ref, ok: false, error: error instanceof Error ? error.message : 'failed' });
+            }
+          }
+
+          // Obrázky JSOU součástí plnění, ne příloha. Právě proto je payqr
+          // v tomhle testu kontrolní vzorek: sanctions vrací jen text, tady se
+          // ověřuje, že `_meta` se settlementem přežije i výsledek s image bloky.
+          return {
+            content: [
+              ...images,
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  requested: args.payments.length,
+                  generated: results.filter((r) => r.ok).length,
+                  failed: results.filter((r) => !r.ok).length,
+                  results,
+                }, null, 2),
+              },
+            ],
+          };
+        },
+      ) as never,
+    );
+  }
 
   return server;
 }

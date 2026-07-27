@@ -1,5 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { withX402Tool, type X402Gate } from '@czagents/shared/x402';
+import { rescreenPortfolio, RescreenValidationError } from './rescreen.js';
 import { entityIdUnitKey, logToolCall, queryUnitKey, trackIco, trackQuery, wrapServerTools, yearFromInput } from '@czagents/shared';
 import { SanctionsDb, type DbStats } from './db.js';
 import { SanctionsSearch } from './search.js';
@@ -37,6 +39,12 @@ export function sanctionsDbHealthWarning(stats: DbStats, now: number = Date.now(
 export interface ServerDeps {
   db: SanctionsDb;
   search: SanctionsSearch;
+  /**
+   * Placená brána. `undefined` = x402 vypnuté a nástroj `rescreen_portfolio`
+   * se **vůbec nezaregistruje**. Prémiové plnění se nedává zdarma a nedává se
+   * rozbité; z pohledu klienta prostě neexistuje.
+   */
+  x402?: X402Gate;
 }
 
 /**
@@ -181,6 +189,55 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
       }, null, 2));
     },
   );
+
+  // ── Placené plnění (x402) ──────────────────────────────────────────────
+  //
+  // Registruje se JEN se zapnutou branou. Když x402 běží, přibývá nástroj,
+  // který dnes neexistuje — nic se nikomu nebere a existujících pět nástrojů
+  // se nemění (hlídá akceptační test v `__tests__/x402-rest.test.ts`).
+  if (deps.x402) {
+    const gate = deps.x402;
+    server.tool(
+      'rescreen_portfolio',
+      'PAID. Re-screen your own list of subjects against sanctions-list changes since a given date. ' +
+        'Answers "which of MY clients were affected", which list_recent_updates cannot: that tool returns ' +
+        'the global change feed, this one intersects it with your portfolio. ' +
+        'Requires payment via x402; call without payment first to receive the terms.',
+      {
+        subjects: z.array(z.object({
+          ref: z.string().describe('Your own identifier — returned back so you can match results.'),
+          name: z.string().optional(),
+          ico: z.string().optional(),
+        })).describe('Up to 500 subjects. Each needs at least a name or an ICO.'),
+        since: z.string().describe('ISO date of the last screening, e.g. "2026-07-01".'),
+        source: z.enum(['eu', 'ofac', 'un', 'ofsi', 'fau']).optional(),
+      },
+      { title: 'Re-screen Portfolio Against List Changes (paid)', readOnlyHint: true, openWorldHint: true },
+      withX402Tool(
+        gate,
+        // Zdroj se odvozuje z ROZSAHU práce. Jména ani IČO se do něj nesmí
+        // dostat — jde do payloadu i do logu.
+        (args: { subjects?: unknown[]; since?: string }) =>
+          `sanctions:rescreen:n=${args.subjects?.length ?? 0}:since=${Date.parse(args.since ?? '') || 0}`,
+        async (args: { subjects: Array<{ ref: string; name?: string; ico?: string }>; since: string; source?: 'eu' | 'ofac' | 'un' | 'ofsi' | 'fau' }) => {
+          logToolCall('sanctions', 'rescreen_portfolio', { count: args.subjects?.length, since: args.since });
+          try {
+            const result = rescreenPortfolio({ db: deps.db }, {
+              subjects: args.subjects,
+              sinceMs: Date.parse(args.since),
+              source: args.source,
+            });
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+          } catch (error) {
+            if (error instanceof RescreenValidationError) {
+              return { content: [{ type: 'text', text: error.message }], isError: true };
+            }
+            throw error;
+          }
+        },
+      ) as never,
+    );
+  }
 
   return server;
 }

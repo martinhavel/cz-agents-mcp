@@ -20,6 +20,10 @@
     "./entitlements": {
       "types": "./dist/entitlements/index.d.ts",
       "import": "./dist/entitlements/index.js"
+    },
+    "./x402": {
+      "types": "./dist/x402/index.d.ts",
+      "import": "./dist/x402/index.js"
     }
   },
   "keywords": [
@@ -48,6 +52,18 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.5.0"
+  },
+  "peerDependencies": {
+    "@x402/core": "^2.19.0",
+    "@x402/evm": "^2.19.0"
+  },
+  "peerDependenciesMeta": {
+    "@x402/core": {
+      "optional": true
+    },
+    "@x402/evm": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
