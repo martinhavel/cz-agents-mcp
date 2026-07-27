@@ -11,6 +11,7 @@
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import {
   createRateLimiter,
   checkBodySize,
@@ -63,12 +64,13 @@ async function main() {
     }
 
     if (req.url === '/health' || req.url === '/healthz') {
+      const dbAvailable = existsSync(process.env.REALESTATE_DB_PATH ?? '/data/webapp.db');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
         service: 'cz-agents/realestate',
         version: '0.3.0',
-        db_path: process.env.REALESTATE_DB_PATH ?? '/data/webapp.db',
+        db: dbAvailable ? 'ok' : 'unavailable',
       }));
       return;
     }
