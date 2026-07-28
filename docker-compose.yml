@@ -8,14 +8,16 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3030:3030"
+    # Compose does not load this project's .env reliably in production. Keep
+    # the lookup-hash secret in the root-owned runtime env file instead.
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3030
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
-      - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
-      - ENTITLEMENT_ACCOUNT_HASH_SALT=${ENTITLEMENT_ACCOUNT_HASH_SALT:-}
       - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
       - HOSTED_UPGRADE_URL=${HOSTED_UPGRADE_URL:-https://cz-agents.dev/pricing.html}
       - HOSTED_POLICY_CACHE_TTL_MS=${HOSTED_POLICY_CACHE_TTL_MS:-30000}
@@ -43,6 +45,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3031:3031"
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3031
       - NODE_ENV=production
@@ -103,6 +107,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3033:3030"
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3030
       - NODE_ENV=production
@@ -115,7 +121,6 @@ services:
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
-      - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
       - MCP_AUDIT_URL=${MCP_AUDIT_URL:-}
       - MCP_AUDIT_KEY=${MCP_AUDIT_KEY:-}
@@ -148,6 +153,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3034:3030"
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3030
       - NODE_ENV=production
@@ -155,7 +162,6 @@ services:
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
-      - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
     volumes:
       - tool-events:/var/lib/czagents-events
@@ -177,6 +183,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3035:3030"
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3030
       - NODE_ENV=production
@@ -221,6 +229,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3036:3036"
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3036
       - NODE_ENV=production
@@ -250,14 +260,14 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3039:3030"
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3030
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
-      - LOOKUP_HASH_SALT=${LOOKUP_HASH_SALT}
-      - ENTITLEMENT_ACCOUNT_HASH_SALT=${ENTITLEMENT_ACCOUNT_HASH_SALT:-}
       - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
       - HOSTED_UPGRADE_URL=${HOSTED_UPGRADE_URL:-https://cz-agents.dev/pricing.html}
       - HOSTED_POLICY_CACHE_TTL_MS=${HOSTED_POLICY_CACHE_TTL_MS:-30000}
@@ -295,6 +305,8 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3040:3040"
+    env_file:
+      - /etc/cz-agents/lookup-hash-salt.env
     environment:
       - PORT=3040
       - NODE_ENV=production
