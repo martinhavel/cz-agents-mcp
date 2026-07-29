@@ -13,6 +13,8 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { describe, expect, it, vi } from 'vitest';
+import { Jimp } from 'jimp';
+import jsQrModule from 'jsqr';
 import { buildPayqrServer } from '../server.js';
 import { MCP_PAYMENT_META_KEY, MCP_PAYMENT_RESPONSE_META_KEY, type X402Gate } from '@czagents/shared/x402';
 
@@ -49,6 +51,31 @@ async function connect(x402?: X402Gate) {
  */
 type ToolContent = Array<{ type: string; text?: string; data?: string }>;
 interface ToolReply { content: ToolContent; _meta?: Record<string, unknown>; isError?: boolean; structuredContent?: unknown }
+
+type JsQr = (
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+) => { data: string } | null;
+
+const jsQR = (typeof jsQrModule === 'function' ? jsQrModule : jsQrModule.default) as JsQr;
+
+async function decodePngBlock(data: string): Promise<string | null> {
+  // Buffer.from(base64) is deliberately permissive, so first require a canonical
+  // base64 representation. This catches truncated/corrupted MCP image blocks.
+  expect(data).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+  const png = Buffer.from(data, 'base64');
+  expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  expect(png.toString('base64')).toBe(data);
+
+  const image = await Jimp.read(png);
+  const decoded = jsQR(
+    new Uint8ClampedArray(image.bitmap.data),
+    image.bitmap.width,
+    image.bitmap.height,
+  );
+  return decoded?.data ?? null;
+}
 async function call(client: Client, params: Parameters<Client['callTool']>[0]): Promise<ToolReply> {
   return (await client.callTool(params)) as unknown as ToolReply;
 }
@@ -96,7 +123,7 @@ describe('KONTROLNÍ VZOREK — _meta přežije výsledek s image bloky', () => 
     // 1) Obrázky jsou součástí plnění, ne příloha.
     const images = result.content.filter((c) => c.type === 'image');
     expect(images).toHaveLength(2);
-    expect(images[0]!.data!.length).toBeGreaterThan(100);
+    expect(images.every((image) => image.data && image.data.length > 100)).toBe(true);
 
     // 2) A settlement přesto dorazil — tohle je ta odpověď, kvůli které payqr
     //    v testu je.
@@ -105,6 +132,13 @@ describe('KONTROLNÍ VZOREK — _meta přežije výsledek s image bloky', () => 
     // 3) Text se souhrnem sedí a settlement v něm NENÍ.
     const summary = JSON.parse(result.content.find((c) => c.type === 'text')!.text!);
     expect(summary).toMatchObject({ requested: 2, generated: 2, failed: 0 });
+    expect(images).toHaveLength(summary.generated);
+    const expectedPayloads = summary.results
+      .filter((item: { ok: boolean }) => item.ok)
+      .map((item: { payload: string }) => item.payload);
+    const decodedPayloads = await Promise.all(images.map((image) => decodePngBlock(image.data!)));
+    expect(decodedPayloads).toEqual(expectedPayloads);
+    expect(summary.results.every((item: { self_verified?: boolean }) => item.self_verified === true)).toBe(true);
     expect(JSON.stringify(result.content)).not.toContain('0xtx');
   });
 
