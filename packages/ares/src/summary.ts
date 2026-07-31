@@ -78,7 +78,10 @@ export function buildAresSummaryMarkdown(subject: AresSubject): string {
     lines.push(naceLine);
   }
   lines.push('*Veřejné registry · cz-agents.dev*');
-  lines.push('*Rizikový profil (insolvence, sankce, skóre 0–100) zdarma: get_dd_report — dd.cz-agents.dev/mcp.*');
+  // Insolvence NENI v get_dd_report zdarma — je za depth:'full', tedy za DD+.
+  // Zdarma ji vraci samostatny ISIR server (31. 7. 2026).
+  lines.push('*Rizikový profil (sankce, skóre 0–100) zdarma: get_dd_report — dd.cz-agents.dev/mcp.*');
+  lines.push('*Insolvence zdarma: check_ico_insolvency — isir.cz-agents.dev/mcp.*');
 
   return lines.join('\n');
 }

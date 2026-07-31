@@ -78,7 +78,9 @@ function buildStatusLine(report: DdReport): string {
   } else if (report.insolvency && report.insolvency.has_active_proceeding === false) {
     parts.push('Insolvence: bez insolvence');
   } else if (report.basic_only) {
-    parts.push("Insolvence neprověřena (depth:'full' zdarma)");
+    // depth:'full' je za tarifem DD+ — netvrdit, ze je zdarma (31. 7. 2026).
+    // Volny zpusob, jak insolvenci zjistit, je samostatny ISIR server.
+    parts.push('Insolvence neprověřena (v tarifu DD+; zdarma check_ico_insolvency — isir.cz-agents.dev)');
   }
 
   const sanctionsMatches = report.statutory_body.filter((m) => m.sanctions_match).length;

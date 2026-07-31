@@ -83,7 +83,9 @@ describe('summary markdown', () => {
     // subject is only partially verified. A clean-looking basic report must
     // NOT claim a definitive clean verdict.
     const text = buildDdSummaryMarkdown(report({ basic_only: true, insolvency: undefined }));
-    expect(text).toContain("Insolvence neprověřena (depth:'full' zdarma)");
+    // Hlaska nesmi tvrdit, ze depth:'full' je zdarma — je za DD+ (tier_required).
+    expect(text).toContain('Insolvence neprověřena (v tarifu DD+; zdarma check_ico_insolvency — isir.cz-agents.dev)');
+    expect(text).not.toMatch(/depth:'full'\s*zdarma/);
     expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
     expect(text).not.toContain('✅ ČISTÉ');
     expect(text).toContain('ISIR neprověřeno');
