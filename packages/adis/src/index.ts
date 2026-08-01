@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { AdisClient } from './client.js';
 import { buildAdisServer } from './server.js';
 
-export { AdisClient, MAX_DIC_PER_REQUEST, icoToDic } from './client.js';
+export { AdisClient, MAX_DIC_PER_REQUEST, icoToDic, AdisNotConfiguredError, AdisServiceDegradedError } from './client.js';
 export type { AdisClientOptions } from './client.js';
 export { buildAdisServer } from './server.js';
 export type {

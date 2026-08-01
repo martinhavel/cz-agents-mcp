@@ -51,6 +51,7 @@ VOLUME ["/var/lib/czagents-sanctions"]
 # ISIR SOAP enabled by default — Glama / Anthropic test queries hit the
 # real Czech Justice public WS (free, no auth).
 ENV ISIR_SOAP_ENABLED=1
+ENV ADIS_SOAP_ENABLED=1
 
 ENV PORT=3030
 EXPOSE 3030

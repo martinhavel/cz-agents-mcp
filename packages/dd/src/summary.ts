@@ -91,8 +91,10 @@ function buildStatusLine(report: DdReport): string {
       : `bez sankcí (${sanctionsMatches}/${report.statutory_body.length} statutárů)`;
   parts.push(sanctionsText);
 
-  if (report.vat.checked === false && report.vat.error === 'adis_unavailable') {
-    parts.push('ADIS nedostupný — DPH spolehlivost neověřena');
+  if (report.vat.checked === false && report.vat.error === 'adis_not_configured') {
+    parts.push('DPH spolehlivost: kontrola v tomto reportu neproběhla — ověřte ručně na adisreg.mfcr.cz');
+  } else if (report.vat.checked === false && report.vat.error === 'adis_unavailable') {
+    parts.push('Registr plátců DPH (MFČR) dočasně nedostupný — DPH spolehlivost neověřena, opakujte později');
   }
   return parts.join(' · ');
 }
@@ -210,6 +212,8 @@ export function getUnavailableReferencedSources(report: DdReport): SourceAvailab
   }
   if (report.vat.checked === false && report.vat.error === 'adis_unavailable') {
     unavailable.push({ id: 'adis', label: 'ADIS' });
+  } else if (report.vat.checked === false && report.vat.error === 'adis_not_configured') {
+    unavailable.push({ id: 'adis', label: 'ADIS', notChecked: true });
   }
   return unavailable;
 }

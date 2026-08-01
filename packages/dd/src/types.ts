@@ -121,7 +121,7 @@ export interface DdVat {
   subject_type?: VatSubjectType;
   /** False when ADIS was referenced but could not be queried. */
   checked?: boolean;
-  error?: 'adis_unavailable';
+  error?: 'adis_unavailable' | 'adis_not_configured';
 }
 
 export interface DdInsolvency {

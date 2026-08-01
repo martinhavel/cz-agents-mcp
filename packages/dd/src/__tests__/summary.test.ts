@@ -207,7 +207,17 @@ describe('verdict degradation — unavailable sources', () => {
     }));
     expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
     expect(text).not.toContain('✅');
-    expect(text).toContain('ADIS nedostupný');
+    expect(text).toContain('Registr plátců DPH (MFČR) dočasně nedostupný — DPH spolehlivost neověřena, opakujte později');
+  });
+
+  it('ADIS not configured in this container + otherwise clean → ⚠ ČÁSTEČNĚ PROVĚŘENO, not ✅', () => {
+    const text = buildDdSummaryMarkdown(report({
+      vat: { is_payer: false, bank_accounts: [], checked: false, error: 'adis_not_configured' },
+      risk_score: { value: 0, level: 'low' },
+    }));
+    expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅');
+    expect(text).toContain('DPH spolehlivost: kontrola v tomto reportu neproběhla — ověřte ručně na adisreg.mfcr.cz');
   });
 
   it('critical flag + source down → 🔴 RIZIKO wins over ⚠ ČÁSTEČNĚ', () => {

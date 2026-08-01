@@ -23,6 +23,7 @@ import type {
   StatutoryMember,
 } from './types.js';
 import { getOwnershipNetwork } from './ownership-network.js';
+import { AdisNotConfiguredError } from '@czagents/adis';
 
 const VIRTUAL_ADDRESS_THRESHOLD = 50;
 
@@ -516,12 +517,16 @@ async function checkAdisPayer(
   input: { ico?: string; dic?: string },
 ): Promise<{
   status: Awaited<ReturnType<NonNullable<DdClients['adis']>['checkPayer']>>;
-  error: 'adis_unavailable' | null;
+  error: 'adis_unavailable' | 'adis_not_configured' | null;
 }> {
   if (!adis) return { status: null, error: 'adis_unavailable' };
   try {
     return { status: await adis.checkPayer(input), error: null };
-  } catch {
+  } catch (e) {
+    if (e instanceof AdisNotConfiguredError) {
+      console.error('[dd] ADIS not configured in this container (ADIS_SOAP_ENABLED missing) — VAT reliability not checked');
+      return { status: null, error: 'adis_not_configured' };
+    }
     return { status: null, error: 'adis_unavailable' };
   }
 }

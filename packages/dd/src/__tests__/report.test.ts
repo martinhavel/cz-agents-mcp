@@ -10,7 +10,9 @@ import type {
   SanctionsLike,
   SanctionsMatch,
   IsirLike,
+  AdisLike,
 } from '../clients.js';
+import { AdisNotConfiguredError } from '@czagents/adis';
 
 interface MockAresOpts {
   subject?: AresSubjectLike | null;
@@ -329,6 +331,22 @@ describe('buildReport', () => {
     expect(report.insolvency).toEqual({ checked: false, error: 'isir_unavailable' });
     expect(report.insolvency?.has_active_proceeding).toBeUndefined();
     expect(report.red_flags.find((f) => f.code === 'INSOLVENCY_ACTIVE')).toBeUndefined();
+  });
+
+  it('maps AdisNotConfiguredError to adis_not_configured (not adis_unavailable)', async () => {
+    const ares = mockAres({
+      subject: { ico: '12345679', obchodniJmeno: 'Test Co. s.r.o.' },
+    });
+    const adis: AdisLike = {
+      checkPayer: async () => {
+        throw new AdisNotConfiguredError();
+      },
+    };
+
+    const report = await buildReport('12345679', { ares, adis }, { depth: 'full' });
+
+    expect(report.vat.error).toBe('adis_not_configured');
+    expect(report.vat.checked).toBe(false);
   });
 
   it('ARES outage degrades to ARES_UNAVAILABLE (NOT a NOT_FOUND verdict)', async () => {
