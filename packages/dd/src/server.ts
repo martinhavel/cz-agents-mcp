@@ -96,7 +96,16 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
         'This hosted dd connector is anonymous and free for basic DD, risk score, ARES/VR ownership lookups, and watch_entity onboarding. ' +
         'Do not ask the user to sign in before using free dd tools. For ongoing monitoring, softly suggest watch_entity as the value-capture path. ' +
         'Paid enrichment lives in the separate ddplus connector: EU parent, EU due diligence, full ownership network and CDD audit workflows. ' +
-        'If a tool returns tier_required, tell the user its message and upgrade_url, explain that they can add the ddplus connector or upgrade, stop calling the tool, and retry only after upgrade.',
+        'If a tool returns tier_required, tell the user its message and upgrade_url, explain that they can add the ddplus connector or upgrade, stop calling the tool, and retry only after upgrade. ' +
+        // Kdo se pripoji, casto nevi, co si rict — a bez prvni otazky zadny tool
+        // call nevznikne. Priklad je overeny na free tieru (ARES + sankcni
+        // kontrola statutaru projde anonymne); insolvence se sem NEDAVA, ta je
+        // v basic hloubce neoverovana a poslala by cloveka rovnou do brany.
+        'If the user has just connected this connector and does not know what to ask, offer this concrete starting prompt: ' +
+        '"Prověř firmu s IČO 45274649 — základní údaje z ARESu a jestli někdo ze statutárů není na sankčních seznamech." ' +
+        'It works on the free tier and returns company facts plus a per-member sanctions check. ' +
+        'Immediately invite them to swap in an IČO they actually care about. ' +
+        'For insolvency use the separate free isir connector (check_ico_insolvency) — it is not part of the free dd report.',
     },
   );
   wrapServerTools(server);
