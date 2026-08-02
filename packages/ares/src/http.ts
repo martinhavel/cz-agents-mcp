@@ -348,13 +348,18 @@ async function handleAresRest(
         const access=aresRestAccess(req,res,resolver,tokenStore,'rest:search_companies');if(!access.allowed)return;
         const query = url.searchParams.get('q') ?? undefined;
         const city = url.searchParams.get('city') ?? undefined;
-        // Bez kriteria posilal ARES prazdny dotaz a upstream to vracel jako 500.
-        // Chybejici parametr je chyba volajiciho, ne serveru — a je to prvni vec,
-        // kterou zvedavy clovek udela: zavola endpoint naprazdno (2. 8. 2026).
-        if (!query && !city) {
+        // Bez 'q' posilal ARES dotaz, ktery upstream vracel jako 500. Chybejici
+        // parametr je chyba volajiciho, ne serveru — a zavolat endpoint naprazdno
+        // je prvni vec, kterou zvedavy clovek udela (2. 8. 2026).
+        //
+        // 'q' je POVINNE, 'city' je jen filtr: overeno na produkci, ze samotne
+        // ?city=Praha i ?city=Brno konci upstream chybou, kdezto q+city projde.
+        // Prvni verze teto hlasky radila "q nebo city" a doporucovala tim volani,
+        // ktere nefunguje.
+        if (!query) {
           jsonErr(res, 400, 'missing_parameter',
-            'Zadej alespoň jeden z parametrů: q (název firmy) nebo city (obec). '
-            + 'Např. /v1/companies?q=CEZ&limit=5');
+            'Povinný parametr q (název firmy). city je volitelný filtr, samotný nestačí. '
+            + 'Např. /v1/companies?q=CEZ&limit=5 nebo /v1/companies?q=Alza&city=Praha');
           access.record?.(false);
           return;
         }
