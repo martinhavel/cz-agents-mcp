@@ -348,6 +348,16 @@ async function handleAresRest(
         const access=aresRestAccess(req,res,resolver,tokenStore,'rest:search_companies');if(!access.allowed)return;
         const query = url.searchParams.get('q') ?? undefined;
         const city = url.searchParams.get('city') ?? undefined;
+        // Bez kriteria posilal ARES prazdny dotaz a upstream to vracel jako 500.
+        // Chybejici parametr je chyba volajiciho, ne serveru — a je to prvni vec,
+        // kterou zvedavy clovek udela: zavola endpoint naprazdno (2. 8. 2026).
+        if (!query && !city) {
+          jsonErr(res, 400, 'missing_parameter',
+            'Zadej alespoň jeden z parametrů: q (název firmy) nebo city (obec). '
+            + 'Např. /v1/companies?q=CEZ&limit=5');
+          access.record?.(false);
+          return;
+        }
         const rawLimit = Number(url.searchParams.get('limit') ?? 10);
         const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.floor(rawLimit), 1), 50) : 10;
         let result;
