@@ -1,0 +1,8 @@
+{
+  "ibanforge": {
+    "enabled": false,
+    "url": "https://ibanforge.com/",
+    "relationship": "unpaid_partner",
+    "logo": ""
+  }
+}

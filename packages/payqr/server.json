@@ -8,13 +8,13 @@
     "source": "github",
     "subfolder": "packages/payqr"
   },
-  "version": "0.1.11",
+  "version": "0.1.12",
   "websiteUrl": "https://qr.cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/payqr",
-      "version": "0.1.11",
+      "version": "0.1.12",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

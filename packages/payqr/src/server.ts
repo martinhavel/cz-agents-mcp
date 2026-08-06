@@ -4,6 +4,7 @@ import { PayqrClient, type QrResult, type PaymentInput } from './client.js';
 import { putQr, putPrefill } from './qr-store.js';
 import { logToolCall, wrapServerTools } from '@czagents/shared';
 import { withX402Tool, type X402Gate } from '@czagents/shared/x402';
+import { loadIbanforgeReferral, withIbanforgeReferral } from './referral.js';
 
 // Set only on the hosted HTTP server (compose env). When present, generated QRs are
 // exposed as short temporary URLs the client can render inline; absent (npx/stdio) we
@@ -42,10 +43,11 @@ function buildWebUrl(input: PaymentInput): string | undefined {
  *   ve kterém je obrázek?".
  */
 export function buildPayqrServer(x402?: X402Gate): McpServer {
+  const ibanforgeReferral = loadIbanforgeReferral();
   const server = new McpServer(
     {
       name: 'cz-agents/payqr',
-      version: '0.1.10',
+      version: '0.1.12',
     },
     {
       capabilities: { tools: {} },
@@ -103,7 +105,7 @@ export function buildPayqrServer(x402?: X402Gate): McpServer {
     async (input) => {
       logToolCall('payqr', 'qr_payment');
       const web_url = buildWebUrl(input);
-      return qrResult(await payqr.payment(input), web_url ? { web_url } : undefined);
+      return qrResult(await payqr.payment(input), web_url ? { web_url } : undefined, ibanforgeReferral);
     },
   );
 
@@ -205,19 +207,21 @@ export function buildPayqrServer(x402?: X402Gate): McpServer {
           // Obrázky JSOU součástí plnění, ne příloha. Právě proto je payqr
           // v tomhle testu kontrolní vzorek: sanctions vrací jen text, tady se
           // ověřuje, že `_meta` se settlementem přežije i výsledek s image bloky.
+          const summary = withIbanforgeReferral({
+            requested: args.payments.length,
+            generated: results.filter((r) => r.ok).length,
+            failed: results.filter((r) => !r.ok).length,
+            results,
+          }, results.some((r) => r.ok) ? ibanforgeReferral : undefined);
           return {
             content: [
               ...images,
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  requested: args.payments.length,
-                  generated: results.filter((r) => r.ok).length,
-                  failed: results.filter((r) => !r.ok).length,
-                  results,
-                }, null, 2),
+                text: JSON.stringify(summary, null, 2),
               },
             ],
+            ...(ibanforgeReferral && results.some((r) => r.ok) ? { structuredContent: summary } : {}),
           };
         },
       ) as never,
@@ -236,12 +240,15 @@ function jsonResult(value: unknown) {
 // QR-generating tools return BOTH an MCP image block (so Claude Desktop / clients
 // render the QR natively as a picture — not a broken base64 string the model tries
 // to "display" itself) AND a text block with payload/standard/warnings for context.
-function qrResult(value: QrResult, extra?: Record<string, unknown>) {
+function qrResult(value: QrResult, extra?: Record<string, unknown>, referral = undefined as ReturnType<typeof loadIbanforgeReferral>) {
   const { qr_data_uri, ...rest } = value;
   const base64 = qr_data_uri.startsWith('data:')
     ? qr_data_uri.slice(qr_data_uri.indexOf(',') + 1)
     : qr_data_uri;
-  const text: Record<string, unknown> = { ...rest, ...(extra ?? {}) };
+  const text: Record<string, unknown> = withIbanforgeReferral(
+    { ...rest, ...(extra ?? {}) } as Record<string, unknown>,
+    referral,
+  );
   const webHint = text.web_url
     ? ' For a guaranteed view (e.g. Claude Desktop, which may not render inline images), give web_url — ' +
       'it opens the payment in the browser app with the QR already rendered. It carries no payment data ' +
@@ -269,5 +276,6 @@ function qrResult(value: QrResult, extra?: Record<string, unknown>) {
       { type: 'image' as const, data: base64, mimeType: 'image/png' },
       { type: 'text' as const, text: JSON.stringify(text, null, 2) },
     ],
+    ...(referral ? { structuredContent: text } : {}),
   };
 }
