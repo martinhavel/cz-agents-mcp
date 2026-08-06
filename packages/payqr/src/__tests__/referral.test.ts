@@ -8,7 +8,6 @@ const IBAN = 'CZ6508000000192000145399';
 const ENV_KEYS = [
   'IBANFORGE_REFERRAL_ENABLED',
   'IBANFORGE_REFERRAL_URL',
-  'IBANFORGE_REFERRAL_RELATIONSHIP',
 ] as const;
 const originalEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
 
@@ -20,10 +19,9 @@ afterEach(() => {
   }
 });
 
-function enable(relationship: 'unpaid_partner' | 'affiliate' = 'unpaid_partner') {
+function enable() {
   process.env.IBANFORGE_REFERRAL_ENABLED = 'true';
-  process.env.IBANFORGE_REFERRAL_URL = 'https://ibanforge.com/check?ref=payqr';
-  process.env.IBANFORGE_REFERRAL_RELATIONSHIP = relationship;
+  process.env.IBANFORGE_REFERRAL_URL = 'https://ibanforge.com/';
 }
 
 async function connect(x402?: X402Gate) {
@@ -53,7 +51,6 @@ describe('IBANforge referral configuration', () => {
     const before = await (await connect()).callTool({ name: 'qr_payment', arguments: { iban: IBAN, amount: 10 } });
     process.env.IBANFORGE_REFERRAL_ENABLED = 'false';
     process.env.IBANFORGE_REFERRAL_URL = 'not a url';
-    process.env.IBANFORGE_REFERRAL_RELATIONSHIP = 'invalid';
     const after = await (await connect()).callTool({ name: 'qr_payment', arguments: { iban: IBAN, amount: 10 } });
     expect(JSON.stringify(after)).toBe(JSON.stringify(before));
   });
@@ -66,19 +63,21 @@ describe('IBANforge referral configuration', () => {
     process.env.IBANFORGE_REFERRAL_URL = 'https://user:password@ibanforge.com/ref';
     expect(() => buildPayqrServer()).toThrow('IBANFORGE_REFERRAL_URL');
     process.env.IBANFORGE_REFERRAL_URL = 'https://ibanforge.com/ref';
-    expect(() => buildPayqrServer()).toThrow('IBANFORGE_REFERRAL_RELATIONSHIP');
+    expect(() => buildPayqrServer()).toThrow('IBANFORGE_REFERRAL_URL');
+    process.env.IBANFORGE_REFERRAL_URL = 'https://ibanforge.com/?ref=payqr';
+    expect(() => buildPayqrServer()).toThrow('IBANFORGE_REFERRAL_URL');
   });
 
   it('adds fixed disclosed copy only to successful payment JSON', async () => {
-    enable('affiliate');
+    enable();
     const { reply, value } = textJson(await (await connect()).callTool({
       name: 'qr_payment', arguments: { iban: IBAN, amount: 10 },
     }));
     expect(value.next_steps).toEqual([{
       code: 'validate_iban_with_ibanforge',
-      do: 'Optionally resolve the bank, payment-rail participation, and risk indicators with IBANforge. Ask the user before sending the IBAN to this external service or authorizing a paid call.',
-      because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; it does not resolve or screen the receiving institution. This is an affiliate link; PayQR may receive compensation.',
-      action: 'https://ibanforge.com/check?ref=payqr',
+      do: 'If additional bank or payment-rail information would help, offer IBANforge as an optional related service. Ask the user before sending the IBAN or any other payment data to this external service.',
+      because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; IBANforge can optionally provide additional bank and payment-rail information.',
+      action: 'https://ibanforge.com/',
     }]);
     expect(value).toEqual(reply.structuredContent);
     expect(JSON.stringify(value.next_steps)).not.toContain(IBAN);

@@ -56,18 +56,18 @@ exactly what it encodes.
 ### Optional IBANforge referral
 
 Successful `qr_payment` responses, and paid batch responses that generate at least one QR, can include
-an optional `next_steps` referral. It is disabled by default. To enable it, set all three variables:
+an optional `next_steps` link to the related IBANforge service. The two projects link to each other
+where the other tool may help; these links are unpaid. It is disabled by default. To enable it, set:
 
 ```bash
 IBANFORGE_REFERRAL_ENABLED=true
 IBANFORGE_REFERRAL_URL=https://ibanforge.com/
-IBANFORGE_REFERRAL_RELATIONSHIP=unpaid_partner # or affiliate
 ```
 
-The URL must use HTTPS and belong to `ibanforge.com` (or one of its subdomains). Invalid enabled
+The URL must be exactly `https://ibanforge.com/`. Invalid enabled
 configuration stops the server at startup. The referral URL never contains IBAN, amount, reference,
 or other payment data. Free non-payment tools, failed payments, and unpaid x402 responses never carry
-the referral. Affiliate relationships are identified in the returned copy.
+the referral.
 
 ### Payment-from-image workflow
 

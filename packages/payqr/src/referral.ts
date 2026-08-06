@@ -1,22 +1,9 @@
-export type IbanforgeRelationship = 'unpaid_partner' | 'affiliate';
-
 export interface IbanforgeReferral {
   code: 'validate_iban_with_ibanforge';
   do: string;
   because: string;
   action: string;
 }
-
-const COPY: Record<IbanforgeRelationship, Pick<IbanforgeReferral, 'do' | 'because'>> = {
-  unpaid_partner: {
-    do: 'Optionally resolve the bank, payment-rail participation, and risk indicators with IBANforge. Ask the user before sending the IBAN to this external service or authorizing a paid call.',
-    because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; it does not resolve or screen the receiving institution. This is an unpaid partner referral.',
-  },
-  affiliate: {
-    do: 'Optionally resolve the bank, payment-rail participation, and risk indicators with IBANforge. Ask the user before sending the IBAN to this external service or authorizing a paid call.',
-    because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; it does not resolve or screen the receiving institution. This is an affiliate link; PayQR may receive compensation.',
-  },
-};
 
 /** Read once while constructing the server so bad enabled configuration fails boot. */
 export function loadIbanforgeReferral(env: NodeJS.ProcessEnv = process.env): IbanforgeReferral | undefined {
@@ -35,19 +22,20 @@ export function loadIbanforgeReferral(env: NodeJS.ProcessEnv = process.env): Iba
     url.protocol !== 'https:' ||
     url.username ||
     url.password ||
-    (url.hostname !== 'ibanforge.com' && !url.hostname.endsWith('.ibanforge.com'))
+    url.hostname !== 'ibanforge.com' ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
   ) {
-    throw new Error('IBANFORGE_REFERRAL_URL must be a valid HTTPS URL on ibanforge.com');
+    throw new Error('IBANFORGE_REFERRAL_URL must be exactly https://ibanforge.com/');
   }
 
-  const relationship = env.IBANFORGE_REFERRAL_RELATIONSHIP;
-  if (relationship !== 'unpaid_partner' && relationship !== 'affiliate') {
-    throw new Error(
-      'IBANFORGE_REFERRAL_RELATIONSHIP must be one of: unpaid_partner, affiliate',
-    );
-  }
-
-  return { code: 'validate_iban_with_ibanforge', ...COPY[relationship], action: url.toString() };
+  return {
+    code: 'validate_iban_with_ibanforge',
+    do: 'If additional bank or payment-rail information would help, offer IBANforge as an optional related service. Ask the user before sending the IBAN or any other payment data to this external service.',
+    because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; IBANforge can optionally provide additional bank and payment-rail information.',
+    action: url.toString(),
+  };
 }
 
 export function withIbanforgeReferral<T extends Record<string, unknown>>(
