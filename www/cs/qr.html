@@ -345,7 +345,7 @@
       standardLabel: 'Standard', auto: 'Auto', autoHint: 'Auto: CZ/SK IBAN → SPAYD, other SEPA countries → EPC.',
       validIbanPrompt: 'Enter a valid IBAN', downloadPng: 'Download PNG', copyPayload: 'Copy payload',
       copied: 'Copied', footerPrefix: 'A free tool by', footerSuffix: 'no tracking', pay: 'Pay', to: 'to',
-      partnerLink: 'Explore IBAN details with IBANforge', partnerDisclosure: 'Related service: PayQR and IBANforge link to each other when the other tool may be useful. These links are unpaid.',
+      partnerLink: 'Validate an IBAN with IBANforge', partnerUnpaid: 'Partner disclosure: this is an unpaid partner link.', partnerAffiliate: 'Affiliate disclosure: we may earn a commission if you use this link.',
       recipient: 'Recipient', reference: 'Reference', standard: 'Standard', noValue: '—',
       formatSpayd: 'Format: SPAYD — compatible with Czech/Slovak bank apps',
       formatEpc: 'Format: EPC/GiroCode — your bank app will read it',
@@ -374,7 +374,7 @@
       standardLabel: 'Standard', auto: 'Automaticky', autoHint: 'Automaticky: CZ/SK IBAN → SPAYD, ostatní země SEPA → EPC.',
       validIbanPrompt: 'Zadejte platný IBAN', downloadPng: 'Stáhnout PNG', copyPayload: 'Kopírovat obsah',
       copied: 'Zkopírováno', footerPrefix: 'Bezplatný nástroj od', footerSuffix: 'bez sledování', pay: 'Zaplatit', to: 'na účet',
-      partnerLink: 'Zjistit podrobnosti o IBANu přes IBANforge', partnerDisclosure: 'Související služba: PayQR a IBANforge na sebe odkazují, když může být druhý nástroj užitečný. Tyto odkazy jsou bezplatné.',
+      partnerLink: 'Ověřit IBAN přes IBANforge', partnerUnpaid: 'Informace o partnerství: toto je neplacený partnerský odkaz.', partnerAffiliate: 'Informace o provizi: pokud tento odkaz použijete, můžeme získat provizi.',
       recipient: 'Příjemce', reference: 'Reference', standard: 'Standard', noValue: '—',
       formatSpayd: 'Formát: SPAYD — kompatibilní s českými a slovenskými bankami',
       formatEpc: 'Formát: EPC/GiroCode — přečte ho vaše bankovní aplikace',
@@ -403,7 +403,7 @@
       standardLabel: 'Standard', auto: 'Automatisch', autoHint: 'Automatisch: CZ/SK-IBAN → SPAYD, andere SEPA-Länder → EPC.',
       validIbanPrompt: 'Geben Sie eine gültige IBAN ein', downloadPng: 'PNG herunterladen', copyPayload: 'Inhalt kopieren',
       copied: 'Kopiert', footerPrefix: 'Ein kostenloses Tool von', footerSuffix: 'kein Tracking', pay: 'Bezahlen', to: 'an',
-      partnerLink: 'IBAN-Details mit IBANforge ansehen', partnerDisclosure: 'Verwandter Dienst: PayQR und IBANforge verlinken aufeinander, wenn das jeweils andere Tool hilfreich sein kann. Diese Links sind unbezahlt.',
+      partnerLink: 'IBAN mit IBANforge prüfen', partnerUnpaid: 'Partnerhinweis: Dies ist ein unbezahlter Partnerlink.', partnerAffiliate: 'Affiliate-Hinweis: Wenn Sie diesen Link nutzen, erhalten wir möglicherweise eine Provision.',
       recipient: 'Empfänger', reference: 'Verwendungszweck', standard: 'Standard', noValue: '—',
       formatSpayd: 'Format: SPAYD — kompatibel mit tschechischen und slowakischen Banking-Apps',
       formatEpc: 'Format: EPC/GiroCode — Ihre Banking-App kann ihn lesen',
@@ -448,6 +448,7 @@
   const referralLink = document.getElementById('ibanforge-referral-link');
   const referralLogo = document.getElementById('ibanforge-logo');
   const referralDisclosure = document.getElementById('ibanforge-disclosure');
+  let referralRelationship = '';
   let referralTarget = '';
   let currentPayload = '';
   let tesseractPromise;
@@ -623,7 +624,7 @@
     document.querySelectorAll('[data-i18n-placeholder]').forEach((element) => element.placeholder = I[L][element.dataset.i18nPlaceholder]);
     document.documentElement.lang = L;
     localStorage.qrLang = L;
-    if (referralTarget) referralDisclosure.textContent = I[L].partnerDisclosure;
+    if (referralRelationship) referralDisclosure.textContent = I[L][referralRelationship === 'affiliate' ? 'partnerAffiliate' : 'partnerUnpaid'];
     updateLive();
   }
 
@@ -642,13 +643,14 @@
       const response = await fetch('/qr-referrals.json', { credentials: 'same-origin' });
       if (!response.ok) return;
       const config = (await response.json()).ibanforge;
-      if (!config || config.enabled !== true) return;
+      if (!config || config.enabled !== true || !['unpaid_partner', 'affiliate'].includes(config.relationship)) return;
       const target = new URL(config.url);
-      if (target.href !== 'https://ibanforge.com/' || target.username || target.password) return;
+      if (target.protocol !== 'https:' || (target.hostname !== 'ibanforge.com' && !target.hostname.endsWith('.ibanforge.com')) || target.username || target.password) return;
 
+      referralRelationship = config.relationship;
       referralTarget = target.href;
-      referralLink.rel = 'noopener noreferrer';
-      referralDisclosure.textContent = I[L].partnerDisclosure;
+      referralLink.rel = config.relationship === 'affiliate' ? 'noopener noreferrer sponsored' : 'noopener noreferrer';
+      referralDisclosure.textContent = I[L][config.relationship === 'affiliate' ? 'partnerAffiliate' : 'partnerUnpaid'];
       if (isLocalAssetPath(config.logo)) {
         referralLogo.src = config.logo;
         referralLogo.hidden = false;
