@@ -6,7 +6,7 @@ COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY packages/payqr ./packages/payqr
 
-RUN npm install --workspaces --include-workspace-root
+RUN npm ci --workspaces --include-workspace-root
 RUN npm run build --workspace=@czagents/shared
 RUN npm run build --workspace=@czagents/payqr
 
