@@ -60,7 +60,7 @@ an optional `next_steps` referral. It is disabled by default. To enable it, set 
 
 ```bash
 IBANFORGE_REFERRAL_ENABLED=true
-IBANFORGE_REFERRAL_URL=https://ibanforge.com/
+IBANFORGE_REFERRAL_URL=https://ibanforge.com/?src=payqr
 IBANFORGE_REFERRAL_RELATIONSHIP=unpaid_partner # or affiliate
 ```
 

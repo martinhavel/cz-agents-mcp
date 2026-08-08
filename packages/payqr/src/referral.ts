@@ -10,7 +10,7 @@ export interface IbanforgeReferral {
 const COPY: Record<IbanforgeRelationship, Pick<IbanforgeReferral, 'do' | 'because'>> = {
   unpaid_partner: {
     do: 'Optionally resolve the bank, payment-rail participation, and risk indicators with IBANforge. Ask the user before sending the IBAN to this external service or authorizing a paid call.',
-    because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; it does not resolve or screen the receiving institution. This is an unpaid partner referral.',
+    because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; it does not resolve or screen the receiving institution.',
   },
   affiliate: {
     do: 'Optionally resolve the bank, payment-rail participation, and risk indicators with IBANforge. Ask the user before sending the IBAN to this external service or authorizing a paid call.',

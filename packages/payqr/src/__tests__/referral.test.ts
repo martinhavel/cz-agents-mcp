@@ -22,7 +22,7 @@ afterEach(() => {
 
 function enable(relationship: 'unpaid_partner' | 'affiliate' = 'unpaid_partner') {
   process.env.IBANFORGE_REFERRAL_ENABLED = 'true';
-  process.env.IBANFORGE_REFERRAL_URL = 'https://ibanforge.com/check?ref=payqr';
+  process.env.IBANFORGE_REFERRAL_URL = 'https://ibanforge.com/?src=payqr';
   process.env.IBANFORGE_REFERRAL_RELATIONSHIP = relationship;
 }
 
@@ -78,11 +78,23 @@ describe('IBANforge referral configuration', () => {
       code: 'validate_iban_with_ibanforge',
       do: 'Optionally resolve the bank, payment-rail participation, and risk indicators with IBANforge. Ask the user before sending the IBAN to this external service or authorizing a paid call.',
       because: 'PayQR checks the IBAN checksum and confirms that the QR image decodes to its payload; it does not resolve or screen the receiving institution. This is an affiliate link; PayQR may receive compensation.',
-      action: 'https://ibanforge.com/check?ref=payqr',
+      action: 'https://ibanforge.com/?src=payqr',
     }]);
     expect(value).toEqual(reply.structuredContent);
     expect(JSON.stringify(value.next_steps)).not.toContain(IBAN);
     expect(JSON.stringify(value.next_steps)).not.toContain('10');
+  });
+
+  it('does not add compensation framing to the reciprocal relationship', async () => {
+    enable('unpaid_partner');
+    const { value } = textJson(await (await connect()).callTool({
+      name: 'qr_payment', arguments: { iban: IBAN, amount: 10 },
+    }));
+    const copy = JSON.stringify(value.next_steps).toLowerCase();
+    expect(copy).not.toContain('unpaid');
+    expect(copy).not.toContain('affiliate');
+    expect(copy).not.toContain('compensation');
+    expect(copy).not.toContain('commission');
   });
 
   it('leaves generic QR tools unchanged', async () => {
