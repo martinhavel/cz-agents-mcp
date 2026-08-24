@@ -39,24 +39,9 @@ export interface RegistryLookupAccess {
 
 export type RegistryLookupAuthorizer = (request:RegistryLookupRequest)=>RegistryLookupAccess|Promise<RegistryLookupAccess>;
 
-export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): McpServer {
-  const server = new McpServer(
-    {
-      name: 'cz-agents/eu-registry',
-      version: '0.1.0',
-    },
-    {
-      capabilities: { tools: {} },
-      instructions:
-        'Non-Czech business registry lookup. Use for companies outside the Czech Republic. ' +
-        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL/IT/AT/ES/BE/LT (VIES VAT lookup + GLEIF/LEI name search), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data), SE (Bolagsverket exact lookup + GLEIF name search). ' +
-        'This server does not handle Czech registry lookups.',
-    },
-  );
-  wrapServerTools(server);
-
+export function buildDefaultRegistryAdapters(): RegistryAdapters {
   const gleifCache = buildGleifCache();
-  const adapters = options.adapters ?? {
+  return {
     gb: new UkCompaniesHouseAdapter(),
     sk: new SkOrsrAdapter(),
     pl: new PlKrsAdapter(),
@@ -76,6 +61,25 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       searchAdapter: new GleifAdapter('SE', globalThis.fetch, gleifCache),
     }),
   };
+}
+
+export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): McpServer {
+  const server = new McpServer(
+    {
+      name: 'cz-agents/eu-registry',
+      version: '0.1.0',
+    },
+    {
+      capabilities: { tools: {} },
+      instructions:
+        'Non-Czech business registry lookup. Use for companies outside the Czech Republic. ' +
+        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL/IT/AT/ES/BE/LT (VIES VAT lookup + GLEIF/LEI name search), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data), SE (Bolagsverket exact lookup + GLEIF name search). ' +
+        'This server does not handle Czech registry lookups.',
+    },
+  );
+  wrapServerTools(server);
+
+  const adapters = options.adapters ?? buildDefaultRegistryAdapters();
 
   server.tool(
     'search_company',
