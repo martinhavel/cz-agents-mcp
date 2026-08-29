@@ -1,7 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateIcoInput, trackIco, logToolCall, wrapServerTools } from '@czagents/shared';
-import { AdisClient, MAX_DIC_PER_REQUEST, AdisNotConfiguredError, AdisServiceDegradedError } from './client.js';
+import { validateIcoInput, trackIco, logToolCall, wrapServerTools, getCurrentUa } from '@czagents/shared';
+import { AdisClient, MAX_DIC_PER_REQUEST, AdisNotConfiguredError, AdisServiceDegradedError, icoToDic } from './client.js';
+import { BulkSignatureQuotaExceeded, createBulkSignatureGuard } from './bulkGuard.js';
+
+const bulkSignatureGuard = createBulkSignatureGuard({
+  // Default OFF. Enabling/changing this value is a production policy decision.
+  limit: Number(process.env.ADIS_BULK_SIGNATURE_LIMIT ?? 0),
+  windowMs: Number(process.env.ADIS_BULK_SIGNATURE_WINDOW_MS ?? 3_600_000),
+});
 
 export function buildAdisServer(client: AdisClient = new AdisClient()): McpServer {
   const server = new McpServer(
@@ -77,6 +84,11 @@ export function buildAdisServer(client: AdisClient = new AdisClient()): McpServe
           trackIco(clean);
           return clean;
         });
+        const canonicalDics = [
+          ...(cleanIcos ?? []).map(icoToDic),
+          ...(dics ?? []).map(icoToDic),
+        ];
+        bulkSignatureGuard.check(getCurrentUa(), canonicalDics);
         const result = await client.checkBulk({ icos: cleanIcos, dics });
         return wrap(JSON.stringify(result, null, 2));
       } catch (e) {
@@ -118,6 +130,12 @@ function wrap(text: string) {
 }
 
 function error(e: unknown) {
+  if (e instanceof BulkSignatureQuotaExceeded) {
+    return {
+      isError: true,
+      content: [{ type: 'text' as const, text: `${e.message} This limit aggregates identical bulk requests across rotating IP addresses.` }],
+    };
+  }
   // Degraded/unconfigured ADIS must NEVER read as a clean "reliable / not in
   // registry" verdict — surface explicitly that the query did not run.
   if (e instanceof AdisNotConfiguredError) {
