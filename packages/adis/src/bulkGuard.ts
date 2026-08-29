@@ -35,6 +35,7 @@ export function createBulkSignatureGuard(options: BulkGuardOptions) {
     : 3_600_000;
 
   return {
+    enabled: limit > 0,
     check(userAgent: string | undefined, canonicalDics: string[]): void {
       // Zero is the safe rollout default: prepared code has no runtime effect.
       if (limit === 0) return;

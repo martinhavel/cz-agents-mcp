@@ -84,11 +84,13 @@ export function buildAdisServer(client: AdisClient = new AdisClient()): McpServe
           trackIco(clean);
           return clean;
         });
-        const canonicalDics = [
-          ...(cleanIcos ?? []).map(icoToDic),
-          ...(dics ?? []).map(icoToDic),
-        ];
-        bulkSignatureGuard.check(getCurrentUa(), canonicalDics);
+        if (bulkSignatureGuard.enabled) {
+          const canonicalDics = [
+            ...(cleanIcos ?? []).map(icoToDic),
+            ...(dics ?? []).map(icoToDic),
+          ];
+          bulkSignatureGuard.check(getCurrentUa(), canonicalDics);
+        }
         const result = await client.checkBulk({ icos: cleanIcos, dics });
         return wrap(JSON.stringify(result, null, 2));
       } catch (e) {

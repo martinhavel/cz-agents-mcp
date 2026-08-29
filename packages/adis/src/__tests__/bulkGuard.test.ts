@@ -4,13 +4,16 @@ import { BulkSignatureQuotaExceeded, createBulkSignatureGuard } from '../bulkGua
 describe('bulk signature guard', () => {
   it('is inert when the rollout limit is disabled', () => {
     const guard = createBulkSignatureGuard({ limit: 0, windowMs: 60_000 });
+    expect(guard.enabled).toBe(false);
     for (let i = 0; i < 10; i += 1) guard.check('python-requests/2.32.5', ['CZ11122234']);
     const malformed = createBulkSignatureGuard({ limit: Number.NaN, windowMs: Number.NaN });
+    expect(malformed.enabled).toBe(false);
     for (let i = 0; i < 10; i += 1) malformed.check('python-requests/2.32.5', ['CZ11122234']);
   });
 
   it('aggregates the same UA and canonical DIČ set independently of IP or input order', () => {
     const guard = createBulkSignatureGuard({ limit: 2, windowMs: 60_000 });
+    expect(guard.enabled).toBe(true);
     guard.check(' Python-Requests/2.32.5 ', ['CZ2', 'CZ1']);
     guard.check('python-requests/2.32.5', ['CZ1', 'CZ2']);
     expect(() => guard.check('python-requests/2.32.5', ['CZ2', 'CZ1']))
