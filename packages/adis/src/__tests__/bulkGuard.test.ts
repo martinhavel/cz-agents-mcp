@@ -20,6 +20,13 @@ describe('bulk signature guard', () => {
       .toThrow(BulkSignatureQuotaExceeded);
   });
 
+  it('treats repeated canonical DIČs as a set after sorting', () => {
+    const guard = createBulkSignatureGuard({ limit: 1, windowMs: 60_000 });
+    guard.check('python-requests/2.32.5', ['CZ2', 'CZ1', 'CZ1']);
+    expect(() => guard.check('python-requests/2.32.5', ['CZ1', 'CZ2']))
+      .toThrow(BulkSignatureQuotaExceeded);
+  });
+
   it('does not merge different arguments or user agents and resets after the window', () => {
     let timestamp = 1_000;
     const guard = createBulkSignatureGuard({ limit: 1, windowMs: 500, now: () => timestamp });

@@ -44,7 +44,7 @@ export function createBulkSignatureGuard(options: BulkGuardOptions) {
       const signature = createHash('sha256')
         .update(normalizeUserAgent(userAgent))
         .update('\0')
-        .update([...canonicalDics].sort().join('\0'))
+        .update([...new Set(canonicalDics)].sort().join('\0'))
         .digest('hex');
       const previous = states.get(signature);
 

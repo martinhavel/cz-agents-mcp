@@ -190,6 +190,8 @@ services:
       - PORT=3030
       - NODE_ENV=production
       - ADIS_SOAP_ENABLED=1
+      - ADIS_BULK_SIGNATURE_LIMIT=5
+      - ADIS_BULK_SIGNATURE_WINDOW_MS=3600000
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
