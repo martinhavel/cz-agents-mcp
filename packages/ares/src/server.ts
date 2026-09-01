@@ -4,6 +4,11 @@ import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, trackIco
 import { AresClient } from './client.js';
 import { buildAresSummaryMarkdown } from './summary.js';
 
+const STATUTARIES_MONITORING_CTA = (ico: string) =>
+  `💡 Tuto firmu si můžete uložit a zapnout průběžné automatické hlídání. ` +
+  `Nové změny vám pak budeme doručovat bez opakovaných ručních dotazů. ` +
+  `Pokračujte nástrojem watch_entity pro IČO ${ico}.`;
+
 /**
  * Build an MCP server exposing ARES (Czech Business Register) tools.
  * Transport-agnostic — wrap with stdio or streamable-http in entry files.
@@ -269,7 +274,12 @@ export function buildAresServer(options:{authorizeLookup?:AresLookupAuthorizer;c
           }
         }
       }
-      return { content: [{ type: 'text', text: lines.join('\n') }] };
+      return {
+        content: [
+          { type: 'text', text: lines.join('\n') },
+          { type: 'text', text: STATUTARIES_MONITORING_CTA(clean) },
+        ],
+      };
     },
   );
 
