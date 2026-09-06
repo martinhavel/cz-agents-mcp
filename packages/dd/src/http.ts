@@ -37,6 +37,7 @@ import {
   registerSession,
   getClientIp,
   getClientUa,
+  createHostedToolQuota,
 } from '@czagents/shared';
 import { EntitlementStore,HostedEntitlementResolver,entitlementMode,accountContextFromToken,
   runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
@@ -72,6 +73,10 @@ const X402_PREVIEW_INTENT_URL=process.env.X402_PREVIEW_INTENT_URL ?? 'https://dd
 const X402_PREVIEW_IDENTITY_URL=process.env.X402_PREVIEW_IDENTITY_URL ?? 'https://cz-agents.dev/pricing.html#trial';
 
 async function main() {
+  const toolQuota = createHostedToolQuota({
+    service: 'dd', enabled: process.env.HOSTED_TOOL_QUOTAS === '1',
+    dbPath: process.env.TOKEN_DB, maxBodyBytes: MAX_BODY_BYTES,
+  });
   const ares = new AresClient();
 
   let sanctions: SanctionsSearch | undefined;
@@ -280,6 +285,9 @@ async function main() {
     const auth = quota(req, res);
     if (!auth.ok) return;
 
+    const quotaRequest = await toolQuota(req, res);
+    if (!quotaRequest.ok) return;
+
     let transport: StreamableHTTPServerTransport;
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
@@ -328,7 +336,7 @@ async function main() {
       requestId:(Array.isArray(req.headers['x-request-id'])?req.headers['x-request-id'][0]:req.headers['x-request-id']) ?? randomUUID()}:null;
     setRequestIp(clientIp);
     try {
-      const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res));
+      const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res,quotaRequest.parsedBody));
       if(hostedContext)await runWithHostedRequestContext(hostedContext,handle);else await handle();
     } finally {
       clearRequestIp();

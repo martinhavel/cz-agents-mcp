@@ -6,7 +6,7 @@
  */
 
 export type TierKind = 'free' | 'starter' | 'pro' | 'agency' | 'pay-per-report' | 're_pro' | 're_agency';
-export type ServiceKind = 'sanctions' | 'dd' | 'realestate';
+export type ServiceKind = 'sanctions' | 'dd' | 'realestate' | 'identity';
 
 export interface Tier {
   kind: TierKind;
