@@ -24,6 +24,7 @@ import {
   registerSession,
   getClientIp,
   getClientUa,
+  createHostedToolQuota,
 } from '@czagents/shared';
 import { IsirClient } from './client.js';
 import { buildIsirServer } from './server.js';
@@ -35,6 +36,10 @@ const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
 
 async function main() {
+  const toolQuota = createHostedToolQuota({
+    service: 'isir', enabled: process.env.HOSTED_TOOL_QUOTAS === '1',
+    dbPath: process.env.TOKEN_DB, maxBodyBytes: MAX_BODY_BYTES,
+  });
   const client = new IsirClient();
 
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
@@ -89,7 +94,7 @@ async function main() {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id',
+        'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id, authorization',
       });
       res.end();
       return;
@@ -106,6 +111,9 @@ async function main() {
       res.end(JSON.stringify({ error: 'method_not_allowed', message: 'Use POST for MCP requests.' }));
       return;
     }
+
+    const quotaRequest = await toolQuota(req, res);
+    if (!quotaRequest.ok) return;
 
     let transport: StreamableHTTPServerTransport;
     if (sessionId && transports.has(sessionId)) {
@@ -135,7 +143,7 @@ async function main() {
     const clientIp = getClientIp(req);
     setRequestIp(clientIp);
     try {
-      await runWithIp(clientIp, () => transport.handleRequest(req, res));
+      await runWithIp(clientIp, () => transport.handleRequest(req, res, quotaRequest.parsedBody));
     } finally {
       clearRequestIp();
     }

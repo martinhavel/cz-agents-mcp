@@ -11,3 +11,4 @@ export * from './billing/index.js';
 export * from './watchEntity.js';
 export * from './legalForms.js';
 export * from './nace.js';
+export { createHostedToolQuota } from './billing/hostedToolQuota.js';

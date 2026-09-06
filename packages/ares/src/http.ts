@@ -28,6 +28,7 @@ import {
   getClientIp,
   getClientUa,
   TokenStore,
+  createHostedToolQuota,
 } from '@czagents/shared';
 import { EntitlementStore,HostedEntitlementResolver,entitlementMode,authenticateHostedRequest,
   runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
@@ -92,6 +93,11 @@ export function cleanupSessionTimes(timesByIp: SessionTimesMap = sessionTimes): 
 setInterval(cleanupSessionTimes, 5 * 60_000).unref();
 
 async function main() {
+  const toolQuota = createHostedToolQuota({
+    service: 'ares', enabled: process.env.HOSTED_TOOL_QUOTAS === '1',
+    dbPath: process.env.TOKEN_DB, maxBodyBytes: MAX_BODY_BYTES,
+    allowLegacyAresTokens: ENTITLEMENT_MODE !== 'off',
+  });
   const client = new AresClient();
   const tokenDbPath=process.env.TOKEN_DB ?? './tokens.db';
   const tokenStore=ENTITLEMENT_MODE==='off'?null:new TokenStore(tokenDbPath);
@@ -205,6 +211,9 @@ async function main() {
       process.env.ENTITLEMENT_ACCOUNT_HASH_SALT ?? process.env.LOOKUP_HASH_SALT ?? 'czagents-entitlement'):null;
     if(tokenStore&&!hostedContext)return;
 
+    const quotaRequest = await toolQuota(req, res);
+    if (!quotaRequest.ok) return;
+
     let transport: StreamableHTTPServerTransport;
     if (sessionId && transports.has(sessionId)) {
       transport = transports.get(sessionId)!;
@@ -242,7 +251,7 @@ async function main() {
     const clientIp = getClientIp(req);
     setRequestIp(clientIp);
     try {
-      const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res));
+      const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res,quotaRequest.parsedBody));
       if(hostedContext)await runWithHostedRequestContext(hostedContext,handle);else await handle();
     } finally {
       clearRequestIp();

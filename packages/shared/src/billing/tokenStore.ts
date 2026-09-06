@@ -54,6 +54,22 @@ CREATE INDEX IF NOT EXISTS idx_tokens_session ON tokens(stripe_session_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_service_active ON tokens(service, revoked_at);
 `;
 
+const LOOKUP_SCHEMA = `CREATE TABLE IF NOT EXISTS lookup_purchases (
+  session_id TEXT PRIMARY KEY, payment_intent_id TEXT NOT NULL UNIQUE,
+  account TEXT NOT NULL, price_id TEXT NOT NULL,
+  currency TEXT NOT NULL CHECK (currency = 'czk'),
+  subtotal INTEGER NOT NULL CHECK (subtotal = 49000),
+  starts_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+  quota INTEGER NOT NULL DEFAULT 10000 CHECK (quota = 10000),
+  used INTEGER NOT NULL DEFAULT 0 CHECK (used >= 0 AND used <= quota), refunded_at INTEGER,
+  refund_required INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_lookup_purchases_account ON lookup_purchases(account);
+CREATE TABLE IF NOT EXISTS lookup_reversals (
+  payment_intent_id TEXT PRIMARY KEY, reversed_at INTEGER NOT NULL,
+  reason TEXT NOT NULL, manual_review INTEGER NOT NULL DEFAULT 0
+);`;
+
 const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
 export class TokenStore {
@@ -69,10 +85,44 @@ export class TokenStore {
       if (!present) this.db.exec(m.apply);
     }
     this.db.exec(CREATE_INDEXES);
+    this.db.exec(LOOKUP_SCHEMA);
   }
 
   close(): void {
     this.db.close();
+  }
+
+  /** Registered lookup quota only; leaves existing paid/report consumption unchanged. */
+  consumeIdentity(token: string, calls: number): TokenRecord & { lookupRemaining: number; lookupLimit: number } {
+    if (!Number.isSafeInteger(calls) || calls < 1) throw new Error('INVALID_CALL_COUNT');
+    return this.db.transaction(() => {
+      const record = this.find(token);
+      if (!record || record.service !== 'identity' || record.tier !== 'free'
+        || record.monthly_quota !== 2000 || record.credits !== null) throw new Error('TOKEN_NOT_FOUND');
+      const now = Date.now();
+      if (record.expires_at != null && now > record.expires_at) throw new Error('TRIAL_EXPIRED');
+      if (now - record.period_started_at >= ONE_MONTH_MS) {
+        this.db.prepare('UPDATE tokens SET counter = 0, period_started_at = ?, updated_at = ? WHERE token = ?')
+          .run(now, now, token);
+      }
+      const current = this.find(token)!;
+      const freeCalls = Math.min(calls, Math.max(0, 2000 - current.counter));
+      const paid = this.db.prepare(`SELECT session_id,quota,used FROM lookup_purchases
+        WHERE account=? AND refunded_at IS NULL AND refund_required=0 AND starts_at<=? AND expires_at>?
+        ORDER BY expires_at,session_id`).all(record.stripe_customer_id, now, now) as
+        Array<{ session_id: string; quota: number; used: number }>;
+      const available = paid.reduce((sum, row) => sum + row.quota - row.used, 0);
+      if (calls - freeCalls > available) throw new Error('QUOTA_EXCEEDED');
+      this.db.prepare('UPDATE tokens SET counter=counter+?,updated_at=? WHERE token=?').run(freeCalls, now, token);
+      let needed = calls - freeCalls;
+      for (const row of paid) {
+        const used = Math.min(needed, row.quota - row.used);
+        if (used) this.db.prepare('UPDATE lookup_purchases SET used=used+? WHERE session_id=?').run(used, row.session_id);
+        needed -= used;
+      }
+      return { ...this.find(token)!, lookupRemaining: 2000 - current.counter - freeCalls + available - (calls - freeCalls),
+        lookupLimit: 2000 + paid.reduce((sum, row) => sum + row.quota, 0) };
+    }).immediate();
   }
 
   /** Mint a new token. Caller passes Stripe customer + subscription + tier resolved from price_id. */
