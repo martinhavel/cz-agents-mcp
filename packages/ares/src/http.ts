@@ -29,6 +29,7 @@ import {
   getClientUa,
   TokenStore,
   createHostedToolQuota,
+  runWithHostedToolQuota,
 } from '@czagents/shared';
 import { EntitlementStore,HostedEntitlementResolver,entitlementMode,authenticateHostedRequest,
   runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
@@ -252,7 +253,9 @@ async function main() {
     setRequestIp(clientIp);
     try {
       const handle=()=>runWithIp(clientIp,()=>transport.handleRequest(req,res,quotaRequest.parsedBody));
-      if(hostedContext)await runWithHostedRequestContext(hostedContext,handle);else await handle();
+      await runWithHostedToolQuota(quotaRequest, transport, async () => {
+        if(hostedContext)await runWithHostedRequestContext(hostedContext,handle);else await handle();
+      });
     } finally {
       clearRequestIp();
     }

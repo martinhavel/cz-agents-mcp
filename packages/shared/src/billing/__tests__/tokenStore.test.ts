@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TokenStore } from '../tokenStore.js';
+import Database from 'better-sqlite3';
 
 describe('TokenStore', () => {
   let tmp: string;
@@ -16,6 +17,59 @@ describe('TokenStore', () => {
   afterEach(() => {
     store.close();
     rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('settles a mixed free/paid reservation once, retaining free-first order after token rotation', () => {
+    const identity = store.mint({ service: 'identity', tier: 'free', stripe_customer_id: 'identity_rotation',
+      stripe_subscription_id: null, monthly_quota: 2000, credits: null });
+    const db = new Database(join(tmp, 'tokens.db'));
+    db.prepare('UPDATE tokens SET counter=1999 WHERE token=?').run(identity.token);
+    const now = Date.now();
+    db.prepare(`INSERT INTO lookup_purchases
+      (session_id,payment_intent_id,account,price_id,currency,subtotal,starts_at,expires_at)
+      VALUES ('cs_rotation','pi_rotation','identity_rotation','price','czk',49000,?,?)`).run(now - 1000, now + 86400000);
+    const reservation = store.reserveIdentity(identity.token, 3);
+    expect(reservation.snapshot.lookupRemaining).toBe(9998);
+    db.prepare("UPDATE tokens SET token='rotated' WHERE token=?").run(identity.token);
+    const settled = store.settleIdentityReservation(reservation.id, 1);
+    expect(settled?.snapshot.lookupRemaining).toBe(10000);
+    expect(store.find('rotated')?.counter).toBe(2000);
+    expect(db.prepare('SELECT used FROM lookup_purchases').get()).toEqual({ used: 0 });
+    expect(store.settleIdentityReservation(reservation.id, 0)).toBeNull();
+    expect(store.find('rotated')?.counter).toBe(2000);
+    db.close();
+  });
+
+  it('releases abandoned capacity and refuses a late success without touching a rolled period', () => {
+    const identity = store.mint({ service: 'identity', tier: 'free', stripe_customer_id: 'identity_expiry',
+      stripe_subscription_id: null, monthly_quota: 2000, credits: null });
+    const db = new Database(join(tmp, 'tokens.db'));
+    const abandoned = store.reserveIdentity(identity.token, 2000);
+    db.prepare('UPDATE lookup_reservations SET expires_at=0 WHERE id=?').run(abandoned.id);
+    const current = store.reserveIdentity(identity.token, 1);
+    expect(current.snapshot.lookupRemaining).toBe(1999);
+    expect(store.settleIdentityReservation(abandoned.id, 2000)).toBeNull();
+    db.prepare('UPDATE tokens SET period_started_at=period_started_at+1,counter=7 WHERE token=?').run(identity.token);
+    store.settleIdentityReservation(current.id, 0);
+    expect(store.find(identity.token)?.counter).toBe(7);
+    db.close();
+  });
+
+  it('releases only the reserved purchase without reactivating refunded or expired credits', () => {
+    const identity = store.mint({ service: 'identity', tier: 'free', stripe_customer_id: 'identity_refund',
+      stripe_subscription_id: null, monthly_quota: 2000, credits: null });
+    const db = new Database(join(tmp, 'tokens.db'));
+    db.prepare('UPDATE tokens SET counter=2000 WHERE token=?').run(identity.token);
+    const now = Date.now();
+    db.prepare(`INSERT INTO lookup_purchases
+      (session_id,payment_intent_id,account,price_id,currency,subtotal,starts_at,expires_at)
+      VALUES ('cs_refund','pi_refund','identity_refund','price','czk',49000,?,?)`).run(now - 1000, now + 86400000);
+    const reservation = store.reserveIdentity(identity.token, 2);
+    db.prepare('UPDATE lookup_purchases SET refunded_at=?,expires_at=?').run(now, now - 1);
+    expect(store.settleIdentityReservation(reservation.id, 0)?.snapshot.lookupRemaining).toBe(0);
+    expect(db.prepare('SELECT used,refunded_at FROM lookup_purchases').get()).toEqual({ used: 0, refunded_at: now });
+    expect(store.find(identity.token)?.counter).toBe(2000);
+    db.close();
   });
 
   it('mints a subscription token', () => {
