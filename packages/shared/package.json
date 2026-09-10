@@ -54,8 +54,8 @@
     "better-sqlite3": "^11.5.0"
   },
   "peerDependencies": {
-    "@x402/core": "^2.19.0",
-    "@x402/evm": "^2.19.0"
+    "@x402/core": "^2.20.0",
+    "@x402/evm": "^2.20.0"
   },
   "peerDependenciesMeta": {
     "@x402/core": {
@@ -67,8 +67,8 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
-    "@vitest/coverage-v8": "^4.1.4",
+    "@vitest/coverage-v8": "^4.1.10",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.10"
   }
 }

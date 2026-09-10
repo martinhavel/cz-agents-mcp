@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@czagents/shared": "^0.1.11",
-    "@modelcontextprotocol/sdk": "^1.10.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "better-sqlite3": "^11.5.0",
     "stream-json": "^1.9.1",
     "unzipper": "^0.12.3",
@@ -50,9 +50,9 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^20.11.0",
-    "tsx": "^4.7.0",
+    "tsx": "^4.23.1",
     "typescript": "^5.5.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.10"
   },
   "mcpName": "dev.cz-agents/eu-registry",
   "publishConfig": {
