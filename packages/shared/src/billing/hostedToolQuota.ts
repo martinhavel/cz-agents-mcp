@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { getClientIp } from '../rateLimit.js';
 import { McpRequestBodyError, readMcpRequestBody } from '../mcpRequestBody.js';
 import { AnonymousQuotaStore, ANONYMOUS_DAILY_TOOL_LIMIT } from './anonymousQuotaStore.js';
@@ -8,6 +9,32 @@ type LookupService = 'ares' | 'cnb' | 'isir' | 'dd';
 const REGISTER_URL = 'https://app.cz-agents.dev/prihlaseni?callbackUrl=%2Fapp%2Fbilling';
 const PRICING_URL = 'https://cz-agents.dev/pricing.html';
 const MONTH_MS = 30 * 86_400_000;
+interface OutcomeContext {
+  observe(message: unknown): boolean;
+  cancel(): void;
+}
+interface HostedQuotaRequest { ok: boolean; parsedBody?: unknown; outcome?: OutcomeContext }
+interface QuotaTransport { send(message: object, options?: object): Promise<void> }
+const outcomes = new AsyncLocalStorage<OutcomeContext>();
+const wrappedTransports = new WeakSet<QuotaTransport>();
+
+/** Observe SDK results, including validation failures, before JSON headers are sent. */
+export async function runWithHostedToolQuota(
+  request: HostedQuotaRequest, transport: QuotaTransport, operation: () => Promise<void>,
+): Promise<void> {
+  if (!request.outcome) return operation();
+  if (!wrappedTransports.has(transport)) {
+    const send = transport.send.bind(transport);
+    transport.send = async (message, options) => {
+      if (outcomes.getStore()?.observe(message) === false) return;
+      await send(message, options);
+    };
+    wrappedTransports.add(transport);
+  }
+  try { await outcomes.run(request.outcome, operation); }
+  finally { request.outcome.cancel(); }
+}
+
 
 /** Opt-in transport boundary. All enabled services must mount the same TOKEN_DB. */
 export function createHostedToolQuota(options: {
@@ -24,7 +51,7 @@ export function createHostedToolQuota(options: {
   const anonymous = new AnonymousQuotaStore(options.dbPath);
   const tokens = new TokenStore(options.dbPath);
 
-  return async (req: IncomingMessage, res: ServerResponse): Promise<{ ok: boolean; parsedBody?: unknown }> => {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<HostedQuotaRequest> => {
     try {
       const header = req.headers.authorization;
       const value = typeof header === 'string' ? /^Bearer\s+(\S+)$/i.exec(header.trim())?.[1] : undefined;
@@ -46,8 +73,13 @@ export function createHostedToolQuota(options: {
 
       if (identity && record) {
         try {
-          const updated = tokens.consumeIdentity(record.token, body.toolCallCount);
+          if (new Set(body.toolCallIds).size !== body.toolCallIds.length)
+            return reject(res, 400, 'invalid_request', 'Tool request IDs must be unique within a batch.');
+          const reservation = tokens.reserveIdentity(record.token, body.toolCallCount);
+          const updated = reservation.snapshot;
           headers(res, 'Registered', updated.lookupLimit, updated.lookupRemaining, updated.period_started_at + MONTH_MS);
+          const outcome = observeReservation(tokens, reservation, body.toolCallIds, res);
+          return { ok: true, parsedBody: body.parsedBody, outcome };
         } catch (error) {
           if (!(error instanceof Error) || error.message !== 'QUOTA_EXCEEDED') throw error;
           res.setHeader('Retry-After', retryAfter(record.period_started_at + MONTH_MS));
@@ -81,6 +113,60 @@ export function createHostedToolQuota(options: {
       }
       return reject(res, 503, 'quota_unavailable', 'Usage accounting is temporarily unavailable. Try again later.');
     }
+  };
+}
+
+function observeReservation(
+  store: TokenStore, reservation: ReturnType<TokenStore['reserveIdentity']>, ids: Array<string | number>,
+  res: ServerResponse,
+): OutcomeContext {
+  const expected = new Set(ids);
+  const completed = new Map<string | number, boolean>();
+  let settled = false;
+  const finish = (successfulCalls: number) => {
+    if (settled) return true;
+    const result = store.settleIdentityReservation(reservation.id, successfulCalls);
+    settled = true;
+    clearTimeout(timer);
+    res.off('finish', cleanup);
+    res.off('close', cleanup);
+    if (result && !res.headersSent) headers(res, 'Registered', result.snapshot.lookupLimit,
+      result.snapshot.lookupRemaining, result.snapshot.period_started_at + MONTH_MS);
+    return result !== null && !result.expired;
+  };
+  const unavailable = () => {
+    if (!res.headersSent && !res.destroyed)
+      reject(res, 503, 'quota_unavailable', 'Usage accounting is temporarily unavailable. Try again later.');
+    else if (!res.writableEnded) res.destroy();
+  };
+  const cleanup = () => {
+    if (settled) return;
+    try { finish(0); } catch { unavailable(); }
+  };
+  const timer = setTimeout(() => { cleanup(); unavailable(); }, Math.max(1, reservation.expiresAt - Date.now()));
+  timer.unref();
+  res.once('finish', cleanup);
+  res.once('close', cleanup);
+  return {
+    cancel: cleanup,
+    observe(message) {
+      if (settled) return !res.destroyed && !res.writableEnded;
+      if (!message || typeof message !== 'object') return true;
+      const response = message as Record<string, unknown>;
+      if ((typeof response.id !== 'string' && typeof response.id !== 'number') || !expected.has(response.id)) return true;
+      if (!Object.hasOwn(response, 'result') && !Object.hasOwn(response, 'error')) return true;
+      if (completed.has(response.id)) return true;
+      const result = response.result;
+      completed.set(response.id, !Object.hasOwn(response, 'error') && !!result && typeof result === 'object'
+        && !Array.isArray(result) && Array.isArray((result as Record<string, unknown>).content)
+        && (result as Record<string, unknown>).isError !== true);
+      if (completed.size !== expected.size) return true;
+      try {
+        if (finish([...completed.values()].filter(Boolean).length)) return true;
+      } catch { cleanup(); }
+      unavailable();
+      return false;
+    },
   };
 }
 

@@ -17,6 +17,7 @@ export class McpRequestBodyError extends Error {
 export interface McpRequestBody {
   parsedBody: unknown;
   toolCallCount: number;
+  toolCallIds: Array<string | number>;
 }
 
 /**
@@ -60,12 +61,9 @@ export async function readMcpRequestBody(
     throw new McpRequestBodyError(400, 'invalid_json');
   }
 
-  return { parsedBody, toolCallCount: countToolCalls(parsedBody) };
-}
-
-function countToolCalls(body: unknown): number {
-  if (Array.isArray(body)) return body.filter(isToolCall).length;
-  return isToolCall(body) ? 1 : 0;
+  const toolCalls = (Array.isArray(parsedBody) ? parsedBody : [parsedBody]).filter(isToolCall);
+  return { parsedBody, toolCallCount: toolCalls.length,
+    toolCallIds: toolCalls.map((call) => (call as Record<string, unknown>).id as string | number) };
 }
 
 function isToolCall(value: unknown): boolean {

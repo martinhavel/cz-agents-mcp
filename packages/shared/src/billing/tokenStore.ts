@@ -10,7 +10,7 @@ import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { ServiceKind, Tier, TokenRecord } from './types.js';
 
 // Two-phase init so ALTER TABLE migrations run before any index that
@@ -70,6 +70,19 @@ CREATE TABLE IF NOT EXISTS lookup_reversals (
   reason TEXT NOT NULL, manual_review INTEGER NOT NULL DEFAULT 0
 );`;
 
+const RESERVATION_SCHEMA = `CREATE TABLE IF NOT EXISTS lookup_reservations (
+  id TEXT PRIMARY KEY, account TEXT NOT NULL, identity_created_at INTEGER NOT NULL,
+  period_started_at INTEGER NOT NULL, calls INTEGER NOT NULL,
+  free_calls INTEGER NOT NULL, paid_allocations TEXT NOT NULL, expires_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lookup_reservations_expiry ON lookup_reservations(expires_at);`;
+
+interface LookupReservation {
+  id: string; account: string; identity_created_at: number; period_started_at: number;
+  calls: number; free_calls: number; paid_allocations: string; expires_at: number;
+}
+export const LOOKUP_RESERVATION_MS = 120_000;
+
 const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
 export class TokenStore {
@@ -86,6 +99,7 @@ export class TokenStore {
     }
     this.db.exec(CREATE_INDEXES);
     this.db.exec(LOOKUP_SCHEMA);
+    this.db.exec(RESERVATION_SCHEMA);
   }
 
   close(): void {
@@ -94,8 +108,24 @@ export class TokenStore {
 
   /** Registered lookup quota only; leaves existing paid/report consumption unchanged. */
   consumeIdentity(token: string, calls: number): TokenRecord & { lookupRemaining: number; lookupLimit: number } {
+    return this.allocateIdentity(token, calls);
+  }
+
+  /** Hold capacity before starting handlers, shared atomically across processes. */
+  reserveIdentity(token: string, calls: number) {
+    const id = randomUUID();
+    const expiresAt = Date.now() + LOOKUP_RESERVATION_MS;
+    const snapshot = this.allocateIdentity(token, calls, { id, expiresAt });
+    return { id, expiresAt, snapshot };
+  }
+
+  private allocateIdentity(token: string, calls: number, reservation?: { id: string; expiresAt: number }):
+    TokenRecord & { lookupRemaining: number; lookupLimit: number } {
     if (!Number.isSafeInteger(calls) || calls < 1) throw new Error('INVALID_CALL_COUNT');
     return this.db.transaction(() => {
+      const expired = this.db.prepare('SELECT id FROM lookup_reservations WHERE expires_at<=? LIMIT 1000')
+        .all(Date.now()) as Array<{ id: string }>;
+      for (const row of expired) this.settleReservation(row.id, 0);
       const record = this.find(token);
       if (!record || record.service !== 'identity' || record.tier !== 'free'
         || record.monthly_quota !== 2000 || record.credits !== null) throw new Error('TOKEN_NOT_FOUND');
@@ -115,14 +145,58 @@ export class TokenStore {
       if (calls - freeCalls > available) throw new Error('QUOTA_EXCEEDED');
       this.db.prepare('UPDATE tokens SET counter=counter+?,updated_at=? WHERE token=?').run(freeCalls, now, token);
       let needed = calls - freeCalls;
+      const allocations: Array<{ sessionId: string; calls: number }> = [];
       for (const row of paid) {
         const used = Math.min(needed, row.quota - row.used);
         if (used) this.db.prepare('UPDATE lookup_purchases SET used=used+? WHERE session_id=?').run(used, row.session_id);
+        if (used) allocations.push({ sessionId: row.session_id, calls: used });
         needed -= used;
       }
+      if (reservation) this.db.prepare(`INSERT INTO lookup_reservations
+        (id,account,identity_created_at,period_started_at,calls,free_calls,paid_allocations,expires_at)
+        VALUES (?,?,?,?,?,?,?,?)`).run(reservation.id, current.stripe_customer_id, current.created_at,
+          current.period_started_at, calls, freeCalls, JSON.stringify(allocations), reservation.expiresAt);
       return { ...this.find(token)!, lookupRemaining: 2000 - current.counter - freeCalls + available - (calls - freeCalls),
         lookupLimit: 2000 + paid.reduce((sum, row) => sum + row.quota, 0) };
     }).immediate();
+  }
+
+  /** Delete and release in one transaction: duplicate completion cannot refund twice. */
+  settleIdentityReservation(id: string, successfulCalls: number) {
+    return this.db.transaction(() => this.settleReservation(id, successfulCalls)).immediate();
+  }
+
+  private settleReservation(id: string, successfulCalls: number) {
+    const row = this.db.prepare('SELECT * FROM lookup_reservations WHERE id=?').get(id) as LookupReservation | undefined;
+    if (!row) return null;
+    if (!Number.isSafeInteger(successfulCalls) || successfulCalls < 0 || successfulCalls > row.calls)
+      throw new Error('INVALID_CALL_COUNT');
+    const expired = Date.now() >= row.expires_at;
+    let release = row.calls - (expired ? 0 : successfulCalls);
+    const paid = JSON.parse(row.paid_allocations) as Array<{ sessionId: string; calls: number }>;
+    // Undo from the end so successful calls still consume free before paid.
+    for (const allocation of paid.reverse()) {
+      const amount = Math.min(release, allocation.calls);
+      if (amount) this.db.prepare('UPDATE lookup_purchases SET used=MAX(0,used-?) WHERE session_id=?')
+        .run(amount, allocation.sessionId);
+      release -= amount;
+    }
+    if (release) this.db.prepare(`UPDATE tokens SET counter=MAX(0,counter-?),updated_at=?
+      WHERE service='identity' AND stripe_customer_id=? AND created_at=? AND period_started_at=?`)
+      .run(release, Date.now(), row.account, row.identity_created_at, row.period_started_at);
+    this.db.prepare('DELETE FROM lookup_reservations WHERE id=?').run(id);
+    const identity = this.db.prepare("SELECT * FROM tokens WHERE service='identity' AND stripe_customer_id=?")
+      .get(row.account) as TokenRecord | undefined;
+    if (!identity) throw new Error('TOKEN_NOT_FOUND');
+    const now = Date.now();
+    const paidBalance = this.db.prepare(`SELECT COALESCE(SUM(quota-used),0) AS remaining, COALESCE(SUM(quota),0) AS quota
+      FROM lookup_purchases WHERE account=? AND refunded_at IS NULL AND refund_required=0 AND starts_at<=? AND expires_at>?`)
+      .get(row.account, now, now) as { remaining: number; quota: number };
+    const rolled = now - identity.period_started_at >= ONE_MONTH_MS;
+    return { expired, snapshot: { ...identity,
+      period_started_at: rolled ? now : identity.period_started_at,
+      lookupRemaining: (rolled ? 2000 : Math.max(0, 2000 - identity.counter)) + paidBalance.remaining,
+      lookupLimit: 2000 + paidBalance.quota } };
   }
 
   /** Mint a new token. Caller passes Stripe customer + subscription + tier resolved from price_id. */
