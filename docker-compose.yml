@@ -21,6 +21,7 @@ services:
       - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
       - HOSTED_UPGRADE_URL=${HOSTED_UPGRADE_URL:-https://cz-agents.dev/pricing.html}
       - HOSTED_POLICY_CACHE_TTL_MS=${HOSTED_POLICY_CACHE_TTL_MS:-30000}
+      - HOSTED_TOOL_QUOTAS=${HOSTED_TOOL_QUOTAS:-0}
       - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - SANDBOX_HMAC_SECRET=${SANDBOX_HMAC_SECRET}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
@@ -53,8 +54,11 @@ services:
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
+      - HOSTED_TOOL_QUOTAS=${HOSTED_TOOL_QUOTAS:-0}
+      - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
     volumes:
       - tool-events:/var/lib/czagents-events
+      - tokens-data:/var/lib/czagents-tokens
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3031/health"]
       interval: 30s
@@ -164,8 +168,11 @@ services:
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
+      - HOSTED_TOOL_QUOTAS=${HOSTED_TOOL_QUOTAS:-0}
+      - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
     volumes:
       - tool-events:/var/lib/czagents-events
+      - tokens-data:/var/lib/czagents-tokens
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s
