@@ -28,6 +28,8 @@ describe('anonymous ARES monitoring CTA journey', () => {
     try {
       const result = await mcpClient.callTool({ name: 'lookup_by_ico', arguments: { ico: ICO } });
       const content = result.content as Array<{ type: string; text: string }>;
+      const repeat = await mcpClient.callTool({ name: 'lookup_by_ico', arguments: { ico: ICO } });
+      const repeatContent = repeat.content as Array<{ type: string; text: string }>;
 
       expect(result.isError).not.toBe(true);
       expect(content).toHaveLength(3);
@@ -38,6 +40,10 @@ describe('anonymous ARES monitoring CTA journey', () => {
       expect(content[2]?.text).toContain('průběžného automatického hlídání');
       expect(content[2]?.text).toContain('změny');
       expect(content[2]?.text).toContain('bez opakovaných ručních dotazů');
+      expect(content[2]?.text).toContain(`watch_entity pro IČO ${ICO}`);
+      expect(repeat.isError).not.toBe(true);
+      expect(repeatContent).toHaveLength(3);
+      expect(repeatContent[2]?.text).toContain(`watch_entity pro IČO ${ICO}`);
     } finally {
       await mcpClient.close();
       await server.close();
