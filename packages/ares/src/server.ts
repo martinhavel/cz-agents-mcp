@@ -9,6 +9,11 @@ const STATUTARIES_MONITORING_CTA = (ico: string) =>
   `Nové změny vám pak budeme doručovat bez opakovaných ručních dotazů. ` +
   `Pokračujte nástrojem watch_entity pro IČO ${ico}.`;
 
+const LOOKUP_MONITORING_CTA = (ico: string) =>
+  '💡 Pro uložení firmy a zapnutí průběžného automatického hlídání je potřeba registrace. ' +
+  'Až po dokončení registrace, uložení firmy a zapnutí hlídání vám budeme změny doručovat bez opakovaných ručních dotazů. ' +
+  `Pokračujte nástrojem watch_entity pro IČO ${ico}.`;
+
 /**
  * Build an MCP server exposing ARES (Czech Business Register) tools.
  * Transport-agnostic — wrap with stdio or streamable-http in entry files.
@@ -67,11 +72,13 @@ export function buildAresServer(options:{authorizeLookup?:AresLookupAuthorizer;c
       if (czNacePrevazujici != null) {
         subject.czNacePrevazujici = czNacePrevazujici;
       }
+      // Preserve repeat-interest accounting, but always show the complete lookup CTA.
+      getCTAHintBlocks(clean, extra?.sessionId);
       return {
         content: [
           { type: 'text', text: buildAresSummaryMarkdown(subject) },
           { type: 'text', text: JSON.stringify(subject, null, 2) },
-          ...getCTAHintBlocks(clean, extra?.sessionId),
+          { type: 'text', text: LOOKUP_MONITORING_CTA(clean) },
         ],
       };
     },

@@ -18,6 +18,57 @@ async function connect(client: AresClient) {
 describe('anonymous ARES monitoring CTA journey', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('always includes a registration-gated monitoring CTA after a successful lookup', async () => {
+    const upstream = {
+      getByIco: vi.fn().mockResolvedValue({ ico: ICO, obchodniJmeno: 'Alza.cz a.s.' }),
+      getResNacePrevazujici: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AresClient;
+    const { mcpClient, server } = await connect(upstream);
+
+    try {
+      const result = await mcpClient.callTool({ name: 'lookup_by_ico', arguments: { ico: ICO } });
+      const content = result.content as Array<{ type: string; text: string }>;
+      const repeat = await mcpClient.callTool({ name: 'lookup_by_ico', arguments: { ico: ICO } });
+      const repeatContent = repeat.content as Array<{ type: string; text: string }>;
+
+      expect(result.isError).not.toBe(true);
+      expect(content).toHaveLength(3);
+      expect(content[0]?.text).toContain('Alza.cz a.s.');
+      expect(content[1]?.text).toContain('"ico": "27074358"');
+      expect(content[2]?.text).toContain('je potřeba registrace');
+      expect(content[2]?.text).toContain('uložení firmy');
+      expect(content[2]?.text).toContain('průběžného automatického hlídání');
+      expect(content[2]?.text).toContain('změny');
+      expect(content[2]?.text).toContain('bez opakovaných ručních dotazů');
+      expect(content[2]?.text).toContain(`watch_entity pro IČO ${ICO}`);
+      expect(repeat.isError).not.toBe(true);
+      expect(repeatContent).toHaveLength(3);
+      expect(repeatContent[2]?.text).toContain(`watch_entity pro IČO ${ICO}`);
+    } finally {
+      await mcpClient.close();
+      await server.close();
+    }
+  });
+
+  it('keeps a not-found lookup free of the registration CTA', async () => {
+    const upstream = {
+      getByIco: vi.fn().mockResolvedValue(null),
+    } as unknown as AresClient;
+    const { mcpClient, server } = await connect(upstream);
+
+    try {
+      const result = await mcpClient.callTool({ name: 'lookup_by_ico', arguments: { ico: ICO } });
+      const text = (result.content as Array<{ type: string; text: string }>).map((block) => block.text).join('\n');
+
+      expect(result.isError).not.toBe(true);
+      expect(text).toContain(`Žádný subjekt s IČO ${ICO} v ARES nenalezen.`);
+      expect(text).not.toContain('je potřeba registrace');
+    } finally {
+      await mcpClient.close();
+      await server.close();
+    }
+  });
+
   it('delivers one contextual monitoring offer after a successful company journey', async () => {
     const upstream = {
       search: vi.fn().mockResolvedValue({
