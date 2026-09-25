@@ -71,6 +71,14 @@ Use it to identify current, active statutory-body members who can act for a comp
 {"ico":"26168685"}
 ```
 
+### `get_owners`
+
+Use it to list the owners (společníci for s.r.o./v.o.s./k.s., akcionáři for a.s.) published in the Veřejný rejstřík, with their share (vklad/splaceno/velikost podílu) exactly as reported, plus historical owners with their date of removal. This is raw registry data only — no risk scoring or cross-company aggregation — and an empty result (most a.s. do not publish akcionáři) is not an error. Do not use it as a complete or verified ownership picture; ARES only reflects what has been filed in the public register.
+
+```json
+{"ico":"26168685"}
+```
+
 ### `validate_dic`
 
 Use it for a Czech DIČ format and checksum validation. Do not use it as proof that a subject is VAT registered or a reliable payer; it validates the identifier only.

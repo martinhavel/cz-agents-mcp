@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { validateIcoInput, isValidDic, icoFromDic, formatDic, trackIco, trackIcoName, trackQuery, queryUnitKey, logToolCall, getCTAHintBlocks, wrapServerTools, getWatchEntityResponse } from '@czagents/shared';
-import { AresClient } from './client.js';
+import { AresClient, extractOwners } from './client.js';
 import { buildAresSummaryMarkdown } from './summary.js';
 
 const STATUTARIES_MONITORING_CTA = (ico: string) =>
@@ -282,6 +282,105 @@ export function buildAresServer(options:{authorizeLookup?:AresLookupAuthorizer;c
         }
       }
       return {
+        content: [
+          { type: 'text', text: lines.join('\n') },
+          { type: 'text', text: STATUTARIES_MONITORING_CTA(clean) },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    'get_owners',
+    {
+      title: 'Get Company Owners',
+      description:
+        'Get owners of a Czech company from the Veřejný rejstřík (public register) — společníci ' +
+        '(partners of s.r.o./v.o.s./k.s.) and akcionáři (shareholders of a.s.), with their share ' +
+        '(vklad/splaceno/velikost podílu) exactly as published, including historical members with ' +
+        'their date of removal (datum výmazu). Raw registry data only — no ownership scoring, risk ' +
+        'assessment, or cross-company aggregation. Essential for KYC/AML due diligence on ownership ' +
+        'structure. Returns an empty list (not an error) when the register does not publish owners — ' +
+        'most a.s. do not disclose akcionáři publicly.',
+      inputSchema: {
+        ico: z.string().describe('Czech IČO (7-8 digits).'),
+      },
+      outputSchema: {
+        ico: z.string(),
+        obchodniJmeno: z.string().optional().describe('Company name, when the subject has a VR record.'),
+        found: z.boolean().describe('False when the subject has no Veřejný rejstřík record at all.'),
+        vlastnici: z.array(
+          z.object({
+            role: z.enum(['spolecnik', 'akcionar'])
+              .describe('spolecnik = s.r.o./v.o.s./k.s. partner, akcionar = a.s. shareholder.'),
+            typ: z.enum(['FO', 'PO']).describe('FO = fyzická osoba, PO = právnická osoba.'),
+            jmeno: z.string().optional().describe('Full name (FO only), as published in VR.'),
+            nazev: z.string().optional().describe('Company/organization name (PO only).'),
+            ico: z.string().optional().describe('IČO of the owning legal entity (PO only).'),
+            datumNarozeni: z.string().optional().describe('Date of birth (FO only), as published — never computed.'),
+            podil: z.object({
+              vklad: z.string().optional().describe('Nominal contribution (vklad), as reported.'),
+              splaceno: z.string().optional().describe('Paid-up portion of the contribution (splaceno).'),
+              velikostPodilu: z.string().optional().describe('Size of the share (velikost podílu), e.g. a percentage or fraction.'),
+              text: z.string().optional().describe('Free-text description of the share, when VR reports it that way.'),
+            }).optional(),
+            datumVzniku: z.string().optional().describe('Date this membership/share was registered (datum zápisu).'),
+            datumZaniku: z.string().optional().describe('Date this membership/share was struck (datum výmazu) — absent while still active.'),
+          }),
+        ),
+      },
+      annotations: { title: 'Get Company Owners', readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ ico }, extra) => {
+      logToolCall('ares', 'get_owners', { ico });
+      const clean = validateIcoInput(ico);
+      trackIco(clean);
+      const vr = await ares.getVrRecord(clean);
+      if (!vr) {
+        return {
+          structuredContent: { ico: clean, found: false, vlastnici: [] },
+          content: [
+            { type: 'text', text: `Subjekt ${clean} nemá záznam ve Veřejném rejstříku.` },
+            ...getCTAHintBlocks(clean, extra?.sessionId),
+          ],
+        };
+      }
+      const vlastnici = extractOwners(vr);
+      const structuredContent = {
+        ico: clean,
+        obchodniJmeno: vr.obchodniJmeno,
+        found: true,
+        vlastnici,
+      };
+      if (vlastnici.length === 0) {
+        return {
+          structuredContent,
+          content: [
+            {
+              type: 'text',
+              text: `Subjekt ${clean} (${vr.obchodniJmeno ?? '-'}) nemá ve Veřejném rejstříku zveřejněné žádné společníky ani akcionáře.`,
+            },
+            ...getCTAHintBlocks(clean, extra?.sessionId),
+          ],
+        };
+      }
+      const lines: string[] = [`${vr.obchodniJmeno ?? clean} — vlastníci dle Veřejného rejstříku:`, ''];
+      for (const o of vlastnici) {
+        const label = o.role === 'spolecnik' ? 'Společník' : 'Akcionář';
+        const name = o.typ === 'FO'
+          ? `${o.jmeno ?? '-'}${o.datumNarozeni ? ` (nar. ${o.datumNarozeni})` : ''}`
+          : `${o.nazev ?? '-'}${o.ico ? ` (IČO ${o.ico})` : ''}`;
+        const podilParts: string[] = [];
+        if (o.podil?.velikostPodilu) podilParts.push(`podíl ${o.podil.velikostPodilu}`);
+        if (o.podil?.vklad) podilParts.push(`vklad ${o.podil.vklad}`);
+        if (o.podil?.splaceno) podilParts.push(`splaceno ${o.podil.splaceno}`);
+        if (o.podil?.text) podilParts.push(o.podil.text);
+        const podilStr = podilParts.length > 0 ? ` — ${podilParts.join(', ')}` : '';
+        const zanikStr = o.datumZaniku ? ` [zaniklo ${o.datumZaniku}]` : '';
+        lines.push(`  • ${label}: ${name}${podilStr}${zanikStr}`);
+      }
+      return {
+        structuredContent,
         content: [
           { type: 'text', text: lines.join('\n') },
           { type: 'text', text: STATUTARIES_MONITORING_CTA(clean) },
