@@ -30,7 +30,7 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | AT | GLEIF/LEI + VIES | No auth required |
 | ES | GLEIF/LEI + VIES | VIES returns validity only for ES (no name/address) |
 | BE | GLEIF/LEI + VIES | No auth required |
-| LT | GLEIF/LEI + VIES | No auth required |
+| LT | Registrų centras JAR open data | Monthly local SQLite ingest via `LT_JAR_DB_PATH`; CC BY 4.0. Identity and registration date are served from JAR. The public response exposes status as an opaque relation, so status is reported as unknown. Addresses are not published in this open-data model (`address not published in open data`); no address enrichment is performed. VIES/GLEIF remains the fallback if the local store is unavailable or has no matching record. |
 
 ## Tools
 
@@ -49,6 +49,7 @@ Each example is an MCP tool-call argument object.
 | `GLEIF_CACHE_TTL_DAYS` | No | Cache TTL in days. Default: 7. |
 | `DK_CVR_USER` / `DK_CVR_PASS` | No | Denmark CVR data credentials (free, request at cvrselvbetjening@erst.dk). Without them the DK adapter uses its public fallback. |
 | `EE_RIK_DB_PATH` | No | Path to SQLite store for Estonia RIK bulk data. Default: `./ee-rik.db`. |
+| `LT_JAR_DB_PATH` | No | Path to SQLite store for Lithuania Registrų centras JAR open data. Default: `./lt-jar.db`. |
 | `SE_BOLAGSVERKET_CLIENT_ID` / `SE_BOLAGSVERKET_CLIENT_SECRET` | No | Sweden Bolagsverket HVD OAuth credentials. Without them exact SE lookups return no result; name search still uses GLEIF. |
 | `PORT` | No | HTTP transport port. Default: 3036. |
 
@@ -94,3 +95,12 @@ Estonia bulk ingest:
 EE_RIK_DB_PATH=/absolute/path/ee-rik.db npm run build --workspace=@czagents/eu-registry
 EE_RIK_DB_PATH=/absolute/path/ee-rik.db npm run ingest:ee-rik --workspace=@czagents/eu-registry
 ```
+
+Lithuania JAR bulk ingest (run monthly):
+
+```bash
+LT_JAR_DB_PATH=/absolute/path/lt-jar.db npm run build --workspace=@czagents/eu-registry
+LT_JAR_DB_PATH=/absolute/path/lt-jar.db npm run ingest:lt-jar --workspace=@czagents/eu-registry
+```
+
+LT results expose the upstream `Last-Modified` value as `source_snapshot_at` when available, separately expose `ingested_at`, and carry the CC BY 4.0 attribution. The official JAR open-data endpoint reported zero non-null values for both `pilnas_adresas` and `adresas`; the implementation therefore always returns no address and marks `address not published in open data`. It does not fetch JADIS, officers, or GLEIF-derived addresses.

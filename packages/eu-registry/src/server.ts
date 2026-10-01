@@ -11,6 +11,7 @@ import { NoBrregAdapter } from './adapters/no-brreg.js';
 import { DkCvrAdapter } from './adapters/dk-cvr.js';
 import { FiPrhAdapter } from './adapters/fi-prh.js';
 import { EeRikAdapter } from './adapters/ee-rik.js';
+import { LtJarAdapter } from './adapters/lt-jar.js';
 import { SeBolagsverketAdapter } from './adapters/se-bolagsverket.js';
 import { GleifCache } from './gleif-cache.js';
 import { lookupCompanyByVat, parseVat } from './vies.js';
@@ -49,7 +50,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
       capabilities: { tools: {} },
       instructions:
         'Non-Czech business registry lookup. Use for companies outside the Czech Republic. ' +
-        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL/IT/AT/ES/BE/LT (VIES VAT lookup + GLEIF/LEI name search), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data), SE (Bolagsverket exact lookup + GLEIF name search). ' +
+        'Supports GB (Companies House), SK (ORSR), PL (KRS), NL/IT/AT/ES/BE (VIES VAT lookup + GLEIF/LEI name search), LT (JAR open data with VIES/GLEIF fallback), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data), SE (Bolagsverket exact lookup + GLEIF name search). ' +
         'This server does not handle Czech registry lookups.',
     },
   );
@@ -65,7 +66,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
     at: new ViesGleifAdapter('at', new GleifAdapter('AT', globalThis.fetch, gleifCache)),
     es: new ViesGleifAdapter('es', new GleifAdapter('ES', globalThis.fetch, gleifCache)),
     be: new ViesGleifAdapter('be', new GleifAdapter('BE', globalThis.fetch, gleifCache)),
-    lt: new ViesGleifAdapter('lt', new GleifAdapter('LT', globalThis.fetch, gleifCache)),
+    lt: new LtJarAdapter(new ViesGleifAdapter('lt', new GleifAdapter('LT', globalThis.fetch, gleifCache))),
     de: new DeGleifAdapter(globalThis.fetch, gleifCache),
     fr: new FrSireneAdapter(),
     no: new NoBrregAdapter(),
@@ -79,7 +80,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
 
   server.tool(
     'search_company',
-    'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), NL/IT/AT/ES/BE/LT (GLEIF/LEI only; exact VAT data via lookup_company_by_vat or get_company with VAT), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data), SE (GLEIF/LEI name search; use get_company for full Bolagsverket data).',
+    'Search non-Czech business registries by company name. Supported: GB (Companies House), SK (ORSR/RPO), PL (KRS), LT (JAR open data; VIES/GLEIF fallback when its local store is unavailable or has no matching record), NL/IT/AT/ES/BE (GLEIF/LEI only; exact VAT data via lookup_company_by_vat or get_company with VAT), DE (GLEIF/LEI), FR (SIRENE), NO (BRREG), DK (CVR), FI (PRH YTJ), EE (RIK open data), SE (GLEIF/LEI name search; use get_company for full Bolagsverket data).',
     {
       name: z.string().min(1).describe('Company name or partial company name.'),
       country: z.string().min(2).max(64).describe('ISO alpha-2 code or supported country name, e.g. "GB", "UK", or "United Kingdom".').optional(),
@@ -147,7 +148,7 @@ export function buildEuRegistryServer(options: EuRegistryServerOptions = {}): Mc
 
   server.tool(
     'get_company',
-    'Get a non-Czech company by national ID and country code. Supported: gb (CRN), sk (IČO), pl (KRS number), nl/it/at/es/be/lt (VAT via VIES), de (LEI), fr (SIREN), no (organization number), dk (CVR number), fi (Business ID), ee (registry code), se (10-digit organisation number via Bolagsverket).',
+    'Get a non-Czech company by national ID and country code. Supported: gb (CRN), sk (IČO), pl (KRS number), lt (JAR registry code; VIES/GLEIF fallback when its local store is unavailable or has no matching record), nl/it/at/es/be (VAT via VIES), de (LEI), fr (SIREN), no (organization number), dk (CVR number), fi (Business ID), ee (registry code), se (10-digit organisation number via Bolagsverket).',
     {
       id: z.string().min(1).describe('National company ID, e.g. UK Companies House CRN "14356670".'),
       country: z.string().min(2).max(64).describe('ISO alpha-2 code or supported country name.'),

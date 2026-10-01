@@ -279,6 +279,7 @@ services:
       - SE_BOLAGSVERKET_CLIENT_ID=${SE_BOLAGSVERKET_CLIENT_ID:-}
       - SE_BOLAGSVERKET_CLIENT_SECRET=${SE_BOLAGSVERKET_CLIENT_SECRET:-}
       - EE_RIK_DB_PATH=/var/lib/czagents-ee-rik/ee-rik.db
+      - LT_JAR_DB_PATH=/var/lib/czagents-lt-jar/lt-jar.db
 
       - GLEIF_CACHE_PATH=/var/lib/czagents-gleif-cache/cache.db
       - GLEIF_CACHE_TTL_DAYS=7
@@ -286,6 +287,7 @@ services:
     volumes:
       - gleif-cache:/var/lib/czagents-gleif-cache
       - ee-rik-data:/var/lib/czagents-ee-rik
+      - lt-jar-data:/var/lib/czagents-lt-jar
       - tokens-data:/var/lib/czagents-tokens
       - tool-events:/var/lib/czagents-events
     healthcheck:
@@ -337,5 +339,6 @@ volumes:
   tokens-data:
   gleif-cache:
   ee-rik-data:
+  lt-jar-data:
   czagents_reality_webapp_data:
     external: true
