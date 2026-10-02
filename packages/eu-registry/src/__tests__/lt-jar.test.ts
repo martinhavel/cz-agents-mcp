@@ -63,6 +63,31 @@ describe('Lithuania JAR ingest and adapter', () => {
     await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000')).resolves.toEqual(expect.objectContaining({ status: 'unknown', normalized_status: null }));
   });
 
+  it('keeps an unmatched official status UUID unlabelled and normalized status unknown', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([{ ...fixture(0), statusas: { _id: '11111111-1111-4111-8111-111111111111' } }], []) });
+    const company = await new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000');
+    expect(company).toMatchObject({ status: 'unknown', normalized_status: null, source_note: 'address not published in open data; legal status label unavailable; normalized status is unknown' });
+    expect(company).not.toHaveProperty('status_label');
+  });
+
+  it('rejects a changed final classifier revision and preserves the live row', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([fixture(0)], []) });
+    const source = mockDataset([fixture(1)], []);
+    let classifierPage = 0;
+    const changedClassifier: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (isClassifier(url) && !url.searchParams.has('count()')) {
+        classifierPage += 1;
+        return response({ _data: [{ ...classifier[0], _revision: classifierPage === 2 ? 'changed' : 'status-rev' }], _page: {} });
+      }
+      return source(input, init);
+    };
+    await expect(runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: changedClassifier })).rejects.toThrow(/first-page sentinel changed/);
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000')).resolves.toMatchObject({ name: 'Veikianti bendrovė 0', status_label: 'Removed' });
+  });
+
   it('rejects a changed non-first first-page record when validators are absent', async () => {
     let pageCall = 0;
     const fetchImpl: typeof fetch = async (input) => {
