@@ -109,7 +109,7 @@ async function fetchStatusClassifier(fetchImpl: typeof fetch, classifierUrl: str
   if (!Number.isInteger(count) || count < 1 || count > 1_000) throw new Error('LT JAR ingest failed: invalid status classifier count');
   const { response, body } = await requestWithRetry(fetchImpl, `${classifierUrl}${classifierUrl.includes('?') ? '&' : '?'}_limit=1000`);
   const records = dataRecords(body);
-  if (pageCursor(body) || records.length !== count) throw new Error('LT JAR ingest failed: invalid status classifier page');
+  if (records.length !== count) throw new Error('LT JAR ingest failed: invalid status classifier page');
   const labels = new Map<string, string>();
   for (const record of records) {
     const id = stringField(record, ['_id']); const code = record['kodas']; const lt = stringField(record, ['pavadinimas']); const en = stringField(record, ['name']);

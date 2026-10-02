@@ -237,7 +237,7 @@ function headerDataset(lastModified: string): typeof fetch {
   };
 }
 function isClassifier(url: URL): boolean { return url.pathname.includes('/formos_statusai/Statusas'); }
-function classifierResponse(url: URL, headers?: HeadersInit): Response { return response({ _data: url.searchParams.has('count()') ? [{ 'count()': classifier.length }] : classifier, _page: {} }, headers); }
+function classifierResponse(url: URL, headers?: HeadersInit): Response { return response({ _data: url.searchParams.has('count()') ? [{ 'count()': classifier.length }] : classifier, _page: url.searchParams.has('count()') ? {} : { next: 'complete-page-cursor' } }, headers); }
 function response(body: unknown, headers?: HeadersInit, status = 200): Response {
   const responseHeaders = new Headers({ 'content-type': 'application/json' });
   new Headers(headers).forEach((value, key) => responseHeaders.set(key, value));
