@@ -1,0 +1,251 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import Database from 'better-sqlite3';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LtJarAdapter } from '../adapters/lt-jar.js';
+import { runLtJarIngest } from '../ingest-lt-jar.js';
+import type { Company, CompanySearchResult, RegistryAdapter } from '../types.js';
+
+const tmpDirs: string[] = [];
+
+afterEach(() => { while (tmpDirs.length) rmSync(tmpDirs.pop()!, { recursive: true, force: true }); });
+
+describe('Lithuania JAR ingest and adapter', () => {
+  it('ingests sequential 5,000-row pages, atomically serves the local JAR record, and omits address', async () => {
+    const dbPath = tempDbPath();
+    const records = Array.from({ length: 5001 }, (_, index) => fixture(index));
+    const cursors: Array<string | null> = [];
+    const requests: string[] = [];
+    await runLtJarIngest({ dbPath, minRecords: 1, now: () => new Date('2026-10-02T03:04:05Z'), fetchImpl: mockDataset(records, cursors, requests) });
+    expect(cursors).toEqual([null, 'next-5000', null]);
+    expect(requests[0]).toBe('?count()');
+    expect(requests.filter((request) => request.includes('_select') || request.includes('select('))).toEqual([]);
+    expect(requests[2]).toContain('page(%22next-5000%22)');
+    const fallback = fallbackAdapter();
+    const adapter = new LtJarAdapter(fallback, dbPath);
+    await expect(adapter.getById('10000000')).resolves.toEqual({
+      id: '10000000', country: 'lt', name: 'Veikianti bendrovė 0', status: 'unknown', normalized_status: null, status_label: 'Removed', registered_on: '2020-01-01', source_url: 'https://get.data.gov.lt/datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo', source_snapshot_at: undefined, source_publication: undefined, ingested_at: '2026-10-02T03:04:05.000Z', source_attribution: 'Registrų centras open data, CC BY 4.0', source_note: 'address not published in open data; official legal status is published in status_label; normalized status is unknown',
+    });
+    expect(fallback.calls).toBe(0);
+  });
+
+  it('rejects a 5% API count drop and preserves live data', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset(Array.from({ length: 100 }, (_, i) => fixture(i)), []) });
+    await expect(runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset(Array.from({ length: 94 }, (_, i) => fixture(i)), []) })).rejects.toThrow(/over 5% below live count/);
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000099')).resolves.toMatchObject({ name: 'Veikianti bendrovė 99' });
+    await expect(runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset(Array.from({ length: 95 }, (_, i) => fixture(i)), []) })).resolves.toMatchObject({ imported: 95 });
+  });
+
+  it('rejects an appearing HTTP validator and preserves live data', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset(Array.from({ length: 2 }, (_, i) => fixture(i)), []) });
+    let call = 0;
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = new URL(String(input));
+      if (isClassifier(url)) return classifierResponse(url);
+      if (url.searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
+      call += 1;
+      return response({ _data: [fixture(0), fixture(1)], _page: {} }, call === 2 ? { etag: 'jar-rev-43' } : undefined);
+    };
+    await expect(runLtJarIngest({ dbPath, minRecords: 1, fetchImpl })).rejects.toThrow(/HTTP validator changed/);
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000001')).resolves.toMatchObject({ name: 'Veikianti bendrovė 1' });
+  });
+
+  it('does not infer status from the opaque official relation', async () => {
+    const dbPath = tempDbPath();
+    const record = { ...fixture(0), isreg_data: null, statusas: { kodas: 0, pavadinimas: 'Active' } };
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([record], []) });
+    const db = new Database(dbPath);
+    db.prepare("UPDATE lt_jar_companies SET status = 'active', status_label = 'Active'").run();
+    db.close();
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000')).resolves.toEqual(expect.objectContaining({ status: 'unknown', normalized_status: null }));
+  });
+
+  it('keeps an unmatched official status UUID unlabelled and normalized status unknown', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([{ ...fixture(0), statusas: { _id: '11111111-1111-4111-8111-111111111111' } }], []) });
+    const company = await new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000');
+    expect(company).toMatchObject({ status: 'unknown', normalized_status: null, source_note: 'address not published in open data; legal status label unavailable; normalized status is unknown' });
+    expect(company).not.toHaveProperty('status_label');
+  });
+
+  it('rejects a changed final classifier revision and preserves the live row', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([fixture(0)], []) });
+    const source = mockDataset([fixture(1)], []);
+    let classifierPage = 0;
+    const changedClassifier: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (isClassifier(url) && !url.searchParams.has('count()')) {
+        classifierPage += 1;
+        return response({ _data: [{ ...classifier[0], _revision: classifierPage === 2 ? 'changed' : 'status-rev' }], _page: {} });
+      }
+      return source(input, init);
+    };
+    await expect(runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: changedClassifier })).rejects.toThrow(/first-page sentinel changed/);
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000')).resolves.toMatchObject({ name: 'Veikianti bendrovė 0', status_label: 'Removed' });
+  });
+
+  it('rejects a changed non-first first-page record when validators are absent', async () => {
+    let pageCall = 0;
+    const fetchImpl: typeof fetch = async (input) => {
+      if (isClassifier(new URL(String(input)))) return classifierResponse(new URL(String(input)));
+      if (new URL(String(input)).searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
+      pageCall += 1;
+      const records = [fixture(0), pageCall === 2 ? { ...fixture(1), _revision: 'changed' } : fixture(1)];
+      return response({ _data: records, _page: {} });
+    };
+    await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl })).rejects.toThrow(/first-page sentinel changed/);
+  });
+
+  it('uses local LT data when available and retains VIES/GLEIF fallback on unavailable store or local miss', async () => {
+    const fallback = fallbackAdapter();
+    const missing = new LtJarAdapter(fallback, join(tempDir(), 'missing.db'));
+    await expect(missing.getById('123456789')).resolves.toMatchObject({ name: 'Fallback company' });
+    expect(fallback.calls).toBe(1);
+
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([fixture(0)], []) });
+    const available = new LtJarAdapter(fallback, dbPath);
+    await expect(available.getById('999999999')).resolves.toMatchObject({ name: 'Fallback company' });
+    await expect(available.getById('LT120212314')).resolves.toMatchObject({ name: 'Fallback company' });
+    expect(fallback.calls).toBe(3);
+  });
+
+  it('finds Lithuanian names without diacritics through the local normalized search key', async () => {
+    const dbPath = tempDbPath();
+    const record = { ...fixture(0), ja_pavadinimas: 'Uždaroji akcinė bendrovė Žąsis' };
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([record], []) });
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).searchByName('uzdaroji akcinė bendrovė zasis')).resolves.toMatchObject({ total_results: 1, companies: [{ name: 'Uždaroji akcinė bendrovė Žąsis' }] });
+  });
+
+  it('quotes page cursors as JSON and does not let their contents become query clauses', async () => {
+    const dbPath = tempDbPath();
+    const cursor = 'next")&select(evil)';
+    const requests: string[] = [];
+    let pageCall = 0;
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = new URL(String(input));
+      if (isClassifier(url)) return classifierResponse(url);
+      requests.push(url.search);
+      if (url.searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
+      pageCall += 1;
+      if (pageCall === 1) return response({ _data: [fixture(0)], _page: { next: cursor } });
+      if (pageCall === 2) return response({ _data: [fixture(1)], _page: {} });
+      return response({ _data: [fixture(0)], _page: {} });
+    };
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl });
+    expect(requests[2]).toContain('page(%22next%5C%22)%26select(evil)%22)');
+    expect(new URLSearchParams(requests[2]).has('select(evil)')).toBe(false);
+  });
+
+  it('rejects a repeated cursor and an empty page with a continuation', async () => {
+    const dbPath = tempDbPath();
+    let pageCall = 0;
+    const repeated: typeof fetch = async (input) => {
+      if (isClassifier(new URL(String(input)))) return classifierResponse(new URL(String(input)));
+      if (new URL(String(input)).searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
+      pageCall += 1;
+      return response({ _data: [fixture(pageCall)], _page: { next: 'again' } });
+    };
+    await expect(runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: repeated })).rejects.toThrow(/repeated a page cursor/);
+    const empty: typeof fetch = async (input) => isClassifier(new URL(String(input))) ? classifierResponse(new URL(String(input))) : new URL(String(input)).searchParams.has('count()') ? response({ _data: [{ 'count()': 1 }] }) : response({ _data: [], _page: { next: 'again' } });
+    await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: empty })).rejects.toThrow(/empty page with continuation/);
+  });
+
+  it('normalizes valid Last-Modified and omits an invalid value', async () => {
+    const valid = await runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: headerDataset('Fri, 21 Aug 2026 06:07:56 GMT') });
+    const invalid = await runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: headerDataset('not a date') });
+    expect(valid.sourceSnapshotAt).toBe('2026-08-21T06:07:56.000Z');
+    expect(invalid.sourceSnapshotAt).toBeUndefined();
+  });
+
+  it('retries a transient count failure and the same continuation cursor', async () => {
+    const records = Array.from({ length: 5001 }, (_, index) => fixture(index));
+    const source = mockDataset(records, []);
+    let countRequests = 0;
+    let continuationFailures = 0;
+    const continuationUrls: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.searchParams.has('count()') && countRequests++ === 0) return response({}, undefined, 500);
+      if (url.search.includes('page(%22next-5000%22)')) {
+        continuationUrls.push(url.toString());
+        if (continuationFailures++ === 0) return response({}, undefined, 500);
+      }
+      return source(input, init);
+    };
+    vi.useFakeTimers();
+    try {
+      const ingest = runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl });
+      await vi.runAllTimersAsync();
+      await expect(ingest).resolves.toMatchObject({ imported: 5001 });
+    } finally { vi.useRealTimers(); }
+    expect(countRequests).toBe(5);
+    expect(continuationFailures).toBe(2);
+    expect(continuationUrls[1]).toBe(continuationUrls[0]);
+  });
+
+  it('exhausts retryable failures without replacing live rows and does not retry HTTP 404', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([fixture(0)], []) });
+    let failures = 0;
+    const unavailable: typeof fetch = async () => { failures += 1; return response({}, undefined, 500); };
+    vi.useFakeTimers();
+    try {
+      const ingest = runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: unavailable });
+      const assertion = expect(ingest).rejects.toThrow(/HTTP 500/);
+      await vi.runAllTimersAsync();
+      await assertion;
+    } finally { vi.useRealTimers(); }
+    expect(failures).toBe(4);
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000')).resolves.toMatchObject({ name: 'Veikianti bendrovė 0' });
+    let notFound = 0;
+    await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: async () => { notFound += 1; return response({}, undefined, 404); } })).rejects.toThrow(/HTTP 404/);
+    expect(notFound).toBe(1);
+    let malformed = 0;
+    await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: async () => { malformed += 1; return response(null); } })).rejects.toThrow(/no data array/);
+    expect(malformed).toBe(1);
+  });
+});
+
+const STATUS_ID = '5bcfd61f-7810-4946-9bd3-6de946b56f18';
+const classifier = [{ _id: STATUS_ID, _revision: 'status-rev', kodas: 10, pavadinimas: 'Išregistruotas', name: 'Removed' }];
+function fixture(index: number) { return { _type: 'datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo', _id: `row-${index}`, _revision: `row-rev-${index}`, ja_kodas: 10000000 + index, ja_pavadinimas: `Veikianti bendrovė ${index}`, reg_data: '2020-01-01', isreg_data: null, statusas: { _id: STATUS_ID } }; }
+function mockDataset(records: unknown[], cursors: Array<string | null>, requests: string[] = []): typeof fetch {
+  return (async (input) => {
+    const url = new URL(String(input));
+    if (isClassifier(url)) return classifierResponse(url);
+    requests.push(url.search);
+    if (url.searchParams.has('count()')) return response({ _data: [{ 'count()': records.length }] });
+    const pageArgument = /[?&]page\(([^)]+)\)/.exec(url.search)?.[1];
+    const cursor = pageArgument ? decodeURIComponent(pageArgument).replace(/^"|"$/g, '') : null;
+    cursors.push(cursor);
+    const offset = cursor === 'next-5000' ? 5000 : 0;
+    return response({ _data: records.slice(offset, offset + 5000), _page: offset + 5000 < records.length ? { next: 'next-5000' } : {} });
+  }) as typeof fetch;
+}
+function headerDataset(lastModified: string): typeof fetch {
+  let pageCall = 0;
+  return async (input) => {
+    if (isClassifier(new URL(String(input)))) return classifierResponse(new URL(String(input)), { 'last-modified': lastModified, etag: 'status' });
+    if (new URL(String(input)).searchParams.has('count()')) return response({ _data: [{ 'count()': 1 }] }, { 'last-modified': lastModified });
+    pageCall += 1;
+    return response({ _data: [fixture(0)], _page: {} }, { 'last-modified': lastModified, etag: pageCall === 2 ? 'same' : 'same' });
+  };
+}
+function isClassifier(url: URL): boolean { return url.pathname.includes('/formos_statusai/Statusas'); }
+function classifierResponse(url: URL, headers?: HeadersInit): Response { return response({ _data: url.searchParams.has('count()') ? [{ 'count()': classifier.length }] : classifier, _page: url.searchParams.has('count()') ? {} : { next: 'complete-page-cursor' } }, headers); }
+function response(body: unknown, headers?: HeadersInit, status = 200): Response {
+  const responseHeaders = new Headers({ 'content-type': 'application/json' });
+  new Headers(headers).forEach((value, key) => responseHeaders.set(key, value));
+  return new Response(JSON.stringify(body), { status, headers: responseHeaders });
+}
+function fallbackAdapter(): RegistryAdapter & { calls: number } {
+  const adapter = { calls: 0, async getById(id: string): Promise<Company | null> { adapter.calls += 1; return { id, country: 'lt', name: 'Fallback company', status: 'unknown' }; }, async searchByName(): Promise<CompanySearchResult> { adapter.calls += 1; return { companies: [], total_results: 0 }; } };
+  return adapter;
+}
+function tempDbPath(): string { return join(tempDir(), 'lt-jar.db'); }
+function tempDir(): string { const dir = mkdtempSync(join(tmpdir(), 'czagents-lt-jar-')); tmpDirs.push(dir); return dir; }
