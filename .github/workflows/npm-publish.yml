@@ -80,7 +80,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "22" # trusted publishing requires Node >= 22.14.0
+          node-version: "24.21.0" # bundled npm 11.19.0 satisfies the trusted-publishing guard
           registry-url: "https://registry.npmjs.org"
 
       - name: Resolve target package
