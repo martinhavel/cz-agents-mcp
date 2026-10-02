@@ -36,7 +36,7 @@ Don't want to wire an MCP client? The same data is available as a web applicatio
 | [`@czagents/adis`](./packages/adis) | ADIS — unreliable VAT payer (nespolehlivý plátce DPH) + transparent accounts | ✅ live |
 | [`@czagents/dd`](./packages/dd) | Due-diligence aggregator (ARES + sanctions + ISIR + ADIS + statutory chain) | ✅ live |
 | [`@czagents/realestate`](./packages/realestate) | Czech distress real estate intelligence (ISIR sales + portál dražeb) | ✅ live (v0.1) |
-| [`@czagents/eu-registry`](./packages/eu-registry) | EU business registries — 16 countries (GB, SK, PL, NL, IT, AT, ES, BE, LT, DE, FR, NO, DK, FI, EE, SE) via Companies House / ORSR / KRS / SIRENE / BRREG / CVR / PRH / RIK / Bolagsverket / VIES / GLEIF | ✅ live |
+| [`@czagents/eu-registry`](./packages/eu-registry) | EU business registries — 16 countries (GB, SK, PL, NL, IT, AT, ES, BE, LT, DE, FR, NO, DK, FI, EE, SE) via Companies House / ORSR / KRS / SIRENE / BRREG / CVR / PRH / RIK / Bolagsverket / Registrų centras JAR / VIES / GLEIF; LT provides name, code, registration date and legal-status label without address or officer enrichment | ✅ live |
 | [`@czagents/payqr`](./packages/payqr) | Payment QR codes (SPAYD / EPC-GiroCode) — bonus utility | ✅ live |
 
 ### Premium tier — closed source

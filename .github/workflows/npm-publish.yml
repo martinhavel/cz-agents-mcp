@@ -12,8 +12,8 @@ name: npm Publish (Trusted Publishing)
 #
 # Requirements (verified against https://docs.npmjs.com/trusted-publishers
 # and the GitHub Changelog announcement, 2026-07-22):
-#   - npm CLI >= 11.5.1 and Node >= 22.14.0 (enforced below; the workflow
-#     upgrades npm itself and fails fast with a clear message if that fails).
+#   - Runner-provided npm CLI >= 11.5.1 and Node >= 22.14.0 (verified below;
+#     dependency freeze prohibits installing or upgrading npm here).
 #   - `permissions: id-token: write` at workflow (or job) level.
 #   - `registry-url` set via actions/setup-node so npm knows where to
 #     exchange the OIDC token.
@@ -137,16 +137,10 @@ jobs:
           fi
           echo "$PKG_NAME@$PKG_VERSION is not on npm yet -- OK to publish."
 
-      - name: Ensure npm CLI supports trusted publishing (>= 11.5.1)
-        # Deliberately AFTER install/build/test. Upgrading the global npm before
-        # `npm ci` breaks native module installation on the runner: better-sqlite3
-        # ends up without its compiled binding and every test touching TokenStore
-        # fails with "Could not locate the bindings file" (seen 2026-07-22).
-        # ci.yml installs and tests with the runner's stock npm and passes, so we
-        # do the same here and only upgrade for the publish step itself, which is
-        # the only place the >= 11.5.1 OIDC support is actually required.
+      - name: Verify runner npm supports trusted publishing (>= 11.5.1)
+        # Publish with the same runner-provided npm used for install/build/test.
+        # Dependency freeze prohibits mutating the toolchain in this workflow.
         run: |
-          npm install -g npm@latest
           NPM_VERSION=$(npm --version)
           echo "npm CLI version: $NPM_VERSION"
           node -e '
@@ -157,7 +151,7 @@ jobs:
               || (major === min[0] && minor === min[1] && patch >= min[2]);
             process.exit(ok ? 0 : 1);
           ' "$NPM_VERSION" || {
-            echo "::error::npm CLI $NPM_VERSION is older than the 11.5.1 minimum required for trusted publishing (OIDC)."
+            echo "::error::npm CLI $NPM_VERSION is older than 11.5.1. Dependency freeze forbids installing or upgrading npm here; an RM-approved pinned toolchain change is required."
             exit 1
           }
 
