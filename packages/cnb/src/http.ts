@@ -6,6 +6,7 @@ import { createRateLimiter, createSessionRegistry, checkBodySize, checkOrigin, r
   getClientIp,
   getClientUa,
   createHostedToolQuota,
+  runWithHostedToolQuota,
 } from '@czagents/shared';
 import { buildCnbServer } from './server.js';
 
@@ -105,7 +106,8 @@ async function main() {
     const clientIp = getClientIp(req);
     setRequestIp(clientIp);
     try {
-      await runWithIp(clientIp, () => transport.handleRequest(req, res, quotaRequest.parsedBody));
+      await runWithHostedToolQuota(quotaRequest, transport, () =>
+        runWithIp(clientIp, () => transport.handleRequest(req, res, quotaRequest.parsedBody)));
     } finally {
       clearRequestIp();
     }

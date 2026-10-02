@@ -90,8 +90,10 @@ export interface AresVrRecord {
         };
       };
       podil?: Array<{
+        text?: string;
         velikostPodilu?: { hodnota?: string };
         vklad?: { hodnota?: string };
+        splaceni?: { hodnota?: string };
       }>;
       datumZapisu?: string;
       datumVymazu?: string | null;
@@ -121,6 +123,12 @@ export interface AresVrRecord {
           textovaAdresa?: string;
         };
       };
+      podil?: Array<{
+        text?: string;
+        velikostPodilu?: { hodnota?: string };
+        vklad?: { hodnota?: string };
+        splaceni?: { hodnota?: string };
+      }>;
       datumZapisu?: string;
       datumVymazu?: string | null;
     }>;
@@ -146,6 +154,109 @@ export interface AresVrRecord {
       datumVymazu?: string;
     }>;
   }>;
+}
+
+/** One owner (společník / akcionář) extracted from a VR record. Raw registry data only. */
+export interface AresOwner {
+  /** 'spolecnik' for s.r.o./v.o.s./k.s. partners, 'akcionar' for a.s. shareholders. */
+  role: 'spolecnik' | 'akcionar';
+  /** FO = fyzická osoba (natural person), PO = právnická osoba (legal entity). */
+  typ: 'FO' | 'PO';
+  /** Full name (FO only) — titles + jméno + příjmení as published in VR. */
+  jmeno?: string;
+  /** Company/organization name (PO only). */
+  nazev?: string;
+  /** IČO of the owning legal entity (PO only). */
+  ico?: string;
+  /** Date of birth (FO only), as published in VR — never computed. */
+  datumNarozeni?: string;
+  podil?: {
+    /** Nominal contribution (vklad), as reported. */
+    vklad?: string;
+    /** Paid-up portion of the contribution (splaceno). */
+    splaceno?: string;
+    /** Size of the ownership share (velikost podílu), e.g. a percentage or fraction. */
+    velikostPodilu?: string;
+    /** Free-text description of the share, when VR does not report structured values. */
+    text?: string;
+  };
+  /** Date this membership/share was registered (datum zápisu). */
+  datumVzniku?: string;
+  /** Date this membership/share was struck (datum výmazu) — absent while still active. */
+  datumZaniku?: string;
+}
+
+function formatFoJmeno(fo: {
+  jmeno?: string;
+  prijmeni?: string;
+  titulPredJmenem?: string;
+  titulZaJmenem?: string;
+}): string {
+  return [fo.titulPredJmenem, fo.jmeno, fo.prijmeni, fo.titulZaJmenem].filter(Boolean).join(' ').trim();
+}
+
+function mapPodil(podil?: {
+  text?: string;
+  velikostPodilu?: { hodnota?: string };
+  vklad?: { hodnota?: string };
+  splaceni?: { hodnota?: string };
+}): AresOwner['podil'] {
+  if (!podil) return undefined;
+  const mapped: NonNullable<AresOwner['podil']> = {
+    vklad: podil.vklad?.hodnota,
+    splaceno: podil.splaceni?.hodnota,
+    velikostPodilu: podil.velikostPodilu?.hodnota,
+    text: podil.text,
+  };
+  return Object.values(mapped).some((v) => v !== undefined) ? mapped : undefined;
+}
+
+/**
+ * Extracts owners (společníci + akcionáři) from an already-fetched VR record.
+ * Pure/synchronous — no network call. Raw registry data only, no scoring or aggregation.
+ */
+export function extractOwners(vr: AresVrRecord): AresOwner[] {
+  const owners: AresOwner[] = [];
+
+  for (const skupina of vr.spolecnici ?? []) {
+    for (const s of skupina.spolecnik ?? []) {
+      const fo = s.osoba?.fyzickaOsoba;
+      const po = s.osoba?.pravnickaOsoba;
+      if (!fo && !po) continue;
+      owners.push({
+        role: 'spolecnik',
+        typ: fo ? 'FO' : 'PO',
+        jmeno: fo ? formatFoJmeno(fo) : undefined,
+        nazev: po ? po.obchodniJmeno ?? po.nazev : undefined,
+        ico: po?.ico,
+        datumNarozeni: fo?.datumNarozeni,
+        podil: mapPodil(s.podil?.[0]),
+        datumVzniku: s.datumZapisu,
+        datumZaniku: s.datumVymazu ?? undefined,
+      });
+    }
+  }
+
+  for (const organ of vr.akcionari ?? []) {
+    for (const m of organ.clenoveOrganu ?? []) {
+      const fo = m.fyzickaOsoba;
+      const po = m.pravnickaOsoba;
+      if (!fo && !po) continue;
+      owners.push({
+        role: 'akcionar',
+        typ: fo ? 'FO' : 'PO',
+        jmeno: fo ? formatFoJmeno(fo) : undefined,
+        nazev: po ? po.obchodniJmeno ?? po.nazev : undefined,
+        ico: po?.ico,
+        datumNarozeni: fo?.datumNarozeni,
+        podil: mapPodil(m.podil?.[0]),
+        datumVzniku: m.datumZapisu,
+        datumZaniku: m.datumVymazu ?? undefined,
+      });
+    }
+  }
+
+  return owners;
 }
 
 export class AresClient {

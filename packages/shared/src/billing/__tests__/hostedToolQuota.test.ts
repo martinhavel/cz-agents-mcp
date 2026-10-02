@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHostedToolQuota } from '../hostedToolQuota.js';
+import { createHostedToolQuota, runWithHostedToolQuota } from '../hostedToolQuota.js';
 import { createQuotaGuard } from '../quota.js';
 import { TokenStore } from '../tokenStore.js';
 import Database from 'better-sqlite3';
@@ -19,6 +19,8 @@ describe('hosted lookup tool quota at the HTTP boundary', () => {
   let store: TokenStore;
   let server: ReturnType<typeof createServer>;
   let baseUrl: string;
+  let onAbortReady: () => void;
+  let onAbortClosed: () => void;
   const executed: Record<Service, number> = { ares: 0, cnb: 0, isir: 0, dd: 0 };
 
   beforeEach(async () => {
@@ -40,8 +42,33 @@ describe('hosted lookup tool quota at the HTTP boundary', () => {
       const result = await quotas[service](req, res);
       if (!result.ok) return;
       executed[service] += 1;
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true }));
+      const calls = (Array.isArray(result.parsedBody) ? result.parsedBody : [result.parsedBody])
+        .filter((call) => call?.method === 'tools/call');
+      const replies: object[] = [];
+      const transport = { async send(message: object) {
+        replies.push(message);
+        if (replies.length === calls.length) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(Array.isArray(result.parsedBody) ? replies : replies[0]));
+        }
+      } };
+      try {
+        await runWithHostedToolQuota(result, transport, async () => {
+          if (!calls.length) { res.writeHead(200).end('{}'); return; }
+          for (const call of calls) {
+            if (call.params.name === 'abort') {
+              await new Promise<void>((resolve) => { res.once('close', resolve); onAbortReady(); });
+              onAbortClosed();
+              return;
+            }
+            if (call.params.name === 'throw') throw new Error('synthetic internal error');
+            if (call.params.name === 'hold') await new Promise((resolve) => setTimeout(resolve, 100));
+            const response = call.params.name === 'rpc_error' ? { error: { code: -32602, message: 'Invalid input' } }
+              : { result: { content: [], ...(call.params.name === 'error' ? { isError: true } : {}) } };
+            await transport.send({ jsonrpc: '2.0', id: call.id, ...response });
+          }
+        });
+      } catch { res.writeHead(500).end('{}'); }
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
@@ -128,6 +155,53 @@ describe('hosted lookup tool quota at the HTTP boundary', () => {
     expect((await post('cnb', toolCall(7), identity.token)).status).toBe(429);
     db.prepare('UPDATE lookup_purchases SET refunded_at=NULL,expires_at=?').run(now - 1);
     expect((await post('isir', toolCall(8), identity.token)).status).toBe(429);
+    expect(store.find(identity.token)?.counter).toBe(2000);
+    db.close();
+  });
+
+  it('charges empty successes and releases tool, RPC and internal errors', async () => {
+    const identity = store.mint({ service: 'identity', tier: 'free', stripe_customer_id: 'outcomes',
+      stripe_subscription_id: null, monthly_quota: 2000, credits: null });
+    const named = (id: number, name: string) => ({ ...toolCall(id), params: { name, arguments: {} } });
+    const mixed = await post('ares', [named(1, 'empty'), named(2, 'error'), named(3, 'rpc_error'), named(4, 'lookup')], identity.token);
+    expect(mixed.status).toBe(200);
+    expect(mixed.headers.get('X-Registered-Quota-Remaining')).toBe('1998');
+    expect(store.find(identity.token)?.counter).toBe(2);
+    expect((await post('cnb', named(5, 'throw'), identity.token)).status).toBe(500);
+    expect(store.find(identity.token)?.counter).toBe(2);
+    expect((await post('isir', [named(6, 'lookup'), named(6, 'lookup')], identity.token)).status).toBe(400);
+    expect(store.find(identity.token)?.counter).toBe(2);
+  });
+
+  it('releases a reservation when the client closes before a result', async () => {
+    const identity = store.mint({ service: 'identity', tier: 'free', stripe_customer_id: 'abort',
+      stripe_subscription_id: null, monthly_quota: 2000, credits: null });
+    const ready = new Promise<void>((resolve) => { onAbortReady = resolve; });
+    const closed = new Promise<void>((resolve) => { onAbortClosed = resolve; });
+    const controller = new AbortController();
+    const response = fetch(`${baseUrl}/ares`, {
+      method: 'POST', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${identity.token}` },
+      body: JSON.stringify({ ...toolCall(1), params: { name: 'abort', arguments: {} } }),
+    }).catch((error) => error);
+    await ready;
+    expect(store.find(identity.token)?.counter).toBe(1);
+    controller.abort();
+    await closed;
+    await response;
+    expect(store.find(identity.token)?.counter).toBe(0);
+    expect((await post('ares', toolCall(2), identity.token)).status).toBe(200);
+    expect(store.find(identity.token)?.counter).toBe(1);
+  });
+
+  it('holds the last unit across concurrent service requests', async () => {
+    const identity = store.mint({ service: 'identity', tier: 'free', stripe_customer_id: 'concurrent',
+      stripe_subscription_id: null, monthly_quota: 2000, credits: null });
+    const db = new Database(join(dir, 'tokens.db'));
+    db.prepare('UPDATE tokens SET counter=1999 WHERE token=?').run(identity.token);
+    const held = { ...toolCall(1), params: { name: 'hold', arguments: {} } };
+    const responses = await Promise.all((['ares', 'cnb', 'isir'] as Service[]).map((service) => post(service, held, identity.token)));
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 429, 429]);
     expect(store.find(identity.token)?.counter).toBe(2000);
     db.close();
   });

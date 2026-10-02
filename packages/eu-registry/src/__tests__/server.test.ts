@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildEuRegistryServer } from '../server.js';
+import { buildDefaultRegistryAdapters, buildEuRegistryServer } from '../server.js';
 import type { RegistryAdapter } from '../types.js';
 
 async function connectTestClient(adapter: RegistryAdapter) {
@@ -22,6 +22,19 @@ function text(result: Awaited<ReturnType<Client['callTool']>>): string {
 describe('buildEuRegistryServer', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('reuses one hosted adapter graph across session servers', () => {
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const adapters = buildDefaultRegistryAdapters();
+    const intervalsAfterAdapterStartup = intervalSpy.mock.calls.length;
+
+    for (let i = 0; i < 100; i += 1) {
+      buildEuRegistryServer({ adapters });
+    }
+
+    expect(intervalsAfterAdapterStartup).toBe(1);
+    expect(intervalSpy).toHaveBeenCalledTimes(1);
   });
 
   it('handles search_company', async () => {

@@ -16,6 +16,7 @@ describe('readMcpRequestBody', () => {
     await expect(readMcpRequestBody(request(body))).resolves.toEqual({
       parsedBody: JSON.parse(body),
       toolCallCount: 1,
+      toolCallIds: ['call-1'],
     });
   });
 

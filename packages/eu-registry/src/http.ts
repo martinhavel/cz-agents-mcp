@@ -23,7 +23,7 @@ import {
 } from '@czagents/shared';
 import { EntitlementStore,HostedEntitlementResolver,entitlementMode,authenticateHostedRequest,
   runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
-import { buildEuRegistryServer } from './server.js';
+import { buildDefaultRegistryAdapters, buildEuRegistryServer } from './server.js';
 import type { RegistryLookupAuthorizer } from './server.js';
 
 const PORT = Number(process.env.PORT ?? 3035);
@@ -98,6 +98,7 @@ async function main() {
       record:(upstreamCalled,options)=>entitlementResolver.record(decision,upstreamCalled,options)};
   } : undefined;
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
+  const adapters = buildDefaultRegistryAdapters();
   const restLimiter = createRestRateLimiter();
 
   const limiter = createRateLimiter({
@@ -192,7 +193,7 @@ async function main() {
       }
 
       const newSessionId = randomUUID();
-      const server = buildEuRegistryServer({authorizeLookup});
+      const server = buildEuRegistryServer({adapters,authorizeLookup});
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => newSessionId,
         enableJsonResponse: true,
