@@ -1,5 +1,5 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "maintainers": ["martinhavel"],
-  "description": "Czech & EU due-diligence and KYC/AML MCP servers — company facts, insolvency (ISIR), EU + OFAC sanctions screening, VAT-payer reliability, phoenix & nominee-director detection, quantified risk score and statutory-chain (UBO) ownership analysis. A unified due-diligence aggregator built on native access to ARES (company registry), ČNB (FX rates), ADIS (VAT status) and EU business registries (GB/SK/PL/NL/DE/FR)."
+  "description": "Czech & EU due-diligence and KYC/AML MCP servers — company facts, insolvency (ISIR), EU + OFAC sanctions screening, VAT-payer reliability, phoenix & nominee-director detection, quantified risk score and statutory-chain (UBO) ownership analysis. A unified due-diligence aggregator across 16 foreign business registries; Lithuania JAR provides identity, registration date and legal-status labels without address or officer enrichment."
 }

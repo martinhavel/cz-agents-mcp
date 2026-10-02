@@ -30,7 +30,7 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | AT | GLEIF/LEI + VIES | No auth required |
 | ES | GLEIF/LEI + VIES | VIES returns validity only for ES (no name/address) |
 | BE | GLEIF/LEI + VIES | No auth required |
-| LT | Registrų centras JAR open data | Monthly local SQLite ingest via `LT_JAR_DB_PATH`; CC BY 4.0. Identity and registration date are served from JAR. The official legal-status classifier label is exposed as `status_label`; application `status` remains unknown and `normalized_status` null. Addresses are not published in this open-data model (`address not published in open data`); no address enrichment is performed. VIES/GLEIF remains the fallback if the local store is unavailable or has no matching record. |
+| LT | Registrų centras JAR open data | Monthly local SQLite ingest via `LT_JAR_DB_PATH`; CC BY 4.0. Name, code and registration date are served from JAR. The official legal-status classifier label is exposed as `status_label`; application `status` remains unknown and `normalized_status` null. Addresses and officers are not published or enriched; JADIS and other enrichment are out of scope. VIES/GLEIF remains the fallback if the local store is unavailable or has no matching record. |
 
 ## Tools
 

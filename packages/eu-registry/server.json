@@ -1,20 +1,20 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.cz-agents/eu-registry",
-  "description": "EU company registry lookup across 16 countries incl. Sweden Bolagsverket.",
+  "description": "EU company registry lookup across 16 countries, including Lithuania JAR identity and legal-status labels without address or officer enrichment.",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",
     "source": "github",
     "subfolder": "packages/eu-registry"
   },
-  "version": "0.7.0",
+  "version": "0.8.0",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/eu-registry",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
