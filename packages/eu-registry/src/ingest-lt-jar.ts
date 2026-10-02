@@ -14,6 +14,8 @@ export const LT_JAR_PAGE_SIZE = 5_000;
 export const LT_JAR_MIN_RECORDS = 500_000;
 const DROP_GUARD_RATIO = 0.95;
 const REQUEST_TIMEOUT_MS = 30_000;
+const RETRY_DELAYS_MS = [2_000, 5_000, 15_000];
+const RETRY_AFTER_MAX_MS = 60_000;
 type JsonRecord = Record<string, unknown>;
 interface Page { records: JsonRecord[]; next: string | undefined; snapshot: Snapshot; }
 interface Snapshot { etag: string | undefined; publishedAt: string | undefined; sentinel: string | undefined; }
@@ -92,13 +94,13 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
 }
 
 async function fetchCount(fetchImpl: typeof fetch, datasetUrl: string): Promise<number> {
-  const response = await fetchImpl(`${datasetUrl}${datasetUrl.includes('?') ? '&' : '?'}count()`, requestOptions());
-  if (!response.ok) throw new Error(`LT JAR ingest failed: HTTP ${response.status} ${response.statusText}`);
-  const body = await response.json() as JsonRecord;
-  const count = (dataRecords(body)[0] ?? {})['count()'];
-  const numericCount = typeof count === 'number' ? count : Number(count);
-  if (!Number.isFinite(numericCount)) throw new Error('LT JAR ingest failed: upstream response has no count()');
-  return numericCount;
+  return requestWithRetry(fetchImpl, `${datasetUrl}${datasetUrl.includes('?') ? '&' : '?'}count()`, async (response) => {
+    const body = await response.json() as JsonRecord;
+    const count = (dataRecords(body)[0] ?? {})['count()'];
+    const numericCount = typeof count === 'number' ? count : Number(count);
+    if (!Number.isFinite(numericCount)) throw new Error('LT JAR ingest failed: upstream response has no count()');
+    return numericCount;
+  });
 }
 
 async function fetchPage(fetchImpl: typeof fetch, datasetUrl: string, cursor?: string): Promise<Page> {
@@ -107,13 +109,54 @@ async function fetchPage(fetchImpl: typeof fetch, datasetUrl: string, cursor?: s
   // Spinta omits the cursor from projected responses. Keep the complete page so
   // the documented `page(<token>)` continuation remains available.
   if (cursor) url.search += `${url.search ? '&' : '?'}page(${encodeURIComponent(JSON.stringify(cursor))})`;
-  const response = await fetchImpl(url, requestOptions());
-  if (!response.ok) throw new Error(`LT JAR ingest failed: HTTP ${response.status} ${response.statusText}`);
-  const body = await response.json() as JsonRecord;
-  const records = dataRecords(body);
-  if (records.length > LT_JAR_PAGE_SIZE) throw new Error('LT JAR ingest failed: invalid page size');
-  return { records, next: pageCursor(body), snapshot: snapshotOf(records, response) };
+  return requestWithRetry(fetchImpl, url, async (response) => {
+    const body = await response.json() as JsonRecord;
+    const records = dataRecords(body);
+    if (records.length > LT_JAR_PAGE_SIZE) throw new Error('LT JAR ingest failed: invalid page size');
+    return { records, next: pageCursor(body), snapshot: snapshotOf(records, response) };
+  });
 }
+
+async function requestWithRetry<T>(fetchImpl: typeof fetch, url: string | URL, parse: (response: Response) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+    let response: Response | undefined;
+    try {
+      response = await fetchImpl(url, requestOptions());
+      if (!response.ok) {
+        const retryAfter = retryAfterMs(response);
+        if (!retryableStatus(response.status)) {
+          await discard(response);
+          throw new Error(`LT JAR ingest failed: HTTP ${response.status} ${response.statusText}`);
+        }
+        if (retryAfter !== undefined && retryAfter > RETRY_AFTER_MAX_MS) throw new Error(`LT JAR ingest failed: Retry-After ${retryAfter}ms exceeds 60000ms`);
+        await discard(response);
+        if (attempt === RETRY_DELAYS_MS.length) throw new Error(`LT JAR ingest failed: HTTP ${response.status} ${response.statusText}`);
+        await delay(Math.max(RETRY_DELAYS_MS[attempt]!, retryAfter ?? 0));
+        continue;
+      }
+      return await parse(response);
+    } catch (error) {
+      if (!retryableError(error) || attempt === RETRY_DELAYS_MS.length) throw error;
+      await discard(response);
+      await delay(RETRY_DELAYS_MS[attempt]!);
+    }
+  }
+  throw new Error('LT JAR ingest failed: retry loop exhausted');
+}
+
+function retryableStatus(status: number): boolean { return status === 429 || (status >= 500 && status <= 599); }
+function retryableError(error: unknown): boolean {
+  return error instanceof TypeError || (error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name));
+}
+function retryAfterMs(response: Response): number | undefined {
+  const value = response.headers.get('retry-after')?.trim();
+  if (!value) return undefined;
+  if (/^\d+$/.test(value)) return Number(value) * 1_000;
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? undefined : Math.max(0, date - Date.now());
+}
+async function discard(response: Response | undefined): Promise<void> { try { await response?.body?.cancel(); } catch { /* discard only */ } }
+function delay(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 function dataRecords(body: JsonRecord): JsonRecord[] {
   const value = body['_data'] ?? body['data'];

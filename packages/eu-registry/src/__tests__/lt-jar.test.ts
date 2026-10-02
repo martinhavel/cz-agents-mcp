@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LtJarAdapter } from '../adapters/lt-jar.js';
 import { runLtJarIngest } from '../ingest-lt-jar.js';
 import type { Company, CompanySearchResult, RegistryAdapter } from '../types.js';
@@ -132,6 +132,51 @@ describe('Lithuania JAR ingest and adapter', () => {
     expect(valid.sourceSnapshotAt).toBe('2026-08-21T06:07:56.000Z');
     expect(invalid.sourceSnapshotAt).toBeUndefined();
   });
+
+  it('retries a transient count failure and the same continuation cursor', async () => {
+    const records = Array.from({ length: 5001 }, (_, index) => fixture(index));
+    const source = mockDataset(records, []);
+    let countRequests = 0;
+    let continuationFailures = 0;
+    const continuationUrls: string[] = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      if (url.searchParams.has('count()') && countRequests++ === 0) return response({}, undefined, 500);
+      if (url.search.includes('page(%22next-5000%22)')) {
+        continuationUrls.push(url.toString());
+        if (continuationFailures++ === 0) return response({}, undefined, 500);
+      }
+      return source(input, init);
+    };
+    vi.useFakeTimers();
+    try {
+      const ingest = runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl });
+      await vi.runAllTimersAsync();
+      await expect(ingest).resolves.toMatchObject({ imported: 5001 });
+    } finally { vi.useRealTimers(); }
+    expect(countRequests).toBe(3);
+    expect(continuationFailures).toBe(2);
+    expect(continuationUrls[1]).toBe(continuationUrls[0]);
+  });
+
+  it('exhausts retryable failures without replacing live rows and does not retry HTTP 404', async () => {
+    const dbPath = tempDbPath();
+    await runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: mockDataset([fixture(0)], []) });
+    let failures = 0;
+    const unavailable: typeof fetch = async () => { failures += 1; return response({}, undefined, 500); };
+    vi.useFakeTimers();
+    try {
+      const ingest = runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: unavailable });
+      const assertion = expect(ingest).rejects.toThrow(/HTTP 500/);
+      await vi.runAllTimersAsync();
+      await assertion;
+    } finally { vi.useRealTimers(); }
+    expect(failures).toBe(4);
+    await expect(new LtJarAdapter(fallbackAdapter(), dbPath).getById('10000000')).resolves.toMatchObject({ name: 'Veikianti bendrovė 0' });
+    let notFound = 0;
+    await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: async () => { notFound += 1; return response({}, undefined, 404); } })).rejects.toThrow(/HTTP 404/);
+    expect(notFound).toBe(1);
+  });
 });
 
 function fixture(index: number) { return { _type: 'datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo', _id: `row-${index}`, _revision: `row-rev-${index}`, ja_kodas: 10000000 + index, ja_pavadinimas: `Veikianti bendrovė ${index}`, reg_data: '2020-01-01', isreg_data: null, statusas: { _id: 'opaque-status-id' } }; }
@@ -155,10 +200,10 @@ function headerDataset(lastModified: string): typeof fetch {
     return response({ _data: [fixture(0)], _page: {} }, { 'last-modified': lastModified, etag: pageCall === 2 ? 'same' : 'same' });
   };
 }
-function response(body: unknown, headers?: HeadersInit): Response {
+function response(body: unknown, headers?: HeadersInit, status = 200): Response {
   const responseHeaders = new Headers({ 'content-type': 'application/json' });
   new Headers(headers).forEach((value, key) => responseHeaders.set(key, value));
-  return new Response(JSON.stringify(body), { status: 200, headers: responseHeaders });
+  return new Response(JSON.stringify(body), { status, headers: responseHeaders });
 }
 function fallbackAdapter(): RegistryAdapter & { calls: number } {
   const adapter = { calls: 0, async getById(id: string): Promise<Company | null> { adapter.calls += 1; return { id, country: 'lt', name: 'Fallback company', status: 'unknown' }; }, async searchByName(): Promise<CompanySearchResult> { adapter.calls += 1; return { companies: [], total_results: 0 }; } };
