@@ -25,7 +25,7 @@ describe('Lithuania JAR ingest and adapter', () => {
     const fallback = fallbackAdapter();
     const adapter = new LtJarAdapter(fallback, dbPath);
     await expect(adapter.getById('10000000')).resolves.toEqual({
-      id: '10000000', country: 'lt', name: 'Veikianti bendrovė 0', status: 'unknown', normalized_status: null, registered_on: '2020-01-01', source_url: 'https://get.data.gov.lt/datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo', ingested_at: '2026-10-02T03:04:05.000Z', source_attribution: 'Registrų centras open data, CC BY 4.0', source_note: 'address not published in open data',
+      id: '10000000', country: 'lt', name: 'Veikianti bendrovė 0', status: 'unknown', normalized_status: null, status_label: 'Removed', registered_on: '2020-01-01', source_url: 'https://get.data.gov.lt/datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo', source_snapshot_at: undefined, source_publication: undefined, ingested_at: '2026-10-02T03:04:05.000Z', source_attribution: 'Registrų centras open data, CC BY 4.0', source_note: 'address not published in open data; official legal status is published in status_label; normalized status is unknown',
     });
     expect(fallback.calls).toBe(0);
   });
@@ -44,6 +44,7 @@ describe('Lithuania JAR ingest and adapter', () => {
     let call = 0;
     const fetchImpl: typeof fetch = async (input) => {
       const url = new URL(String(input));
+      if (isClassifier(url)) return classifierResponse(url);
       if (url.searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
       call += 1;
       return response({ _data: [fixture(0), fixture(1)], _page: {} }, call === 2 ? { etag: 'jar-rev-43' } : undefined);
@@ -65,6 +66,7 @@ describe('Lithuania JAR ingest and adapter', () => {
   it('rejects a changed non-first first-page record when validators are absent', async () => {
     let pageCall = 0;
     const fetchImpl: typeof fetch = async (input) => {
+      if (isClassifier(new URL(String(input)))) return classifierResponse(new URL(String(input)));
       if (new URL(String(input)).searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
       pageCall += 1;
       const records = [fixture(0), pageCall === 2 ? { ...fixture(1), _revision: 'changed' } : fixture(1)];
@@ -101,6 +103,7 @@ describe('Lithuania JAR ingest and adapter', () => {
     let pageCall = 0;
     const fetchImpl: typeof fetch = async (input) => {
       const url = new URL(String(input));
+      if (isClassifier(url)) return classifierResponse(url);
       requests.push(url.search);
       if (url.searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
       pageCall += 1;
@@ -117,12 +120,13 @@ describe('Lithuania JAR ingest and adapter', () => {
     const dbPath = tempDbPath();
     let pageCall = 0;
     const repeated: typeof fetch = async (input) => {
+      if (isClassifier(new URL(String(input)))) return classifierResponse(new URL(String(input)));
       if (new URL(String(input)).searchParams.has('count()')) return response({ _data: [{ 'count()': 2 }] });
       pageCall += 1;
       return response({ _data: [fixture(pageCall)], _page: { next: 'again' } });
     };
     await expect(runLtJarIngest({ dbPath, minRecords: 1, fetchImpl: repeated })).rejects.toThrow(/repeated a page cursor/);
-    const empty: typeof fetch = async (input) => new URL(String(input)).searchParams.has('count()') ? response({ _data: [{ 'count()': 1 }] }) : response({ _data: [], _page: { next: 'again' } });
+    const empty: typeof fetch = async (input) => isClassifier(new URL(String(input))) ? classifierResponse(new URL(String(input))) : new URL(String(input)).searchParams.has('count()') ? response({ _data: [{ 'count()': 1 }] }) : response({ _data: [], _page: { next: 'again' } });
     await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: empty })).rejects.toThrow(/empty page with continuation/);
   });
 
@@ -154,7 +158,7 @@ describe('Lithuania JAR ingest and adapter', () => {
       await vi.runAllTimersAsync();
       await expect(ingest).resolves.toMatchObject({ imported: 5001 });
     } finally { vi.useRealTimers(); }
-    expect(countRequests).toBe(3);
+    expect(countRequests).toBe(5);
     expect(continuationFailures).toBe(2);
     expect(continuationUrls[1]).toBe(continuationUrls[0]);
   });
@@ -182,10 +186,13 @@ describe('Lithuania JAR ingest and adapter', () => {
   });
 });
 
-function fixture(index: number) { return { _type: 'datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo', _id: `row-${index}`, _revision: `row-rev-${index}`, ja_kodas: 10000000 + index, ja_pavadinimas: `Veikianti bendrovė ${index}`, reg_data: '2020-01-01', isreg_data: null, statusas: { _id: 'opaque-status-id' } }; }
+const STATUS_ID = '5bcfd61f-7810-4946-9bd3-6de946b56f18';
+const classifier = [{ _id: STATUS_ID, _revision: 'status-rev', kodas: 10, pavadinimas: 'Išregistruotas', name: 'Removed' }];
+function fixture(index: number) { return { _type: 'datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo', _id: `row-${index}`, _revision: `row-rev-${index}`, ja_kodas: 10000000 + index, ja_pavadinimas: `Veikianti bendrovė ${index}`, reg_data: '2020-01-01', isreg_data: null, statusas: { _id: STATUS_ID } }; }
 function mockDataset(records: unknown[], cursors: Array<string | null>, requests: string[] = []): typeof fetch {
   return (async (input) => {
     const url = new URL(String(input));
+    if (isClassifier(url)) return classifierResponse(url);
     requests.push(url.search);
     if (url.searchParams.has('count()')) return response({ _data: [{ 'count()': records.length }] });
     const pageArgument = /[?&]page\(([^)]+)\)/.exec(url.search)?.[1];
@@ -198,11 +205,14 @@ function mockDataset(records: unknown[], cursors: Array<string | null>, requests
 function headerDataset(lastModified: string): typeof fetch {
   let pageCall = 0;
   return async (input) => {
+    if (isClassifier(new URL(String(input)))) return classifierResponse(new URL(String(input)), { 'last-modified': lastModified, etag: 'status' });
     if (new URL(String(input)).searchParams.has('count()')) return response({ _data: [{ 'count()': 1 }] }, { 'last-modified': lastModified });
     pageCall += 1;
     return response({ _data: [fixture(0)], _page: {} }, { 'last-modified': lastModified, etag: pageCall === 2 ? 'same' : 'same' });
   };
 }
+function isClassifier(url: URL): boolean { return url.pathname.includes('/formos_statusai/Statusas'); }
+function classifierResponse(url: URL, headers?: HeadersInit): Response { return response({ _data: url.searchParams.has('count()') ? [{ 'count()': classifier.length }] : classifier, _page: {} }, headers); }
 function response(body: unknown, headers?: HeadersInit, status = 200): Response {
   const responseHeaders = new Headers({ 'content-type': 'application/json' });
   new Headers(headers).forEach((value, key) => responseHeaders.set(key, value));

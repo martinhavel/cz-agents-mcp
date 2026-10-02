@@ -10,6 +10,7 @@ import {
 } from './lt-jar-store.js';
 
 export const LT_JAR_DATASET_URL = 'https://get.data.gov.lt/datasets/gov/rc/jar/iregistruoti/JuridinisAsmuo';
+export const LT_JAR_STATUS_CLASSIFIER_URL = 'https://get.data.gov.lt/datasets/gov/rc/jar/formos_statusai/Statusas';
 export const LT_JAR_PAGE_SIZE = 5_000;
 export const LT_JAR_MIN_RECORDS = 500_000;
 const DROP_GUARD_RATIO = 0.95;
@@ -19,6 +20,7 @@ const RETRY_AFTER_MAX_MS = 60_000;
 type JsonRecord = Record<string, unknown>;
 interface Page { records: JsonRecord[]; next: string | undefined; snapshot: Snapshot; }
 interface Snapshot { etag: string | undefined; publishedAt: string | undefined; sentinel: string | undefined; }
+interface StatusClassifier { labels: Map<string, string>; count: number; snapshot: Snapshot; }
 
 export interface LtJarIngestOptions {
   dbPath?: string;
@@ -26,6 +28,7 @@ export interface LtJarIngestOptions {
   fetchImpl?: typeof fetch;
   now?: () => Date;
   minRecords?: number;
+  classifierUrl?: string;
 }
 
 export interface LtJarIngestResult {
@@ -41,6 +44,7 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
   ensureLtJarSchema(db);
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const datasetUrl = options.datasetUrl ?? LT_JAR_DATASET_URL;
+  const classifierUrl = options.classifierUrl ?? LT_JAR_STATUS_CLASSIFIER_URL;
   try {
     const expectedCount = await fetchCount(fetchImpl, datasetUrl);
     const first = await fetchPage(fetchImpl, datasetUrl);
@@ -50,6 +54,7 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
     if (existingCount > 0 && expectedCount < Math.ceil(existingCount * DROP_GUARD_RATIO)) {
       throw new Error(`LT JAR ingest guard refused update: upstream count ${expectedCount} is over 5% below live count ${existingCount}`);
     }
+    const classifier = await fetchStatusClassifier(fetchImpl, classifierUrl);
 
     db.prepare(`DELETE FROM ${LT_COMPANIES_STAGE_TABLE}`).run();
     const writeBatch = stageWriter(db);
@@ -58,7 +63,7 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
     const seenCursors = new Set<string>();
     while (page) {
       assertSameValidators(first.snapshot, page.snapshot);
-      const rows = page.records.map(toCompanyRow).filter((row): row is LtJarCompanyRow => row !== null);
+      const rows = page.records.map((record) => toCompanyRow(record, classifier.labels)).filter((row): row is LtJarCompanyRow => row !== null);
       writeBatch(rows);
       received += rows.length;
       if (received < expectedCount && !page.next) throw new Error('LT JAR ingest failed: upstream page ended before count()');
@@ -74,6 +79,9 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
     const finalCheck = await fetchPage(fetchImpl, datasetUrl);
     assertSameSnapshot(first.snapshot, finalCheck.snapshot);
     if (await fetchCount(fetchImpl, datasetUrl) !== expectedCount) throw new Error('LT JAR ingest failed: upstream count() changed during ingestion');
+    const finalClassifier = await fetchStatusClassifier(fetchImpl, classifierUrl);
+    assertSameSnapshot(classifier.snapshot, finalClassifier.snapshot);
+    if (finalClassifier.count !== classifier.count) throw new Error('LT JAR ingest failed: status classifier count changed during ingestion');
 
     const ingestedAt = (options.now ?? (() => new Date()))().toISOString();
     db.transaction(() => {
@@ -84,6 +92,9 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
       const put = db.prepare(`INSERT INTO ${LT_METADATA_TABLE} (key, value) VALUES (?, ?)`);
       if (first.snapshot.publishedAt) put.run('source_snapshot_at', first.snapshot.publishedAt);
       if (first.snapshot.etag) put.run('source_revision', first.snapshot.etag);
+      if (classifier.snapshot.publishedAt) put.run('status_classifier_snapshot_at', classifier.snapshot.publishedAt);
+      if (classifier.snapshot.etag) put.run('status_classifier_revision', classifier.snapshot.etag);
+      put.run('status_classifier_count', String(classifier.count));
       put.run('ingested_at', ingestedAt);
       put.run('source_attribution', 'Registrų centras open data, CC BY 4.0');
       put.run('source_note', 'address not published in open data');
@@ -91,6 +102,21 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
     })();
     return { dbPath, imported, sourceSnapshotAt: first.snapshot.publishedAt, ingestedAt };
   } finally { db.close(); }
+}
+
+async function fetchStatusClassifier(fetchImpl: typeof fetch, classifierUrl: string): Promise<StatusClassifier> {
+  const count = await fetchCount(fetchImpl, classifierUrl);
+  if (!Number.isInteger(count) || count < 1 || count > 1_000) throw new Error('LT JAR ingest failed: invalid status classifier count');
+  const { response, body } = await requestWithRetry(fetchImpl, `${classifierUrl}${classifierUrl.includes('?') ? '&' : '?'}_limit=1000`);
+  const records = dataRecords(body);
+  if (pageCursor(body) || records.length !== count) throw new Error('LT JAR ingest failed: invalid status classifier page');
+  const labels = new Map<string, string>();
+  for (const record of records) {
+    const id = stringField(record, ['_id']); const code = record['kodas']; const lt = stringField(record, ['pavadinimas']); const en = stringField(record, ['name']);
+    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) || !Number.isInteger(code) || !lt || !en || labels.has(id)) throw new Error('LT JAR ingest failed: invalid status classifier record');
+    labels.set(id, en);
+  }
+  return { labels, count, snapshot: snapshotOf(records, response) };
 }
 
 async function fetchCount(fetchImpl: typeof fetch, datasetUrl: string): Promise<number> {
@@ -200,11 +226,12 @@ function stageWriter(db: DatabaseType): (rows: LtJarCompanyRow[]) => void {
   return db.transaction((rows: LtJarCompanyRow[]) => { for (const row of rows) insert.run(row.registry_code, row.name, row.search_name, row.status, row.status_label, row.registered_on); });
 }
 
-function toCompanyRow(record: JsonRecord): LtJarCompanyRow | null {
+function toCompanyRow(record: JsonRecord, labels: Map<string, string>): LtJarCompanyRow | null {
   const registryCode = stringField(record, ['ja_kodas', 'kodas', 'juridinio_asmens_kodas', 'id']);
   const name = stringField(record, ['ja_pavadinimas', 'pavadinimas', 'pilnas_pavadinimas', 'name']);
   if (!registryCode || !name) return null;
-  return { registry_code: registryCode, name, search_name: normalizeSearchName(name), status: 'unknown', status_label: null, registered_on: normalizeDate(record['reg_data'] ?? record['iregistravimo_data'] ?? record['registracijos_data'] ?? record['registration_date']) };
+  const statusId = stringField(objectValue(record['statusas']) ?? {}, ['_id']);
+  return { registry_code: registryCode, name, search_name: normalizeSearchName(name), status: 'unknown', status_label: statusId ? labels.get(statusId) ?? null : null, registered_on: normalizeDate(record['reg_data'] ?? record['iregistravimo_data'] ?? record['registracijos_data'] ?? record['registration_date']) };
 }
 function stringField(record: JsonRecord, keys: string[]): string | undefined { for (const key of keys) { const value = record[key]; if (typeof value === 'string' && value.trim()) return value.trim(); if (typeof value === 'number') return String(value); } return undefined; }
 function normalizeDate(value: unknown): string | null { if (typeof value !== 'string') return null; const date = value.trim(); return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null; }

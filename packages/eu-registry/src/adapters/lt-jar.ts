@@ -53,7 +53,8 @@ export class LtJarAdapter implements RegistryAdapter {
         .map(({ key, value }) => [key, value]),
     );
     const sourceSnapshotAt = metadata['source_snapshot_at'];
-    return { id: row.registry_code, country: 'lt', name: row.name, status: 'unknown', normalized_status: null, registered_on: row.registered_on ?? undefined, source_url: SOURCE_URL, source_snapshot_at: sourceSnapshotAt, ingested_at: metadata['ingested_at'], source_attribution: metadata['source_attribution'] ?? 'Registrų centras open data, CC BY 4.0', source_note: metadata['source_note'] ?? ADDRESS_NOTE, source_publication: sourceSnapshotAt ? `data as published by Registrų centras on ${sourceSnapshotAt}` : undefined };
+    const legalStatusNote = row.status_label ? 'official legal status is published in status_label; normalized status is unknown' : 'legal status label unavailable; normalized status is unknown';
+    return { id: row.registry_code, country: 'lt', name: row.name, status: 'unknown', normalized_status: null, ...(row.status_label ? { status_label: row.status_label } : {}), registered_on: row.registered_on ?? undefined, source_url: SOURCE_URL, source_snapshot_at: sourceSnapshotAt, ingested_at: metadata['ingested_at'], source_attribution: metadata['source_attribution'] ?? 'Registrų centras open data, CC BY 4.0', source_note: `${metadata['source_note'] ?? ADDRESS_NOTE}; ${legalStatusNote}`, source_publication: sourceSnapshotAt ? `data as published by Registrų centras on ${sourceSnapshotAt}` : undefined };
   }
   private warnUnavailable(message: string, error?: unknown): void { if (this.warnedUnavailable) return; this.warnedUnavailable = true; if (error === undefined) console.warn(`[cz-agents/eu-registry] ${message}`); else console.warn(`[cz-agents/eu-registry] ${message}:`, error); }
 }
