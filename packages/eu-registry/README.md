@@ -1,6 +1,6 @@
 # @czagents/eu-registry
 
-European business registry lookups in one MCP — verify companies across 16 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 9 countries; identity + ownership baseline for the rest. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
+European business registry lookups in one MCP — verify companies across 16 EU/EEA countries via official national registries and GLEIF/LEI + VIES. Full national data for 9 countries; partial Lithuania JAR data; identity + ownership baseline for 6 other countries. Entity status, registration data, addresses, parent-company resolution, and EU VAT validation. Built for cross-border due-diligence and KYC directly in your AI assistant.
 
 Part of the [cz-agents](https://cz-agents.dev) suite.
 
@@ -20,6 +20,12 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | EE | RIK open data dump | Daily bulk ingest to local SQLite via `EE_RIK_DB_PATH`; no API key, CC BY 4.0 |
 | SE | Bolagsverket HVD API | Free OAuth credentials from Bolagsverket; exact organisation-number lookup. Name search uses GLEIF/LEI because HVD has no name-search endpoint. |
 
+**Partial national-registry data: Lithuania**
+
+| Country | Source | Notes |
+|---------|--------|-------|
+| LT | Registrų centras JAR open data | Monthly local SQLite ingest via `LT_JAR_DB_PATH`; CC BY 4.0. Name, code and registration date are served from JAR. The official legal-status classifier label is exposed as `status_label`; application `status` remains unknown and `normalized_status` null. Addresses and officers are not published or enriched; JADIS and other enrichment are out of scope. VIES/GLEIF remains the fallback if the local store is unavailable or has no matching record. |
+
 **Identity + ownership baseline** (name, address, status, VAT validity, GLEIF/LEI parent-company resolution — no officer/board data; for registries that are paywalled):
 
 | Country | Source | Notes |
@@ -30,7 +36,6 @@ Part of the [cz-agents](https://cz-agents.dev) suite.
 | AT | GLEIF/LEI + VIES | No auth required |
 | ES | GLEIF/LEI + VIES | VIES returns validity only for ES (no name/address) |
 | BE | GLEIF/LEI + VIES | No auth required |
-| LT | Registrų centras JAR open data | Monthly local SQLite ingest via `LT_JAR_DB_PATH`; CC BY 4.0. Name, code and registration date are served from JAR. The official legal-status classifier label is exposed as `status_label`; application `status` remains unknown and `normalized_status` null. Addresses and officers are not published or enriched; JADIS and other enrichment are out of scope. VIES/GLEIF remains the fallback if the local store is unavailable or has no matching record. |
 
 ## Tools
 
