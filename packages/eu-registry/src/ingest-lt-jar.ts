@@ -94,13 +94,11 @@ export async function runLtJarIngest(options: LtJarIngestOptions = {}): Promise<
 }
 
 async function fetchCount(fetchImpl: typeof fetch, datasetUrl: string): Promise<number> {
-  return requestWithRetry(fetchImpl, `${datasetUrl}${datasetUrl.includes('?') ? '&' : '?'}count()`, async (response) => {
-    const body = await response.json() as JsonRecord;
-    const count = (dataRecords(body)[0] ?? {})['count()'];
-    const numericCount = typeof count === 'number' ? count : Number(count);
-    if (!Number.isFinite(numericCount)) throw new Error('LT JAR ingest failed: upstream response has no count()');
-    return numericCount;
-  });
+  const { body } = await requestWithRetry(fetchImpl, `${datasetUrl}${datasetUrl.includes('?') ? '&' : '?'}count()`);
+  const count = (dataRecords(body)[0] ?? {})['count()'];
+  const numericCount = typeof count === 'number' ? count : Number(count);
+  if (!Number.isFinite(numericCount)) throw new Error('LT JAR ingest failed: upstream response has no count()');
+  return numericCount;
 }
 
 async function fetchPage(fetchImpl: typeof fetch, datasetUrl: string, cursor?: string): Promise<Page> {
@@ -109,15 +107,13 @@ async function fetchPage(fetchImpl: typeof fetch, datasetUrl: string, cursor?: s
   // Spinta omits the cursor from projected responses. Keep the complete page so
   // the documented `page(<token>)` continuation remains available.
   if (cursor) url.search += `${url.search ? '&' : '?'}page(${encodeURIComponent(JSON.stringify(cursor))})`;
-  return requestWithRetry(fetchImpl, url, async (response) => {
-    const body = await response.json() as JsonRecord;
-    const records = dataRecords(body);
-    if (records.length > LT_JAR_PAGE_SIZE) throw new Error('LT JAR ingest failed: invalid page size');
-    return { records, next: pageCursor(body), snapshot: snapshotOf(records, response) };
-  });
+  const { response, body } = await requestWithRetry(fetchImpl, url);
+  const records = dataRecords(body);
+  if (records.length > LT_JAR_PAGE_SIZE) throw new Error('LT JAR ingest failed: invalid page size');
+  return { records, next: pageCursor(body), snapshot: snapshotOf(records, response) };
 }
 
-async function requestWithRetry<T>(fetchImpl: typeof fetch, url: string | URL, parse: (response: Response) => Promise<T>): Promise<T> {
+async function requestWithRetry(fetchImpl: typeof fetch, url: string | URL): Promise<{ response: Response; body: unknown }> {
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
     let response: Response | undefined;
     try {
@@ -134,7 +130,7 @@ async function requestWithRetry<T>(fetchImpl: typeof fetch, url: string | URL, p
         await delay(Math.max(RETRY_DELAYS_MS[attempt]!, retryAfter ?? 0));
         continue;
       }
-      return await parse(response);
+      return { response, body: await response.json() };
     } catch (error) {
       if (!retryableError(error) || attempt === RETRY_DELAYS_MS.length) throw error;
       await discard(response);
@@ -158,14 +154,16 @@ function retryAfterMs(response: Response): number | undefined {
 async function discard(response: Response | undefined): Promise<void> { try { await response?.body?.cancel(); } catch { /* discard only */ } }
 function delay(ms: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-function dataRecords(body: JsonRecord): JsonRecord[] {
-  const value = body['_data'] ?? body['data'];
+function dataRecords(body: unknown): JsonRecord[] {
+  const record = objectValue(body);
+  if (!record) throw new Error('LT JAR ingest failed: upstream response has no data array');
+  const value = record['_data'] ?? record['data'];
   if (!Array.isArray(value)) throw new Error('LT JAR ingest failed: upstream response has no data array');
   return value.filter((item): item is JsonRecord => item !== null && typeof item === 'object' && !Array.isArray(item));
 }
 
-function pageCursor(body: JsonRecord): string | undefined {
-  const page = objectValue(body['_page']);
+function pageCursor(body: unknown): string | undefined {
+  const page = objectValue(objectValue(body)?.['_page']);
   return typeof page?.['next'] === 'string' && page['next'].trim() ? page['next'] : undefined;
 }
 

@@ -176,6 +176,9 @@ describe('Lithuania JAR ingest and adapter', () => {
     let notFound = 0;
     await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: async () => { notFound += 1; return response({}, undefined, 404); } })).rejects.toThrow(/HTTP 404/);
     expect(notFound).toBe(1);
+    let malformed = 0;
+    await expect(runLtJarIngest({ dbPath: tempDbPath(), minRecords: 1, fetchImpl: async () => { malformed += 1; return response(null); } })).rejects.toThrow(/no data array/);
+    expect(malformed).toBe(1);
   });
 });
 
