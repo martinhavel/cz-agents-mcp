@@ -80,7 +80,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: "24.21.0" # bundled npm 11.19.0 satisfies the trusted-publishing guard
+          node-version: "22" # install/build/test on the same Node version as CI
           registry-url: "https://registry.npmjs.org"
 
       - name: Resolve target package
@@ -137,9 +137,14 @@ jobs:
           fi
           echo "$PKG_NAME@$PKG_VERSION is not on npm yet -- OK to publish."
 
+      - name: Setup Node.js for publishing
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24.21.0" # bundled npm 11.19.0 satisfies the trusted-publishing guard
+          registry-url: "https://registry.npmjs.org"
+
       - name: Verify runner npm supports trusted publishing (>= 11.5.1)
-        # Publish with the same runner-provided npm used for install/build/test.
-        # Dependency freeze prohibits mutating the toolchain in this workflow.
+        # Use the pinned publishing runner's bundled npm without installing or upgrading npm.
         run: |
           NPM_VERSION=$(npm --version)
           echo "npm CLI version: $NPM_VERSION"
