@@ -100,13 +100,18 @@ describe('evaluateFlags', () => {
     expect(flags.find((f) => f.code === 'NEW_COMPANY')).toBeDefined();
   });
 
-  it('flags VAT payer without bank account', () => {
-    const flags = evaluateFlags(baseInput({ vatPayer: true, bankAccountsCount: 0 }));
+  it('flags VAT payer without a published account only after ADIS verification', () => {
+    const flags = evaluateFlags(baseInput({ vatPayer: true, bankAccountsCount: 0, bankAccountsChecked: true }));
     expect(flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toBeDefined();
   });
 
   it('does not flag VAT payer WITH bank account', () => {
-    const flags = evaluateFlags(baseInput({ vatPayer: true, bankAccountsCount: 1 }));
+    const flags = evaluateFlags(baseInput({ vatPayer: true, bankAccountsCount: 1, bankAccountsChecked: true }));
+    expect(flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toBeUndefined();
+  });
+
+  it('does not flag an unchecked ADIS account result', () => {
+    const flags = evaluateFlags(baseInput({ vatPayer: true, bankAccountsCount: 0 }));
     expect(flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toBeUndefined();
   });
 

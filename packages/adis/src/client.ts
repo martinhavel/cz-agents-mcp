@@ -30,6 +30,7 @@
  * matching the @czagents/isir convention.
  */
 import { XMLParser } from 'fast-xml-parser';
+import { TtlCache } from '@czagents/shared';
 import type {
   AdisServiceStatus,
   BulkPayerCheckResult,
@@ -99,6 +100,10 @@ export class AdisClient {
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
   private readonly parser: XMLParser;
+  private readonly payerCache = new TtlCache<string, DphPayerStatus>({
+    ttlMs: 5 * 60 * 1000,
+    maxSize: 1000,
+  });
 
   constructor(opts: AdisClientOptions = {}) {
     this.endpoint = opts.endpoint ?? DEFAULT_ENDPOINT;
@@ -114,7 +119,7 @@ export class AdisClient {
       // the leading zero that's required by Czech format.
       parseAttributeValue: false,
       parseTagValue: false,
-      isArray: (name) => name === 'statusPlatceDPH' || name === 'statusSubjektu' || name === 'standardniUcet',
+      isArray: (name) => name === 'statusPlatceDPH' || name === 'statusSubjektu' || name === 'ucet' || name === 'standardniUcet' || name === 'nestandardniUcet',
     });
   }
 
@@ -128,11 +133,17 @@ export class AdisClient {
   async checkPayer(input: { ico?: string; dic?: string }): Promise<DphPayerStatus | null> {
     const dic = resolveDic(input);
     if (this.stub) throw new AdisNotConfiguredError();
+    const cached = this.payerCache.get(dic);
+    if (cached) return cached;
     const result = await this.callSubjectV2([dic]);
+    if (!result.service.generated_on || !Number.isInteger(result.service.status_code)) {
+      throw new Error('Malformed ADIS service status');
+    }
     assertServiceOk(result.service);
     const found = result.results.find((r) => r.dic === dic) ?? null;
     if (!found) return null;
     if (found.reliability === 'NENALEZEN') return null;
+    this.payerCache.set(dic, found);
     return found;
   }
 
@@ -314,7 +325,7 @@ interface RawBasic {
   '@_nespolehlivyPlatce'?: string;
   '@_datumZverejneniNespolehlivosti'?: string;
   '@_cisloFu'?: string;
-  zverejneneUcty?: { standardniUcet?: RawAccount[] };
+  zverejneneUcty?: { ucet?: RawAccountEntry[] };
 }
 
 interface RawSubjectV2 extends RawBasic {
@@ -329,18 +340,23 @@ interface RawSubjectV2 extends RawBasic {
   };
 }
 
+interface RawAccountEntry {
+  '@_datumZverejneni'?: string;
+  '@_datumZverejneniUkonceni'?: string;
+  standardniUcet?: RawAccount[];
+  nestandardniUcet?: RawAccount[];
+}
+
 interface RawAccount {
   '@_predcisli'?: string;
   '@_cislo'?: string;
   '@_kodBanky'?: string;
-  '@_datumZverejneni'?: string;
-  '@_datumUkonceniZverejneni'?: string;
 }
 
 function parseStatus(s: RawStatus | undefined): AdisServiceStatus {
   return {
     generated_on: String(s?.['@_odpovedGenerovana'] ?? ''),
-    status_code: Number(s?.['@_statusCode'] ?? 0),
+    status_code: Number(s?.['@_statusCode'] ?? Number.NaN),
     status_text: String(s?.['@_statusText'] ?? ''),
   };
 }
@@ -353,7 +369,7 @@ function parseBasicEntry(e: RawBasic): DphPayerStatus {
     reliability: (e['@_nespolehlivyPlatce'] ?? 'NENALEZEN') as DphReliability,
     unreliable_since: e['@_datumZverejneniNespolehlivosti'],
     tax_office: e['@_cisloFu'],
-    accounts: parseAccounts(e.zverejneneUcty?.standardniUcet),
+    accounts: parseAccounts(e.zverejneneUcty?.ucet),
   };
 }
 
@@ -365,21 +381,23 @@ function parseSubjectV2Entry(e: RawSubjectV2): DphPayerStatus {
   return { ...base, subject_type, subject_name, address };
 }
 
-function parseAccounts(raw: RawAccount[] | undefined): PublishedAccount[] {
+function parseAccounts(raw: RawAccountEntry[] | undefined): PublishedAccount[] {
   if (!raw) return [];
-  return raw.map((a) => {
+  return raw.flatMap((entry) => {
+    const a = entry.standardniUcet?.[0] ?? entry.nestandardniUcet?.[0];
+    if (!a) return [];
     const predcisli = a['@_predcisli'];
     const cislo = String(a['@_cislo'] ?? '');
     const kod_banky = String(a['@_kodBanky'] ?? '');
-    const formatted = `${predcisli ? predcisli + '-' : ''}${cislo}/${kod_banky}`;
-    return {
+    const formatted = kod_banky ? `${predcisli ? predcisli + '-' : ''}${cislo}/${kod_banky}` : cislo;
+    return [{
       predcisli,
       cislo,
       kod_banky,
-      publikovan_od: a['@_datumZverejneni'],
-      publikovan_do: a['@_datumUkonceniZverejneni'],
+      publikovan_od: entry['@_datumZverejneni'],
+      publikovan_do: entry['@_datumZverejneniUkonceni'],
       formatted,
-    };
+    }];
   });
 }
 

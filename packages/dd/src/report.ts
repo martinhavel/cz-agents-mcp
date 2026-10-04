@@ -47,10 +47,7 @@ export async function buildReport(
   const subjectResult = await safeWithError(() => clients.ares.getByIco(ico));
   const subject = subjectResult.value;
   const aresUnavailable = subjectResult.errored;
-  const [bankAccounts, vr] = await Promise.all([
-    safe(() => clients.ares.getBankAccounts(ico)),
-    safe(() => clients.ares.getVrRecord(ico)),
-  ]);
+  const vr = await safe(() => clients.ares.getVrRecord(ico));
 
   const { members, mostRecentStatutoryChange } = extractStatutoryMembers(vr);
 
@@ -179,7 +176,8 @@ export async function buildReport(
     aresUnavailable,
     vr: vr ?? null,
     vatPayer: !!subject?.dic,
-    bankAccountsCount: bankAccounts?.length ?? 0,
+    bankAccountsCount: adisStatus?.accounts.length ?? 0,
+    bankAccountsChecked: adisStatus ? true : undefined,
     companySanction: companyMatch ?? undefined,
     statutorySanctions: screenedMembers
       .filter((m) => m.sanctions_match)
@@ -224,10 +222,7 @@ export async function buildReport(
       is_payer: !!subject?.dic,
       dic: subject?.dic,
       dic_sk_dph: subject?.dicSkDph,
-      // ADIS bank accounts are richer (predcisli + dates) than ARES — prefer ADIS when both present.
-      bank_accounts: adisStatus && adisStatus.accounts.length > 0
-        ? adisStatus.accounts.map((a) => a.formatted)
-        : (bankAccounts ?? []).map((a) => `${a.cisloUctu}/${a.kodBanky}`),
+      bank_accounts: adisStatus?.accounts.map((a) => a.formatted) ?? [],
       financial_office: subject?.financniUrad,
       reliability: adisStatus?.reliability,
       unreliable_since: adisStatus?.unreliable_since,

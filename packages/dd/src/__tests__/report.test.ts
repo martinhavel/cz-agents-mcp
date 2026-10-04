@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildReport } from '../report.js';
 import * as ownershipNetwork from '../ownership-network.js';
@@ -12,7 +13,10 @@ import type {
   IsirLike,
   AdisLike,
 } from '../clients.js';
-import { AdisNotConfiguredError } from '@czagents/adis';
+import { AdisClient, AdisNotConfiguredError } from '@czagents/adis';
+
+const CEZ_V2_FIXTURE = readFileSync(new URL('../../../adis/src/__tests__/fixtures/cez-v2.xml', import.meta.url), 'utf8');
+const ALZA_V2_FIXTURE = readFileSync(new URL('../../../adis/src/__tests__/fixtures/alza-v2.xml', import.meta.url), 'utf8');
 
 interface MockAresOpts {
   subject?: AresSubjectLike | null;
@@ -83,10 +87,61 @@ describe('buildReport', () => {
     expect(report.company.found).toBe(true);
     expect(report.company.name).toBe('Test Co.');
     expect(report.vat.is_payer).toBe(true);
-    expect(report.vat.bank_accounts).toEqual(['123456/0100']);
+    expect(report.vat.bank_accounts).toEqual([]);
     expect(report.statutory_body).toEqual([]);
     expect(report.sanctions.any_statutory_match).toBe(false);
     expect(report.risk_score.level).toBe('low');
+  });
+
+  it.each([
+    ['ČEZ', '45274649', 'CZ45274649', CEZ_V2_FIXTURE],
+    ['Alza', '27082440', 'CZ27082440', ALZA_V2_FIXTURE],
+  ])('uses verified %s ADIS published accounts instead of ARES account data', async (_name, ico, dic, fixture) => {
+    const getBankAccounts = vi.fn(async () => [{ cisloUctu: 'ares-only', kodBanky: '0100' }]);
+    const ares = {
+      ...mockAres({ subject: { ico, obchodniJmeno: 'Test Co.', dic } }),
+      getBankAccounts,
+    };
+    const adis = new AdisClient({
+      stub: false,
+      fetchImpl: (async () => new Response(fixture, { status: 200 })) as typeof fetch,
+    });
+
+    const report = await buildReport(ico, { ares, adis });
+
+    expect(getBankAccounts).not.toHaveBeenCalled();
+    expect(report.vat.bank_accounts.length).toBeGreaterThan(0);
+    expect(report.red_flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toBeUndefined();
+  });
+
+  it('flags a VAT payer only when ADIS successfully verifies no published accounts', async () => {
+    const ares = mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Test Co.', dic: 'CZ12345678' } });
+    const adis: AdisLike = {
+      checkPayer: async () => ({ dic: 'CZ12345678', ico: '12345678', reliability: 'NE', accounts: [] }),
+    };
+
+    const report = await buildReport('12345678', { ares, adis });
+
+    expect(report.red_flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toMatchObject({ source: 'adis' });
+  });
+
+  it('suppresses the account finding when ADIS has no verified payer result', async () => {
+    const ares = mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Test Co.', dic: 'CZ12345678' } });
+    const adis: AdisLike = { checkPayer: async () => null };
+
+    const report = await buildReport('12345678', { ares, adis });
+
+    expect(report.red_flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toBeUndefined();
+  });
+
+  it('keeps non-VAT subjects free of the account finding', async () => {
+    const ares = mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Non-VAT Co.' } });
+    const adis: AdisLike = { checkPayer: async () => null };
+
+    const report = await buildReport('12345678', { ares, adis });
+
+    expect(report.vat.is_payer).toBe(false);
+    expect(report.red_flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toBeUndefined();
   });
 
   it('flags missing ARES record', async () => {
@@ -347,6 +402,7 @@ describe('buildReport', () => {
 
     expect(report.vat.error).toBe('adis_not_configured');
     expect(report.vat.checked).toBe(false);
+    expect(report.red_flags.find((f) => f.code === 'NO_DPH_BANK_ACCOUNT')).toBeUndefined();
   });
 
   it('ARES outage degrades to ARES_UNAVAILABLE (NOT a NOT_FOUND verdict)', async () => {
