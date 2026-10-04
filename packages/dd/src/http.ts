@@ -76,6 +76,7 @@ async function main() {
   const toolQuota = createHostedToolQuota({
     service: 'dd', enabled: process.env.HOSTED_TOOL_QUOTAS === '1',
     dbPath: process.env.TOKEN_DB, maxBodyBytes: MAX_BODY_BYTES,
+    ladder: process.env.HOSTED_QUOTA_LADDER === '1', anonAllowlist: process.env.HOSTED_ANON_ALLOWLIST,
   });
   const ares = new AresClient();
 
