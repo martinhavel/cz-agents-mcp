@@ -23,6 +23,8 @@ export interface ScoreInputs {
   vr: AresVrLike | null;
   vatPayer: boolean;
   bankAccountsCount: number;
+  /** Set only after ADIS successfully verified published VAT accounts. */
+  bankAccountsChecked?: boolean;
   companySanction?: SanctionsMatch;
   statutorySanctions: Array<{ name: string; match: SanctionsMatch }>;
   insolvency?: { has_active: boolean; started_on?: string } | null;
@@ -161,13 +163,13 @@ export function evaluateFlags(input: ScoreInputs): RedFlag[] {
     }
   }
 
-  if (input.vatPayer && input.bankAccountsCount === 0) {
+  if (input.vatPayer && input.bankAccountsChecked === true && input.bankAccountsCount === 0) {
     flags.push({
       code: 'NO_DPH_BANK_ACCOUNT',
       severity: 'low',
       weight: 5,
-      description: 'Plátce DPH bez zveřejněného transparentního účtu.',
-      source: 'ares',
+      description: 'Plátce DPH bez zveřejněného účtu.',
+      source: 'adis',
     });
   }
 

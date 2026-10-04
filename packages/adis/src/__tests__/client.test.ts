@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { AdisClient, buildBasicEnvelope, buildSubjectV2Envelope, buildListEnvelope, icoToDic } from '../client.js';
+
+const CEZ_V2_FIXTURE = readFileSync(new URL('./fixtures/cez-v2.xml', import.meta.url), 'utf8');
+const ALZA_V2_FIXTURE = readFileSync(new URL('./fixtures/alza-v2.xml', import.meta.url), 'utf8');
 
 const SUBJECT_V2_SAMPLE = `<?xml version='1.0' encoding='UTF-8'?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
@@ -15,8 +19,8 @@ const SUBJECT_V2_SAMPLE = `<?xml version='1.0' encoding='UTF-8'?>
           <ns:stat>CZ</ns:stat>
         </ns:adresa>
         <ns:zverejneneUcty>
-          <ns:standardniUcet predcisli="123" cislo="4567890123" kodBanky="0100" datumZverejneni="2020-01-01"/>
-          <ns:standardniUcet cislo="9876543210" kodBanky="0300" datumZverejneni="2018-06-15"/>
+          <ns:ucet datumZverejneni="2020-01-01"><ns:standardniUcet predcisli="123" cislo="4567890123" kodBanky="0100"/></ns:ucet>
+          <ns:ucet datumZverejneni="2018-06-15"><ns:standardniUcet cislo="9876543210" kodBanky="0300"/></ns:ucet>
         </ns:zverejneneUcty>
       </ns:statusSubjektu>
       <ns:statusSubjektu dic="CZ12345678" nespolehlivyPlatce="ANO" datumZverejneniNespolehlivosti="2024-03-15" typSubjektu="NESPOLEHLIVA_OSOBA">
@@ -125,6 +129,30 @@ describe('AdisClient — response parsing', () => {
     expect(result.results[1]!.unreliable_since).toBe('2024-03-15');
   });
 
+  it('parses real V2 wrapped published accounts, including non-standard accounts', () => {
+    const result = c.parseSubjectV2Response(CEZ_V2_FIXTURE);
+    const cez = result.results[0]!;
+
+    expect(result.service.status_code).toBe(0);
+    expect(cez.dic).toBe('CZ45274649');
+    expect(cez.subject_type).toBe('PLATCE_DPH');
+    expect(cez.accounts.length).toBeGreaterThan(0);
+    expect(cez.accounts).toContainEqual(expect.objectContaining({
+      cislo: 'CZ6426000000002001268200',
+      kod_banky: '',
+      formatted: 'CZ6426000000002001268200',
+      publikovan_od: '2013-04-01',
+    }));
+  });
+
+  it('parses real Alza V2 published accounts', () => {
+    const result = c.parseSubjectV2Response(ALZA_V2_FIXTURE);
+
+    expect(result.service.status_code).toBe(0);
+    expect(result.results[0]!.dic).toBe('CZ27082440');
+    expect(result.results[0]!.accounts.length).toBeGreaterThan(0);
+  });
+
   it('throws on SOAP Fault', () => {
     expect(() => c.parseSubjectV2Response(FAULT_SAMPLE)).toThrow(/SOAP Fault.*Service unavailable/);
   });
@@ -176,4 +204,31 @@ describe('AdisClient — degraded service status_code', () => {
       await expect(c.checkPayer({ dic: 'CZ11122234' })).rejects.toThrow(/status_code=/);
     });
   }
+});
+
+describe('AdisClient — verified payer cache', () => {
+  it('caches successful V2 payer responses but not HTTP failures', async () => {
+    let calls = 0;
+    const mockFetch = (async () => {
+      calls += 1;
+      if (calls === 1) return new Response('upstream unavailable', { status: 503 });
+      return new Response(SUBJECT_V2_SAMPLE, { status: 200 });
+    }) as typeof fetch;
+    const c = new AdisClient({ stub: false, fetchImpl: mockFetch });
+
+    await expect(c.checkPayer({ dic: 'CZ11122234' })).rejects.toThrow(/HTTP 503/);
+    await expect(c.checkPayer({ dic: 'CZ11122234' })).resolves.toMatchObject({ dic: 'CZ11122234' });
+    await expect(c.checkPayer({ dic: 'CZ11122234' })).resolves.toMatchObject({ dic: 'CZ11122234' });
+    expect(calls).toBe(2);
+  });
+
+  it('rejects a missing service status rather than treating it as a verified empty result', async () => {
+    const responseWithoutStatus = SUBJECT_V2_SAMPLE
+      .replace('CZ11122234', 'CZ11122235')
+      .replace(/<ns:status[^>]*\/>\s*/, '');
+    const mockFetch = (async () => new Response(responseWithoutStatus, { status: 200 })) as typeof fetch;
+    const c = new AdisClient({ stub: false, fetchImpl: mockFetch });
+
+    await expect(c.checkPayer({ dic: 'CZ11122235' })).rejects.toThrow(/Malformed ADIS service status/);
+  });
 });
