@@ -192,3 +192,84 @@ describe('TokenStore', () => {
     expect(s.by_tier).toEqual({ pro: 1, starter: 1 });
   });
 });
+
+describe('TokenStore free-quota ladder (monthly_quota 500 | 2000)', () => {
+  let tmp: string;
+  let store: TokenStore;
+  const open = (ladder: boolean) => { store?.close(); store = new TokenStore(join(tmp, 'tokens.db'), { ladder }); };
+  const mint = (quota: number, account = 'acct') => store.mint({ service: 'identity', tier: 'free',
+    stripe_customer_id: account, stripe_subscription_id: null, monthly_quota: quota, credits: null });
+  const purchase = (account = 'acct', used = 0) => {
+    const db = new Database(join(tmp, 'tokens.db'));
+    const id = `cs_${Math.random()}`;
+    db.prepare(`INSERT INTO lookup_purchases (session_id,payment_intent_id,account,price_id,currency,subtotal,starts_at,expires_at,used)
+      VALUES (?,?,?,'p','czk',49000,?,?,?)`).run(id, `pi_${id}`, account, Date.now() - 1000, Date.now() + 86400000, used);
+    db.close();
+  };
+  const setCounter = (token: string, n: number) => {
+    const db = new Database(join(tmp, 'tokens.db')); db.prepare('UPDATE tokens SET counter=? WHERE token=?').run(n, token); db.close();
+  };
+
+  beforeEach(() => { tmp = mkdtempSync(join(tmpdir(), 'czat-ladder-')); open(true); });
+  afterEach(() => { store.close(); rmSync(tmp, { recursive: true, force: true }); });
+
+  it('500 row: 501st without paid is QUOTA_EXCEEDED', () => {
+    const t = mint(500);
+    expect(store.reserveIdentity(t.token, 500).snapshot).toMatchObject({ lookupLimit: 500, lookupRemaining: 0 });
+    expect(() => store.reserveIdentity(t.token, 1)).toThrow('QUOTA_EXCEEDED');
+  });
+
+  it('500 row + one purchase: 10,500th ok, 10,501st blocked', () => {
+    const t = mint(500); purchase();
+    expect(store.reserveIdentity(t.token, 10_500).snapshot).toMatchObject({ lookupLimit: 10_500, lookupRemaining: 0 });
+    expect(() => store.reserveIdentity(t.token, 1)).toThrow('QUOTA_EXCEEDED');
+  });
+
+  it('500 row: the 501st call draws from paid', () => {
+    const t = mint(500); purchase();
+    store.reserveIdentity(t.token, 500);
+    expect(store.reserveIdentity(t.token, 1).snapshot.lookupRemaining).toBe(9999);
+    const db = new Database(join(tmp, 'tokens.db'));
+    expect(db.prepare('SELECT used FROM lookup_purchases').get()).toEqual({ used: 1 });
+    db.close();
+  });
+
+  it('2000 row is unchanged with ladder on', () => {
+    const t = mint(2000);
+    expect(store.reserveIdentity(t.token, 2000).snapshot).toMatchObject({ lookupLimit: 2000, lookupRemaining: 0 });
+    expect(() => store.reserveIdentity(t.token, 1)).toThrow('QUOTA_EXCEEDED');
+  });
+
+  it('ladder off + 500 row behaves as 2000', () => {
+    open(false);
+    const t = mint(500);
+    expect(store.reserveIdentity(t.token, 2000).snapshot).toMatchObject({ lookupLimit: 2000, lookupRemaining: 0 });
+    expect(() => store.reserveIdentity(t.token, 1)).toThrow('QUOTA_EXCEEDED');
+  });
+
+  it('counter above quota on a 500 row clamps remaining at 0 and still allows paid', () => {
+    const t = mint(500); setCounter(t.token, 800); purchase();
+    expect(store.reserveIdentity(t.token, 1).snapshot).toMatchObject({ lookupRemaining: 9999, lookupLimit: 10_500 });
+    const u = mint(500, 'other'); setCounter(u.token, 800);
+    expect(() => store.reserveIdentity(u.token, 1)).toThrow('QUOTA_EXCEEDED');
+  });
+
+  it('any other monthly_quota fails closed with TOKEN_NOT_FOUND, ladder on or off', () => {
+    const t = mint(1000);
+    expect(() => store.reserveIdentity(t.token, 1)).toThrow('TOKEN_NOT_FOUND');
+    open(false);
+    expect(() => store.reserveIdentity(t.token, 1)).toThrow('TOKEN_NOT_FOUND');
+  });
+
+  it('settling a reservation on a 500 row refunds correctly', () => {
+    const t = mint(500); purchase();
+    const r = store.reserveIdentity(t.token, 502); // 500 free + 2 paid
+    expect(r.snapshot.lookupRemaining).toBe(9998);
+    const settled = store.settleIdentityReservation(r.id, 1); // 1 success, 501 released
+    expect(settled?.snapshot).toMatchObject({ lookupRemaining: 10_499, lookupLimit: 10_500 });
+    expect(store.find(t.token)?.counter).toBe(1);
+    const db = new Database(join(tmp, 'tokens.db'));
+    expect(db.prepare('SELECT used FROM lookup_purchases').get()).toEqual({ used: 0 });
+    db.close();
+  });
+});

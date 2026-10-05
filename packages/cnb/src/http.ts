@@ -20,6 +20,7 @@ async function main() {
   const toolQuota = createHostedToolQuota({
     service: 'cnb', enabled: process.env.HOSTED_TOOL_QUOTAS === '1',
     dbPath: process.env.TOKEN_DB, maxBodyBytes: MAX_BODY_BYTES,
+    ladder: process.env.HOSTED_QUOTA_LADDER === '1', anonAllowlist: process.env.HOSTED_ANON_ALLOWLIST,
   });
   const transports = createSessionRegistry<StreamableHTTPServerTransport>();
   const limiter = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX, getIp: getClientIp });

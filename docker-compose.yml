@@ -24,6 +24,9 @@ services:
       - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - SANDBOX_HMAC_SECRET=${SANDBOX_HMAC_SECRET}
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
+      - HOSTED_TOOL_QUOTAS=${HOSTED_TOOL_QUOTAS:-1}
+      - HOSTED_QUOTA_LADDER=${HOSTED_QUOTA_LADDER:-0}
+      - HOSTED_ANON_ALLOWLIST=${HOSTED_ANON_ALLOWLIST:-}
     volumes:
       - tool-events:/var/lib/czagents-events
       - tokens-data:/var/lib/czagents-tokens
@@ -52,9 +55,14 @@ services:
       - NODE_ENV=production
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
+      - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
+      - HOSTED_TOOL_QUOTAS=${HOSTED_TOOL_QUOTAS:-1}
+      - HOSTED_QUOTA_LADDER=${HOSTED_QUOTA_LADDER:-0}
+      - HOSTED_ANON_ALLOWLIST=${HOSTED_ANON_ALLOWLIST:-}
     volumes:
       - tool-events:/var/lib/czagents-events
+      - tokens-data:/var/lib/czagents-tokens
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3031/health"]
       interval: 30s
@@ -124,6 +132,9 @@ services:
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
+      - HOSTED_TOOL_QUOTAS=${HOSTED_TOOL_QUOTAS:-1}
+      - HOSTED_QUOTA_LADDER=${HOSTED_QUOTA_LADDER:-0}
+      - HOSTED_ANON_ALLOWLIST=${HOSTED_ANON_ALLOWLIST:-}
       - MCP_AUDIT_URL=${MCP_AUDIT_URL:-}
       - MCP_AUDIT_KEY=${MCP_AUDIT_KEY:-}
       - HOSTED_GEO_TIER_ENFORCEMENT=${HOSTED_GEO_TIER_ENFORCEMENT:-off}
@@ -163,9 +174,14 @@ services:
       - RATE_LIMIT_MAX=600
       - ICO_DAILY_CAP=60
       - QUERY_DAILY_CAP=25
+      - TOKEN_DB=/var/lib/czagents-tokens/tokens.db
       - TOOL_EVENTS_DIR=/var/lib/czagents-events
+      - HOSTED_TOOL_QUOTAS=${HOSTED_TOOL_QUOTAS:-1}
+      - HOSTED_QUOTA_LADDER=${HOSTED_QUOTA_LADDER:-0}
+      - HOSTED_ANON_ALLOWLIST=${HOSTED_ANON_ALLOWLIST:-}
     volumes:
       - tool-events:/var/lib/czagents-events
+      - tokens-data:/var/lib/czagents-tokens
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3030/health"]
       interval: 30s

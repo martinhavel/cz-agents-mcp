@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { BlockList, isIP } from 'node:net';
 import { getClientIp } from '../rateLimit.js';
 import { McpRequestBodyError, readMcpRequestBody } from '../mcpRequestBody.js';
 import { AnonymousQuotaStore, ANONYMOUS_DAILY_TOOL_LIMIT } from './anonymousQuotaStore.js';
@@ -15,6 +16,23 @@ interface OutcomeContext {
 }
 interface HostedQuotaRequest { ok: boolean; parsedBody?: unknown; outcome?: OutcomeContext }
 interface QuotaTransport { send(message: object, options?: object): Promise<void> }
+
+/** Parse comma-separated IPs/CIDRs. Throws on any invalid entry so a typo aborts startup. */
+export function parseAnonAllowlist(value: string | undefined): BlockList {
+  const list = new BlockList();
+  for (const raw of (value ?? '').split(',')) {
+    const entry = raw.trim();
+    if (!entry) continue;
+    const [addr = '', bits, extra] = entry.split('/');
+    const family = isIP(addr);
+    const max = family === 4 ? 32 : 128;
+    if (!family || extra !== undefined || (bits !== undefined && !(/^\d{1,3}$/.test(bits) && Number(bits) <= max)))
+      throw new Error(`Invalid HOSTED_ANON_ALLOWLIST entry: ${JSON.stringify(entry)}`);
+    if (bits === undefined) list.addAddress(addr, family === 4 ? 'ipv4' : 'ipv6');
+    else list.addSubnet(addr, Number(bits), family === 4 ? 'ipv4' : 'ipv6');
+  }
+  return list;
+}
 const outcomes = new AsyncLocalStorage<OutcomeContext>();
 const wrappedTransports = new WeakSet<QuotaTransport>();
 
@@ -44,12 +62,19 @@ export function createHostedToolQuota(options: {
   maxBodyBytes: number;
   /** ARES previously accepts stored tokens through hosted entitlement auth. */
   allowLegacyAresTokens?: boolean;
+  /** HOSTED_QUOTA_LADDER (read once at boot by the caller). Off = legacy 100/day per exact IP. */
+  ladder?: boolean;
+  /** HOSTED_ANON_ALLOWLIST: comma-separated IPs/CIDRs (ladder mode only). Invalid entry throws. */
+  anonAllowlist?: string;
 }) {
   if (!options.enabled) return async (_req: IncomingMessage, _res: ServerResponse) =>
     ({ ok: true, parsedBody: undefined } as const);
   if (!options.dbPath) throw new Error('Hosted tool quotas require a shared TOKEN_DB');
+  const ladder = options.ladder === true;
+  const allowlist = ladder ? parseAnonAllowlist(options.anonAllowlist) : undefined;
+  const namespace = options.service === 'dd' ? 'dd' : 'lookup';
   const anonymous = new AnonymousQuotaStore(options.dbPath);
-  const tokens = new TokenStore(options.dbPath);
+  const tokens = new TokenStore(options.dbPath, { ladder });
 
   return async (req: IncomingMessage, res: ServerResponse): Promise<HostedQuotaRequest> => {
     try {
@@ -88,15 +113,16 @@ export function createHostedToolQuota(options: {
             { pricing_url: REGISTER_URL });
         }
       } else {
-        const quota = anonymous.consume(getClientIp(req), Date.now(), body.toolCallCount);
-        headers(res, 'Anonymous', ANONYMOUS_DAILY_TOOL_LIMIT, quota.remaining, quota.resetAt);
+        const ip = getClientIp(req);
+        const allowlisted = !!allowlist && isIP(ip) > 0 && allowlist.check(ip, isIP(ip) === 4 ? 'ipv4' : 'ipv6');
+        const quota = anonymous.consume(ip, Date.now(), body.toolCallCount, { namespace, ladder, allowlisted });
+        const limit = quota.limit ?? ANONYMOUS_DAILY_TOOL_LIMIT;
+        headers(res, 'Anonymous', limit, quota.remaining, quota.resetAt);
         if (res.getHeader('X-RateLimit-Remaining') === '-1') res.removeHeader('X-RateLimit-Remaining');
         if (!quota.allowed) {
           res.setHeader('Retry-After', retryAfter(quota.resetAt));
           return reject(res, 429, 'anonymous_quota_exceeded',
-            options.service === 'dd'
-              ? 'The shared 100-call daily allowance is exhausted. Activate a DD trial or purchase DD report credits.'
-              : 'The shared 100-call daily allowance is exhausted. Register for a shared 2,000-call monthly lookup allowance for ARES, CNB and ISIR.',
+            anonymousMessage(options.service === 'dd', ladder, limit, quota.scope),
             options.service === 'dd'
               ? { registration_url: `${PRICING_URL}#trial`, pricing_url: PRICING_URL }
               : { registration_url: REGISTER_URL });
@@ -170,6 +196,13 @@ function observeReservation(
   };
 }
 
+function anonymousMessage(dd: boolean, ladder: boolean, limit: number, scope?: 'daily' | 'monthly'): string {
+  const window = scope === 'monthly' ? '30-day' : 'daily';
+  const cta = dd ? 'Activate a DD trial or purchase DD report credits.'
+    : ladder ? 'Register for a free monthly lookup allowance for ARES, CNB and ISIR.'
+      : 'Register for a shared 2,000-call monthly lookup allowance for ARES, CNB and ISIR.';
+  return `The shared ${limit}-call ${window} allowance is exhausted. ${cta}`;
+}
 function retryAfter(resetAt: number): string { return String(Math.max(1, Math.ceil((resetAt - Date.now()) / 1000))); }
 function headers(res: ServerResponse, kind: string, limit: number, remaining: number, resetAt: number) {
   res.setHeader(`X-${kind}-Quota-Limit`, String(limit));

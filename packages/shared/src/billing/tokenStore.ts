@@ -84,11 +84,24 @@ interface LookupReservation {
 export const LOOKUP_RESERVATION_MS = 120_000;
 
 const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+const LEGACY_FREE_QUOTA = 2000;
+
+/**
+ * Free lookup allowance of an identity row. Only 500 (post-transition) and 2000 are
+ * valid; anything else fails closed. Ladder off ignores the row and keeps 2000.
+ */
+function freeQuota(rowQuota: number | null, ladder: boolean): number {
+  if (rowQuota !== 500 && rowQuota !== LEGACY_FREE_QUOTA) throw new Error('TOKEN_NOT_FOUND');
+  return ladder ? rowQuota : LEGACY_FREE_QUOTA;
+}
 
 export class TokenStore {
   private readonly db: DatabaseType;
+  private readonly ladder: boolean;
 
-  constructor(dbPath: string) {
+  /** `ladder` (HOSTED_QUOTA_LADDER) = honour the per-row free quota (500 | 2000). */
+  constructor(dbPath: string, options: { ladder?: boolean } = {}) {
+    this.ladder = options.ladder === true;
     mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
@@ -128,7 +141,8 @@ export class TokenStore {
       for (const row of expired) this.settleReservation(row.id, 0);
       const record = this.find(token);
       if (!record || record.service !== 'identity' || record.tier !== 'free'
-        || record.monthly_quota !== 2000 || record.credits !== null) throw new Error('TOKEN_NOT_FOUND');
+        || record.credits !== null) throw new Error('TOKEN_NOT_FOUND');
+      const quota = freeQuota(record.monthly_quota, this.ladder);
       const now = Date.now();
       if (record.expires_at != null && now > record.expires_at) throw new Error('TRIAL_EXPIRED');
       if (now - record.period_started_at >= ONE_MONTH_MS) {
@@ -136,7 +150,7 @@ export class TokenStore {
           .run(now, now, token);
       }
       const current = this.find(token)!;
-      const freeCalls = Math.min(calls, Math.max(0, 2000 - current.counter));
+      const freeCalls = Math.min(calls, Math.max(0, quota - current.counter));
       const paid = this.db.prepare(`SELECT session_id,quota,used FROM lookup_purchases
         WHERE account=? AND refunded_at IS NULL AND refund_required=0 AND starts_at<=? AND expires_at>?
         ORDER BY expires_at,session_id`).all(record.stripe_customer_id, now, now) as
@@ -156,8 +170,8 @@ export class TokenStore {
         (id,account,identity_created_at,period_started_at,calls,free_calls,paid_allocations,expires_at)
         VALUES (?,?,?,?,?,?,?,?)`).run(reservation.id, current.stripe_customer_id, current.created_at,
           current.period_started_at, calls, freeCalls, JSON.stringify(allocations), reservation.expiresAt);
-      return { ...this.find(token)!, lookupRemaining: 2000 - current.counter - freeCalls + available - (calls - freeCalls),
-        lookupLimit: 2000 + paid.reduce((sum, row) => sum + row.quota, 0) };
+      return { ...this.find(token)!, lookupRemaining: Math.max(0, quota - current.counter - freeCalls) + available - (calls - freeCalls),
+        lookupLimit: quota + paid.reduce((sum, row) => sum + row.quota, 0) };
     }).immediate();
   }
 
@@ -192,11 +206,12 @@ export class TokenStore {
     const paidBalance = this.db.prepare(`SELECT COALESCE(SUM(quota-used),0) AS remaining, COALESCE(SUM(quota),0) AS quota
       FROM lookup_purchases WHERE account=? AND refunded_at IS NULL AND refund_required=0 AND starts_at<=? AND expires_at>?`)
       .get(row.account, now, now) as { remaining: number; quota: number };
+    const quota = freeQuota(identity.monthly_quota, this.ladder);
     const rolled = now - identity.period_started_at >= ONE_MONTH_MS;
     return { expired, snapshot: { ...identity,
       period_started_at: rolled ? now : identity.period_started_at,
-      lookupRemaining: (rolled ? 2000 : Math.max(0, 2000 - identity.counter)) + paidBalance.remaining,
-      lookupLimit: 2000 + paidBalance.quota } };
+      lookupRemaining: (rolled ? quota : Math.max(0, quota - identity.counter)) + paidBalance.remaining,
+      lookupLimit: quota + paidBalance.quota } };
   }
 
   /** Mint a new token. Caller passes Stripe customer + subscription + tier resolved from price_id. */
