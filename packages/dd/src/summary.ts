@@ -118,7 +118,7 @@ function buildSourcesLine(report: DdReport): string {
   if (!report.basic_only || report.red_flags.some((f) => f.code === 'VIRTUAL_ADDRESS')) sources.push('ověření virtuální adresy');
   const unavailable = getUnavailableReferencedSources(report);
   const suffix = unavailable.length > 0
-    ? ` — ${unavailable.map((source) => `${source.label} ${source.notChecked ? 'neprověřeno' : 'nešlo ověřit'}`).join(' · ')}`
+    ? ` — ${unavailable.map((source) => `${source.label} nešlo ověřit${source.notChecked ? ' (neproběhla kontrola)' : ''}`).join(' · ')}`
     : '';
   return `${sources.length} ${zdrojeWord(sources.length)}: ${sources.join(' · ')}${suffix}.`;
 }

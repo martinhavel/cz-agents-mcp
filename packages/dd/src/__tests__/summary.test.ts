@@ -89,7 +89,7 @@ describe('summary markdown', () => {
     expect(text).not.toMatch(/depth:'full'\s*zdarma/);
     expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
     expect(text).not.toContain('✅ ČISTÉ');
-    expect(text).toContain('ISIR neprověřeno');
+    expect(text).toContain('ISIR nešlo ověřit (neproběhla kontrola)');
   });
 
   it('renders active insolvency as red risk', () => {
@@ -274,6 +274,18 @@ describe('verdict degradation — unavailable sources', () => {
       { id: 'adis', label: 'ADIS', notChecked: true },
     ]);
     expect(getUnavailableReferencedSources(report())).toEqual([]);
+  });
+
+  it('not-checked sources (ISIR basic, ADIS not configured) render "nešlo ověřit" in the sources line', () => {
+    const text = buildDdSummaryMarkdown(report({
+      basic_only: true,
+      insolvency: undefined,
+      vat: { is_payer: false, bank_accounts: [], checked: false, error: 'adis_not_configured' },
+    }));
+    const sourcesLine = text.split('\n').find((line) => /^\d+ zdroj/.test(line));
+    expect(sourcesLine).toContain('ISIR nešlo ověřit');
+    expect(sourcesLine).toContain('ADIS nešlo ověřit');
+    expect(sourcesLine).not.toContain('neprověřeno');
   });
 
   it('critical flag + source down → 🔴 RIZIKO wins over ⚠ ČÁSTEČNĚ', () => {
