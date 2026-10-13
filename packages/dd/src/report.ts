@@ -47,7 +47,11 @@ export async function buildReport(
   const subjectResult = await safeWithError(() => clients.ares.getByIco(ico));
   const subject = subjectResult.value;
   const aresUnavailable = subjectResult.errored;
-  const vr = await safe(() => clients.ares.getVrRecord(ico));
+  // Same distinction for VR: resolved null = verified empty record, thrown =
+  // statutory body could not be checked.
+  const vrResult = await safeWithError(() => clients.ares.getVrRecord(ico));
+  const vr = vrResult.value;
+  const vrChecked = !vrResult.errored;
 
   const { members, mostRecentStatutoryChange } = extractStatutoryMembers(vr);
 
@@ -230,6 +234,7 @@ export async function buildReport(
       ...(adisResult.error ? { checked: false as const, error: adisResult.error } : {}),
     },
     statutory_body: screenedMembers,
+    vr_checked: vrChecked,
     insolvency: insolvency.error
       ? { checked: false, error: 'isir_unavailable' }
       : insolvency.status
@@ -339,7 +344,7 @@ async function safe<T>(fn: () => Promise<T>): Promise<T | null> {
 
 /**
  * Like safe(), but reports whether the call threw. Used for the primary ARES
- * lookup so a genuine 404 (value=null, errored=false) is distinguishable from
+ * and VR lookups so a genuine 404 (value=null, errored=false) is distinguishable from
  * an upstream outage (value=null, errored=true).
  */
 async function safeWithError<T>(fn: () => Promise<T>): Promise<{ value: T | null; errored: boolean }> {

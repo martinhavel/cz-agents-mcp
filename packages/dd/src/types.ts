@@ -179,6 +179,10 @@ export interface DdReport {
   company: DdCompany;
   vat: DdVat;
   statutory_body: StatutoryMember[];
+  /** True when the VR (veřejný rejstřík) lookup completed, including a verified
+   *  empty result. False when the lookup threw (outage) — `statutory_body` is
+   *  then empty because it could not be checked, not because it is empty. */
+  vr_checked: boolean;
   insolvency?: DdInsolvency;
   sanctions: DdSanctions;
   red_flags: RedFlag[];
