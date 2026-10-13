@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { buildReport } from '../report.js';
+import { getUnavailableReferencedSources } from '../summary.js';
 import * as ownershipNetwork from '../ownership-network.js';
 import type {
   AresLike,
@@ -430,6 +431,26 @@ describe('buildReport', () => {
     expect(report.company.error).toBeUndefined();
     expect(report.red_flags.find((f) => f.code === 'NOT_FOUND_IN_ARES')).toBeDefined();
     expect(report.red_flags.find((f) => f.code === 'ARES_UNAVAILABLE')).toBeUndefined();
+  });
+
+  it('VR resolving null is a verified empty record: vr_checked true, no VR outage', async () => {
+    const ares = mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Test Co.' }, vr: null });
+    const report = await buildReport('12345678', { ares });
+    expect(report.vr_checked).toBe(true);
+    expect(report.statutory_body).toEqual([]);
+    expect(getUnavailableReferencedSources(report).find((s) => s.id === 'vr')).toBeUndefined();
+  });
+
+  it('VR lookup throwing sets vr_checked false and reports VR unavailable', async () => {
+    const ares: AresLike = {
+      ...mockAres({ subject: { ico: '12345678', obchodniJmeno: 'Test Co.' } }),
+      getVrRecord: async () => { throw new Error('VR timeout'); },
+    };
+    const report = await buildReport('12345678', { ares });
+    expect(report.vr_checked).toBe(false);
+    expect(report.statutory_body).toEqual([]);
+    expect(report.company.found).toBe(true);
+    expect(getUnavailableReferencedSources(report)).toContainEqual({ id: 'vr', label: 'VR' });
   });
 
   it('adds ownership-network teaser from non-empty summary', async () => {

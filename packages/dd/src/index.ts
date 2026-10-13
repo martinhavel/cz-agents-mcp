@@ -19,6 +19,8 @@ import { vrClient, vrBaseClient } from './vr-client.js';
 
 export { buildDdServer } from './server.js';
 export type * from './types.js';
+export { getUnavailableReferencedSources } from './summary.js';
+export type { SourceAvailability } from './summary.js';
 
 async function main() {
   const ares = new AresClient();

@@ -118,13 +118,16 @@ function buildSourcesLine(report: DdReport): string {
   if (!report.basic_only || report.red_flags.some((f) => f.code === 'VIRTUAL_ADDRESS')) sources.push('ověření virtuální adresy');
   const unavailable = getUnavailableReferencedSources(report);
   const suffix = unavailable.length > 0
-    ? ` — ${unavailable.map((source) => `${source.label} ${source.notChecked ? 'neprověřeno' : 'nedostupný'}`).join(' · ')}`
+    ? ` — ${unavailable.map((source) => `${source.label} nešlo ověřit${source.notChecked ? ' (neproběhla kontrola)' : ''}`).join(' · ')}`
     : '';
   return `${sources.length} ${zdrojeWord(sources.length)}: ${sources.join(' · ')}${suffix}.`;
 }
 
 function buildStatutoryLine(report: DdReport): string {
   const count = report.statutory_body.length;
+  if (report.vr_checked === false) {
+    return 'Statutární orgán: VR nešlo ověřit — statutáři a jejich sankční shoda neprověřeny.';
+  }
   const roleDesc = count === 0 ? 'bez statutárů' : statutoryCountLabel(count, report.statutory_body.map((m) => m.role));
   const matches = report.statutory_body.filter((m) => m.sanctions_match).map((m) => m.name);
   return `Statutární orgán: ${roleDesc} · sankční shoda: ${matches[0] ?? 'žádná'}.`;
@@ -189,7 +192,7 @@ function buildFlagLines(flags: RedFlag[]): string[] {
 }
 
 export interface SourceAvailability {
-  id: 'isir' | 'sanctions' | 'adis' | 'ares';
+  id: 'isir' | 'sanctions' | 'adis' | 'ares' | 'vr';
   label: string;
   /** true = source was skipped/not run (e.g. depth:basic); false/undefined = source errored/unavailable. */
   notChecked?: boolean;
@@ -199,6 +202,9 @@ export function getUnavailableReferencedSources(report: DdReport): SourceAvailab
   const unavailable: SourceAvailability[] = [];
   if (report.company.checked === false && report.company.error === 'ares_unavailable') {
     unavailable.push({ id: 'ares', label: 'ARES' });
+  }
+  if (report.vr_checked === false) {
+    unavailable.push({ id: 'vr', label: 'VR' });
   }
   if (report.insolvency?.checked === false && report.insolvency.error === 'isir_unavailable') {
     unavailable.push({ id: 'isir', label: 'ISIR' });

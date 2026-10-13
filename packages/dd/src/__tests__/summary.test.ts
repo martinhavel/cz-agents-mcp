@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resolveLegalForm } from '@czagents/shared';
-import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown } from '../summary.js';
+import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown, getUnavailableReferencedSources } from '../summary.js';
 import { buildDdServer } from '../server.js';
 import { buildReport } from '../report.js';
 import type { DdReport, RedFlag } from '../types.js';
@@ -27,6 +27,7 @@ function report(overrides: Partial<DdReport> = {}): DdReport {
       reliability: 'NE',
     },
     statutory_body: [{ name: 'Jan Test', role: 'jednatel', is_person: true }],
+    vr_checked: true,
     insolvency: { has_active_proceeding: false, note: 'No record found' },
     sanctions: { any_statutory_match: false },
     red_flags: [],
@@ -88,7 +89,7 @@ describe('summary markdown', () => {
     expect(text).not.toMatch(/depth:'full'\s*zdarma/);
     expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
     expect(text).not.toContain('✅ ČISTÉ');
-    expect(text).toContain('ISIR neprověřeno');
+    expect(text).toContain('ISIR nešlo ověřit (neproběhla kontrola)');
   });
 
   it('renders active insolvency as red risk', () => {
@@ -218,6 +219,73 @@ describe('verdict degradation — unavailable sources', () => {
     expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
     expect(text).not.toContain('✅');
     expect(text).toContain('DPH spolehlivost: kontrola v tomto reportu neproběhla — ověřte ručně na adisreg.mfcr.cz');
+  });
+
+  it('VR down + otherwise clean → ⚠ ČÁSTEČNĚ PROVĚŘENO with "VR nešlo ověřit", not ✅', () => {
+    const vrDown = report({ statutory_body: [], vr_checked: false, risk_score: { value: 0, level: 'low' } });
+    expect(getUnavailableReferencedSources(vrDown)).toEqual([{ id: 'vr', label: 'VR' }]);
+    const text = buildDdSummaryMarkdown(vrDown);
+    expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
+    expect(text).not.toContain('✅');
+    expect(text).toContain('VR nešlo ověřit');
+    expect(text).not.toContain('bez statutárů');
+  });
+
+  it('VR checked with empty statutory body stays clean and reports no VR outage', () => {
+    const vrEmpty = report({ statutory_body: [], vr_checked: true });
+    expect(getUnavailableReferencedSources(vrEmpty)).toEqual([]);
+    const text = buildDdSummaryMarkdown(vrEmpty);
+    expect(text).toContain('✅ ČISTÉ');
+    expect(text).toContain('Statutární orgán: bez statutárů');
+    expect(text).not.toContain('nešlo ověřit');
+  });
+
+  it('VR down + high risk → 🔴 RIZIKO still wins, VR still listed as nešlo ověřit', () => {
+    const text = buildDdSummaryMarkdown(report({
+      statutory_body: [],
+      vr_checked: false,
+      red_flags: [flag({ code: 'INSOLVENCY_ACTIVE', severity: 'critical', weight: 50, description: 'Aktivní insolvenční řízení.', source: 'isir' })],
+      risk_score: { value: 50, level: 'high' },
+    }));
+    expect(text).toContain('🔴 RIZIKO');
+    expect(text).toContain('VR nešlo ověřit');
+  });
+
+  it('preserves existing ARES/ISIR/sanctions/ADIS availability entries alongside VR', () => {
+    expect(getUnavailableReferencedSources(report({
+      company: { found: false, checked: false, error: 'ares_unavailable' },
+      vr_checked: false,
+      insolvency: { checked: false, error: 'isir_unavailable' },
+      sanctions: { any_statutory_match: false, checked: false, error: 'sanctions_unavailable' },
+      vat: { is_payer: false, bank_accounts: [], checked: false, error: 'adis_unavailable' },
+    }))).toEqual([
+      { id: 'ares', label: 'ARES' },
+      { id: 'vr', label: 'VR' },
+      { id: 'isir', label: 'ISIR' },
+      { id: 'sanctions', label: 'sankce' },
+      { id: 'adis', label: 'ADIS' },
+    ]);
+    expect(getUnavailableReferencedSources(report({
+      basic_only: true,
+      insolvency: undefined,
+      vat: { is_payer: false, bank_accounts: [], checked: false, error: 'adis_not_configured' },
+    }))).toEqual([
+      { id: 'isir', label: 'ISIR', notChecked: true },
+      { id: 'adis', label: 'ADIS', notChecked: true },
+    ]);
+    expect(getUnavailableReferencedSources(report())).toEqual([]);
+  });
+
+  it('not-checked sources (ISIR basic, ADIS not configured) render "nešlo ověřit" in the sources line', () => {
+    const text = buildDdSummaryMarkdown(report({
+      basic_only: true,
+      insolvency: undefined,
+      vat: { is_payer: false, bank_accounts: [], checked: false, error: 'adis_not_configured' },
+    }));
+    const sourcesLine = text.split('\n').find((line) => /^\d+ zdroj/.test(line));
+    expect(sourcesLine).toContain('ISIR nešlo ověřit');
+    expect(sourcesLine).toContain('ADIS nešlo ověřit');
+    expect(sourcesLine).not.toContain('neprověřeno');
   });
 
   it('critical flag + source down → 🔴 RIZIKO wins over ⚠ ČÁSTEČNĚ', () => {
