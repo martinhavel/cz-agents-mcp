@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resolveLegalForm } from '@czagents/shared';
-import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown, getUnavailableReferencedSources } from '../summary.js';
+import { buildDdSummaryMarkdown, buildRiskScoreSummaryMarkdown, getUnavailableReferencedSources, FULL_REPORT_TEASER } from '../summary.js';
 import { buildDdServer } from '../server.js';
 import { buildReport } from '../report.js';
 import type { DdReport, RedFlag } from '../types.js';
@@ -90,6 +90,17 @@ describe('summary markdown', () => {
     expect(text).toContain('⚠ ČÁSTEČNĚ PROVĚŘENO');
     expect(text).not.toContain('✅ ČISTÉ');
     expect(text).toContain('ISIR nešlo ověřit (neproběhla kontrola)');
+    expect(text.split('\n').at(-1)).toBe(FULL_REPORT_TEASER);
+  });
+
+  it('full-depth report has no free-tier teaser', () => {
+    expect(buildDdSummaryMarkdown(report())).not.toContain(FULL_REPORT_TEASER);
+  });
+
+  it('free-tier teaser stays short and links the sample report', () => {
+    expect(FULL_REPORT_TEASER).toContain('https://app.cz-agents.dev/vzorovy-report');
+    expect(FULL_REPORT_TEASER.split('\n')).toHaveLength(1);
+    expect(FULL_REPORT_TEASER).not.toMatch(/audit|certifik|certific|guarant|záruk/i);
   });
 
   it('renders active insolvency as red risk', () => {

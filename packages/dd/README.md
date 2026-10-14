@@ -42,6 +42,35 @@ Each example is an MCP tool-call argument object.
 - `get_eu_dd_report` *(Compliance tier+)* — performs GLEIF-based international entity due diligence plus EU/OFAC sanctions screening. Do not use it for SMEs that may have no LEI, or as a substitute for national registry/UBO data. Example: `{"identifier":"W38RGI023J3WT1HWRP32"}`.
 - `get_eu_parent` *(Compliance tier+)* — looks for an international parent of a Czech company through ARES and GLEIF. Do not use it to conclude that no parent exists when the entity has no LEI coverage. Example: `{"ico":"12345678"}`.
 
+## What `get_dd_report` returns
+
+Sources: ARES (company facts), VR (statutory body), EU + OFAC sanctions lists, ADIS (VAT payer, reliability, published bank accounts). `depth: "full"` (DD+, paid) adds ISIR insolvency for the company and its statutory members, their prior insolvent companies, and a virtual-address check.
+
+Free hosted limit: `depth: "basic"`, 100 tool calls per day per IP, no sign-in.
+
+Each call returns a markdown summary plus the full JSON report. Trimmed example (`depth: "basic"`, test fixture data):
+
+```text
+**Test Co. s.r.o.** · IČO 12345679 — ⚠ ČÁSTEČNĚ PROVĚŘENO. Riziko 0/100 (nízké).
+3 zdroje: ARES · EU+OFAC sankce · ADIS — ISIR nešlo ověřit (neproběhla kontrola).
+Statutární orgán: 1 jednatel · sankční shoda: žádná.
+```
+
+```json
+{
+  "ico": "12345679",
+  "basic_only": true,
+  "company": { "name": "Test Co. s.r.o.", "legal_form": "112", "address": "Testovací 1, Praha", "registered_on": "2010-01-01", "found": true },
+  "vat": { "is_payer": true, "dic": "CZ12345679", "bank_accounts": ["123/0100"], "reliability": "NE" },
+  "statutory_body": [{ "name": "Jan Test", "role": "jednatel", "is_person": true }],
+  "sanctions": { "any_statutory_match": false },
+  "red_flags": [],
+  "risk_score": { "value": 0, "level": "low" }
+}
+```
+
+Full sample report: [CZ](https://app.cz-agents.dev/vzorovy-report) · [EN](https://cz-agents.dev/sample-report/)
+
 Example prompts:
 
 > Generate a DD report for IČO 12345678.
