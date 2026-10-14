@@ -196,7 +196,7 @@ done
 # 2. install the skill
 git clone https://github.com/martinhavel/cz-agents-mcp.git
 cp -r cz-agents-mcp/skills/cz-company-due-diligence ~/.claude/skills/
-# 3. check: run /skills in Claude Code, then ask "Prověř firmu s IČO 45274649"
+# 3. check: invoke /cz-company-due-diligence in Claude Code, then ask "Prověř firmu s IČO 45274649"
 ```
 
 Other clients, local stdio setup and known npx caveats:

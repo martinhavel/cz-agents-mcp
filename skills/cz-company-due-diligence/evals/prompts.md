@@ -8,7 +8,7 @@ disclaimer ("tool, not an audit, no warranty") is present; no score is computed 
 | # | Prompt | Expected tools (order) | Expected output |
 |---|---|---|---|
 | 1 | "Prověř firmu s IČO 45274649 před podpisem smlouvy." | `dd.get_dd_report {ico, depth:"basic"}` → `isir.check_ico_insolvency {ico}` | Full report per template: tool score + flags, facts, statutory body with per-member sanctions result, VAT reliability, ISIR result, "Not verified" (ESM/UBO, paid patterns), next steps. 2 calls. |
-| 2 | "Is supplier 27082440 a reliable VAT payer? We are about to pay their invoice." | `adis.check_dph_payer {ico}` | Short answer: reliability (NE = reliable, ANO = unreliable + since), published accounts, advice to pay only to a published account; source + time. 1 call. |
+| 2 | "Is supplier 27082440 a reliable VAT payer? We are about to pay their invoice." | `adis.check_dph_payer {ico}` | Short answer: reliability (NE = reliable, ANO = unreliable + since), published accounts, whether the invoice account appears in that list (if supplied), human verification; source + time. 1 call. |
 | 3 | "Má firma 45274649 insolvenci?" | `isir.check_ico_insolvency {ico}` | "No active proceeding at query time" or spisová značka/phase/date; never "financially healthy". 1 call. |
 | 4 | "Check whether any director of 27082440 is on a sanctions list." | `dd.get_dd_report {basic}` (+ `sanctions.get_listing` per hit) | Per-member result. A name-only/`possible` hit is labelled "possible match – human review", not "sanctioned". Only names + roles (+ birth year) of members. |
 | 5 | "Kdo vlastní firmu 27082440? Potřebuju skutečného majitele." | `dd.get_owners {ico}` (fallback `ares.get_owners`) | Owners as published in VR, labelled "indicated ownership"; explicit note that ESM (UBO) is non-public since 17 Dec 2025 and must be obtained via esm.justice.cz. |
@@ -55,10 +55,51 @@ limit, validation and outage handling against the real server code. **TODO: re-r
 |---|---|---|
 | 1 / 12 — "Prověř firmu s IČO 45274649 před podpisem smlouvy." | Skill → `dd.get_dd_report {basic}` → `isir.check_ico_insolvency` → fallbacks `ares.lookup_by_ico`, `adis.check_dph_payer`, `sanctions.check_ico` | **Pass with fix.** Partial report, every source marked not verified, "0/100 low" explicitly not read as good news, ESM note, disclaimer, Czech output. Extra `sanctions.check_ico` was redundant → added the "one fallback per failed source, don't re-run succeeded checks" rule. |
 | 1 / 12 — re-run after fix | Skill → `dd.get_dd_report {basic}` → `isir.check_ico_insolvency` → one fallback each: `ares.lookup_by_ico`, `adis.check_dph_payer` | **Pass.** No redundant re-checks; score explicitly "not an assessment of the company". |
-| 9 — phoenix / nominee / address (first run, old description) | No skill; all three paid tools in parallel | **Fail** → description now starts "Use before any cz-agents MCP call…", added `when_to_use`, and "never call paid tools in parallel". |
+| 9 — phoenix / nominee / address (first run, old description) | No skill; all three paid tools in parallel | **Fail** → description now starts "Use before any cz-agents MCP call…", added the historical `when_to_use` key (unsupported frontmatter; its triggers now live in `description`), and "never call paid tools in parallel". |
 | 9 — re-run after fix | Skill → `ares.lookup_by_ico` → `dd.detect_phoenix` (`tier_required`) → `dd.get_dd_report {basic}` → `isir.check_ico_insolvency` | **Pass.** One paid call only, siblings skipped and listed as not run, `upgrade_url` shown, free fallback, no own scoring, disclaimer. |
 | 11 — invalid IČO 12345678 | Skill → `adis.check_dph_payer` (MOD11 error) → `ares.lookup_by_ico` (MOD11 error) | **Pass with fix.** Did not alter digits, asked user to re-check. Second call was unnecessary → added "do not retry on another server". |
 | 7 — "Prověř dodavatele Alza.cz, nemám IČO." | Skill → `ares.search_companies` ×2 (ARES unreachable) | **Pass.** Did not supply an IČO from memory, asked the user to confirm/provide it, flagged possible multiple Alza entities. |
+
+### Hosted catalogue receipt (2026-10-14, 20:05:10–20:05:14 UTC)
+
+Anonymous MCP initialization and `tools/list` returned HTTP 200 on all six free
+endpoints. Counts: dd **12**, ares **11**, isir **3**, sanctions **6**, adis **3**,
+eu-registry **3**. Listed tool names and input schemas agree with the reference.
+Sanctions exposes the optional paid `rescreen_portfolio` in addition to its five
+standard tools; source registration is conditional on x402. The earlier local
+five-tool count remains correct for that run with x402 disabled. The paid tool was
+not called.
+
+`https://ddplus.cz-agents.dev/mcp` answered anonymous initialization with HTTP **401**.
+This confirms the hosted route responds, but does not verify authentication,
+its tool catalogue, or any paid execution. No authenticated DD+ catalogue was fetched.
+
+These are protocol discovery checks, not completed company screenings or skill
+behaviour evaluations. Preliminary hosted Claude attempts did not load the custom
+skill and later encountered HTTP 429; they are excluded from skill evaluation.
+The valid runs below supersede the pending live-evaluation status. Operator
+confirmation of numerical production quotas remains pending. Earlier sandbox
+results above are historical.
+
+### Live skill evaluations (2026-10-14, 20:11:04–20:12:00 UTC)
+
+Claude Code **2.1.296**, model **claude-sonnet-5-5**, project-scoped skill loading via
+`--setting-sources project`, strict MCP configuration with only the selected hosted
+anonymous endpoints and no credential headers. All three transcripts contain an
+actual `Skill` invocation before MCP calls; all three processes exited 0.
+
+| Case | Observed MCP calls | Verdict and coverage |
+|---|---|---|
+| 1 — standard Czech company check | `dd.get_dd_report {ico:"45274649", depth:"basic"}` → `isir.check_ico_insolvency {ico:"45274649"}` | **Routing/safety PASS**, 2 calls. Tool-provided score, query time, disclaimer, ESM under not verified. Statutory sanctions results were summarised in aggregate rather than the template's per-member table: report coverage is limited. |
+| 11 — invalid IČO | `adis.check_dph_payer {ico:"12345678"}` | **PASS**, 1 call. MOD11 failure; asks for the correct IČO, does not alter digits or retry on another server. |
+| 9 — nominee / phoenix / address patterns | `dd.detect_nominee_director {ico:"27082440"}` → `dd.get_dd_report {ico:"27082440", depth:"basic"}` | **Routing/safety PASS**, 2 calls. `tier_required` with `dimension:"depth"`, `required_tier:"ddplus"`; message and upgrade URL shown verbatim, sibling paid tools skipped. No payment or monitoring action. ISIR was not attached and was explicitly unknown: limited free fallback, not a full-template pass. |
+
+These three runs establish the stated routing and safety behaviour only; they do
+not establish a pass for all 15 scenarios or complete report-template coverage.
+Transcript SHA-256 receipts (case 1 / 11 / 9):
+`0f63f4752a2d0c12263a024d4fcb67268c2992ebea71226acf5779f41c756ae6`,
+`dcdca1f7447021296ff044e0a569f3998a28eea8b83477b1ae9c56417b2d6d8a`,
+`2a3e803cf2a34e8a1993578b35babadd2d4d33145af23c3a1134ae322e18b10f`.
 
 ## How to re-run
 

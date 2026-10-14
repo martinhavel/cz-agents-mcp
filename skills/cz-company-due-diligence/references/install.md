@@ -156,12 +156,18 @@ mkdir -p .claude/skills && cp -r cz-agents-mcp/skills/cz-company-due-diligence .
 
 Verify it loads:
 
-1. Start `claude` in the project and run `/skills` — `cz-company-due-diligence` should be
-   listed; or invoke it directly with `/cz-company-due-diligence`.
+1. Start `claude` in the project and invoke `/cz-company-due-diligence` directly.
+   The tested CLI does not list `/skills` among its system slash commands.
 2. Non-interactive check (what we ran when building it):
    `claude -p "Is a skill named cz-company-due-diligence in your available skills? Reply YES: <description> or NO."`
 3. Functional check: ask *"Prověř firmu s IČO 45274649"* and confirm the transcript shows
    the skill being launched, then `dd.get_dd_report` and `isir.check_ico_insolvency`.
+
+Test-harness note (Claude Code 2.1.296): the valid non-interactive live runs used
+`--setting-sources project` with the skill in `.claude/skills/` and a strict MCP
+configuration. The earlier `--restricted` runs did not load the custom skill.
+Verify an actual `Skill` invocation in the transcript before counting a run as a
+skill evaluation; successful MCP calls alone do not prove skill loading.
 
 **Other agents (Cursor, Copilot, …)** — the folder follows the
 [Agent Skills](https://agentskills.io) layout (`SKILL.md` + `references/`). Where a client

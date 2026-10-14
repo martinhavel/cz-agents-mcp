@@ -1,7 +1,7 @@
 ---
 name: cz-company-due-diligence
-description: Use before any cz-agents MCP call (dd, ares, isir, sanctions, adis, eu-registry). Czech/EU company due diligence – IČO, KYC/AML, sankce, insolvence, plátce DPH, statutáři, skutečný majitel, prověrka protistrany.
-when_to_use: Any check of a Czech or EU company or counterparty – IČO/DIČ lookup, supplier/vendor onboarding, counterparty or customer screening, sanctions/AML screening of a company or its directors, insolvency (ISIR), VAT payer reliability (ADIS), owners/UBO, phoenix company, nominee/white-horse director (bílý kůň), shell company, virtual office, foreign parent. CZ: prověř firmu, prověrka, kontrola obchodního partnera, sankční seznam, jednatel, insolvenční rejstřík, spolehlivý plátce.
+description: >-
+  Use before any cz-agents MCP call (dd, ares, isir, sanctions, adis, eu-registry). Czech/EU company due diligence – IČO, KYC/AML, sankce, insolvence, plátce DPH, statutáři, skutečný majitel, prověrka protistrany. Any check of a Czech or EU company or counterparty – IČO/DIČ lookup, supplier/vendor onboarding, counterparty or customer screening, sanctions/AML screening of a company or its directors, insolvency (ISIR), VAT payer reliability (ADIS), owners/UBO, phoenix company, nominee/white-horse director (bílý kůň), shell company, virtual office, foreign parent. CZ: prověř firmu, prověrka, kontrola obchodního partnera, sankční seznam, jednatel, insolvenční rejstřík, spolehlivý plátce.
 ---
 
 # Czech / EU company due diligence (cz-agents MCP)
@@ -165,7 +165,7 @@ report from what you already have. Do not retry in a loop.
 4. **Sanctions: match ≠ confirmed.** A name match (`match_strength: possible` or
    `weak-name-only`, `dob_status` ≠ `match`) is a **possible match requiring human
    review**, never "the person is sanctioned". Use "confirmed" only when the tool
-   reports an exact identifier match (e.g. `matched_on: "ico"` / confidence 100) — and
+   reports an exact identifier match (e.g. `matched_on: "ico"` with confidence 100) — and
    even then recommend verification against the official list.
 5. **GDPR / data minimisation.** Mention natural persons only in their company role and
    only the data needed (name, role, since; birth year rather than full date unless

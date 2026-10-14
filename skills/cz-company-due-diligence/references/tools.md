@@ -2,8 +2,8 @@
 
 Source of truth: tool registrations in `packages/*/src/server.ts` of
 [martinhavel/cz-agents-mcp](https://github.com/martinhavel/cz-agents-mcp). Names and
-parameters below were checked against the built servers with an MCP `tools/list` call
-(see `evals/prompts.md`, "Test log"). Your client may prefix names, e.g. `mcp__dd__get_dd_report`.
+parameters below were checked against built servers and the six free hosted
+endpoints with MCP `tools/list` (2026-10-14; see `evals/prompts.md`, "Test log"). Your client may prefix names, e.g. `mcp__dd__get_dd_report`.
 
 Tier legend: **Free** = available anonymously on the hosted endpoint and via npx.
 **Compliance+** / **Agency+** = gated inside the free `dd` server; on the free tier the
@@ -19,7 +19,7 @@ call returns `tier_required`. **DD+** = separate paid, hosted-only `ddplus` serv
 | sanctions | `@czagents/sanctions` | `https://sanctions.cz-agents.dev/mcp` |
 | adis | `@czagents/adis` | `https://adis.cz-agents.dev/mcp` |
 | eu-registry | `@czagents/eu-registry` | `https://eu-registry.cz-agents.dev/mcp` |
-| ddplus (paid) | — (closed source) | `https://ddplus.cz-agents.dev/mcp` *(from README; not verifiable from code)* |
+| ddplus (paid) | — (closed source) | `https://ddplus.cz-agents.dev/mcp` *(hosted route answered anonymous initialization with HTTP 401 on 2026-10-14; authenticated catalogue not checked)* |
 
 Remote URLs are taken from each package's `server.json` (`dd`, `ares`, …) and the
 `PUBLIC_MCP_URL` default in `packages/dd/src/http.ts`.
@@ -87,7 +87,9 @@ If ISIR is not configured (local stub without `ISIR_SOAP_ENABLED=1`) the answer 
 | `list_recent_updates` | `since`, `source?` (`eu`/`ofac`/`un`/`ofsi`/`fau`) | Added / removed / modified listings | Free — monitoring |
 | `rescreen_portfolio` | `subjects[]`, `since`, `source?` | Re-screen a list | Paid via x402; only registered when x402 is enabled |
 
-Confidence: 100 = exact ID match, 80+ = strong fuzzy match, lower = review needed.
+Confidence alone does not establish identity: name-only matches can also score 100.
+An identifier match requires `matched_on: "ico"` or `"id"`; name/alias matches require
+human review even at confidence 100.
 In `get_dd_report`, `sanctions_match` carries `match_strength` (`strong` / `possible` /
 `weak-name-only`) and `dob_status` (`match` / `mismatch` / `list_missing` / `subject_missing`);
 the listing id for `get_listing` is `${source}:${list_id}`.
@@ -119,7 +121,8 @@ Czech companies are **not** served here.
 
 ## ddplus — DD+ paid extension (hosted only, closed source)
 
-Requires a Compliance (€99/mo) or Agency (€199/mo) subscription —
+Requires a paid subscription; individual tools require Compliance or Agency.
+`bulk_lookup` and `check_bulk_ico_insolvency` require Agency (not Compliance). See
 https://cz-agents.dev/pricing. The tool list below matches `DDPLUS_CAPABILITIES` in
 `packages/shared/src/entitlements/resolver.ts` (returned as `available_in_tier` on
 depth-gated `tier_required` errors). **Purposes are inferred from the names only;
