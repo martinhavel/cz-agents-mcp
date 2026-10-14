@@ -176,6 +176,33 @@ Example prompts the aggregator handles well:
 - **Vendor onboarding** — *"Run KYC on this prospective supplier and tell me if anything looks off. Use the full statutory chain."*
 - **M&A pre-due-diligence** — *"Generate a DD report on the acquisition target and walk the statutory body two levels deep — flag any insolvent firms in the network."*
 
+## Agent Skill
+
+[`skills/cz-company-due-diligence`](./skills/cz-company-due-diligence) is an
+[Agent Skill](https://agentskills.io) that teaches Claude Code, Cursor, Copilot and other
+agents **when and how** to use these servers for Czech/EU company due diligence
+(KYC/AML, supplier and counterparty checks): which tool to call first, how to keep calls
+low on the free tier, how to handle `tier_required` and limits, how to tell a sanctions
+name match from a confirmed hit, and how to write a sourced, time-stamped report.
+It works fully on the free tier.
+
+Install (Claude Code):
+
+```bash
+# 1. connect the free hosted servers
+for s in dd ares isir sanctions adis eu-registry; do
+  claude mcp add --transport http --scope user "$s" "https://$s.cz-agents.dev/mcp"
+done
+# 2. install the skill
+git clone https://github.com/martinhavel/cz-agents-mcp.git
+cp -r cz-agents-mcp/skills/cz-company-due-diligence ~/.claude/skills/
+# 3. check: run /skills in Claude Code, then ask "Prověř firmu s IČO 45274649"
+```
+
+Other clients, local stdio setup and known npx caveats:
+[`references/install.md`](./skills/cz-company-due-diligence/references/install.md).
+Test prompts and results: [`evals/prompts.md`](./skills/cz-company-due-diligence/evals/prompts.md).
+
 ## Score & validation
 
 [![Glama Score](https://glama.ai/mcp/servers/martinhavel/cz-agents-mcp/badges/score.svg)](https://glama.ai/mcp/servers/martinhavel/cz-agents-mcp)
