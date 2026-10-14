@@ -196,7 +196,10 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
 
   server.tool(
     'get_dd_report',
-    'Generate a complete due-diligence report for a Czech IČO. Returns company facts (name, address, legal form, VAT status, bank accounts), statutory body with per-member sanctions check, and a transparent risk score with all triggered red flags.',
+    'Generate a due-diligence report for a Czech IČO from public state sources. ' +
+    'depth=basic (free): ARES company facts (name, address, legal form, founding date, NACE), VR statutory body with an EU+OFAC sanctions check per member and for the company, ADIS VAT-payer status, reliability and published bank accounts, a VR ownership-network teaser, and red_flags[] with a 0-100 score computed from those flags. ' +
+    'depth=full (DD+, paid; returns tier_required on the free tier): adds ISIR insolvency for the company and for statutory members, their prior insolvent companies, and a virtual-address check. ' +
+    'Hosted free limit: 100 tool calls per day per IP, no sign-in. Output: markdown summary + full JSON report. Sample report: https://cz-agents.dev/sample-report/',
     {
       ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
       depth: z
@@ -243,7 +246,7 @@ export function buildDdServer(clients: DdClients, tier: DdTier = 'free', opts: D
 
   server.tool(
     'get_risk_score',
-    'Lightweight version of get_dd_report — returns just the numeric score (0-100), risk level, and top triggered red flags. Faster when you only need a yes/no/maybe screen.',
+    'Lightweight version of get_dd_report (always depth=basic: ARES, VR, EU+OFAC sanctions, ADIS) — returns ico, company_name, the 0-100 score, level, top 5 red flags, and unavailable_sources when a source was not checked. Free; hosted limit 100 tool calls per day per IP. Sample full report: https://cz-agents.dev/sample-report/',
     {
       ico: z.string().describe('Czech IČO — 7 or 8 digits.'),
     },

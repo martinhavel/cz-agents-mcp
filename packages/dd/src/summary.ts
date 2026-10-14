@@ -11,6 +11,10 @@ export interface RiskScoreSummaryPayload {
   unavailable_sources?: SourceAvailability[];
 }
 
+/** Jednoradkovy teaser pro free (basic) vysledek: co plny report pridava + vzorovy report. */
+export const FULL_REPORT_TEASER =
+  '*Plný report (DD+) přidává insolvenci firmy i statutárů v ISIR, jejich dřívější úpadkové firmy a ověření virtuální adresy. Ukázka: https://app.cz-agents.dev/vzorovy-report*';
+
 const RISK_LEVEL_CS: Record<RiskLevel, string> = {
   low: 'nízké',
   medium: 'střední',
@@ -48,7 +52,10 @@ export function buildDdSummaryMarkdown(report: DdReport): string {
     `*Snapshot ${report.retrieved_at} · veřejné registry · cz-agents.dev*`,
     '*Trvalý auditní záznam s časovým razítkem a hash-chain (CDD Karta, doložitelné pro auditora): placená úroveň.*',
   ];
-  return lines.filter(Boolean).slice(0, 15).join('\n');
+  // Teaser se pripojuje az po orezu na 15 radku, aby ho dlouhy seznam nalezu nevytlacil.
+  const out = lines.filter(Boolean).slice(0, 15);
+  if (report.basic_only) out.push(FULL_REPORT_TEASER);
+  return out.join('\n');
 }
 
 export function buildRiskScoreSummaryMarkdown(payload: RiskScoreSummaryPayload): string {
@@ -58,6 +65,7 @@ export function buildRiskScoreSummaryMarkdown(payload: RiskScoreSummaryPayload):
     `**${payload.company_name ?? 'Nenalezeno'}** · IČO ${payload.ico} — ${verdict.icon} ${verdict.text}. Riziko ${payload.value}/100 (${levelCs}).`,
     ...buildFlagLines(payload.top_flags),
     `*Snapshot ${payload.retrieved_at ?? 'neuveden'} · cz-agents.dev*`,
+    FULL_REPORT_TEASER,
   ];
   return lines.filter(Boolean).join('\n');
 }
