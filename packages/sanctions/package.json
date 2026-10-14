@@ -43,7 +43,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@czagents/shared": "^0.1.8",
+    "@czagents/shared": "^0.1.12",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "@x402/core": "^2.19.0",
     "@x402/evm": "^2.19.0",
