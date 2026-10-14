@@ -4,6 +4,7 @@
  * executed directly (npx @czagents/isir).
  */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { IsirClient } from './client.js';
 import { buildIsirServer } from './server.js';
@@ -27,9 +28,14 @@ async function main() {
   console.error('[cz-agents/isir] MCP server ready on stdio (alpha — SOAP integration pending)');
 }
 
-const isDirectRun =
-  process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === process.argv[1];
+// realpath both sides: under npx / global install argv[1] is the bin symlink.
+const isDirectRun = (() => {
+  try {
+    return realpathSync(process.argv[1] ?? '') === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
 
 if (isDirectRun) {
   main().catch((err) => {

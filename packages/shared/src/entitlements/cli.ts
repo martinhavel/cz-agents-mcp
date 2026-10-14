@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { EntitlementStore } from './store.js';
 import type { EntitlementSource, UsageLimits } from './types.js';
 
@@ -92,6 +93,8 @@ function parseSource(v:string):EntitlementSource { if(['plan','trial','grandfath
 function parseDate(v:string|undefined):number|undefined { if(!v)return undefined;const n=Date.parse(v);if(!Number.isFinite(n))fail(`invalid date: ${v}`);return n; }
 function fail(message:string):never { throw new Error(message); }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// realpath both sides: under npx / global install argv[1] is the bin symlink.
+function isDirectRun():boolean { try { return realpathSync(process.argv[1] ?? '')===realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } }
+if (isDirectRun()) {
   try { main(); } catch (error) { console.error(error instanceof Error ? error.message : 'CLI failed'); process.exit(1); }
 }

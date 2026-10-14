@@ -9,6 +9,7 @@
  * To populate / refresh the DB run `cz-agents-sanctions-refresh` first.
  */
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { SanctionsDb } from './db.js';
 import { SanctionsSearch } from './search.js';
@@ -40,9 +41,14 @@ async function main() {
   console.error(`[cz-agents/sanctions] MCP server ready on stdio (db: ${dbPath})`);
 }
 
-const isDirectRun =
-  process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url) === process.argv[1];
+// realpath both sides: under npx / global install argv[1] is the bin symlink.
+const isDirectRun = (() => {
+  try {
+    return realpathSync(process.argv[1] ?? '') === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+})();
 
 if (isDirectRun) {
   main().catch((err) => {

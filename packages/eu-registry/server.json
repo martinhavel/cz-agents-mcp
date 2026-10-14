@@ -8,13 +8,13 @@
     "source": "github",
     "subfolder": "packages/eu-registry"
   },
-  "version": "0.8.0",
+  "version": "0.8.1",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/eu-registry",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
