@@ -76,8 +76,8 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
 
   // A "clean" (no-match) sanctions result is only trustworthy if the underlying
   // list is actually loaded and reasonably fresh. An empty or stale DB must
-  // NOT produce a definitive "not sanctioned" verdict — prepend a degraded
-  // warning so the caller never reads silence as a clean screen.
+  // NOT produce a definitive "not sanctioned" verdict. Return only a degraded
+  // error so the caller cannot mistake a warning plus clean text for a clean screen.
   function withCleanGuard(text: string) {
     let warn: string | null;
     try {
@@ -86,7 +86,7 @@ export function buildSanctionsServer(deps: ServerDeps): McpServer {
       warn = '⚠️ Sankční seznam: stav databáze nelze ověřit — NELZE potvrdit „bez sankcí".';
     }
     if (!warn) return wrap(text);
-    return { content: [{ type: 'text' as const, text: `${warn}\n\n${text}` }], isError: true };
+    return { content: [{ type: 'text' as const, text: warn }], isError: true };
   }
 
   server.tool(

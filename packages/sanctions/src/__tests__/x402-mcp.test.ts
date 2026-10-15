@@ -38,6 +38,7 @@ beforeEach(() => {
   search = new SanctionsSearch(db);
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   db.close();
   rmSync(dir, { recursive: true, force: true });
 });
@@ -62,6 +63,48 @@ async function connect(x402?: X402Gate) {
   await Promise.all([server.connect(a), client.connect(b)]);
   return client;
 }
+
+const NEGATIVE_SCREENERS = [
+  { name: 'search_person', arguments: { name: 'Nehledaná osoba' } },
+  { name: 'search_entity', arguments: { name: 'Nehledaná společnost s.r.o.' } },
+  { name: 'check_ico', arguments: { ico: '99999999' } },
+] as const;
+
+const freshStats = () => ({
+  total_active: 1,
+  total_removed: 0,
+  by_source: { eu: 1 },
+  refresh_log: [{ source: 'eu', refreshed_at: new Date().toISOString(), source_count: 1, ok: true, error: null }],
+});
+
+describe('degraded DB replaces, rather than accompanies, negative screening verdicts', () => {
+  it.each([
+    ['empty DB', { ...freshStats(), total_active: 0 }],
+    ['missing refresh health', { ...freshStats(), refresh_log: [] }],
+    ['stale DB', { ...freshStats(), refresh_log: [{ source: 'eu', refreshed_at: '2020-01-01T00:00:00.000Z', source_count: 1, ok: true, error: null }] }],
+  ])('returns a guard-only error for every screener when the DB is %s', async (_state, unhealthyStats) => {
+    vi.spyOn(db, 'stats').mockReturnValue(unhealthyStats);
+    const client = await connect();
+
+    for (const call of NEGATIVE_SCREENERS) {
+      const result = await client.callTool(call) as { isError?: boolean; content: Array<{ text: string }> };
+      const text = result.content[0]!.text;
+      expect(result.isError, call.name).toBe(true);
+      expect(text, call.name).not.toMatch(/nevyskytuje|not on|Žádný match/i);
+      expect(text, call.name).not.toContain(String(call.arguments.name ?? call.arguments.ico));
+    }
+  });
+
+  it('keeps a healthy DB negative answer as a normal, non-error screening result', async () => {
+    const client = await connect();
+
+    for (const call of NEGATIVE_SCREENERS) {
+      const result = await client.callTool(call) as { isError?: boolean; content: Array<{ text: string }> };
+      expect(result.isError, call.name).toBeFalsy();
+      expect(result.content[0]!.text, call.name).toMatch(/Žádný match|se nevyskytuje/);
+    }
+  });
+});
 
 /** Pět nástrojů, které existovaly před x402 a nesmí se změnit. */
 const EXISTING_CALLS = [
