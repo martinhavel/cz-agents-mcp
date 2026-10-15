@@ -159,5 +159,20 @@ on the free tier.
 | Paid usage | `dd/src/http.ts` | `quota_exceeded`, `credits_exhausted`, `trial_expired`, `usage_limit_exceeded`, `policy_unavailable` |
 
 The "~30 calls/day" figure appears in the repo only as the ARES **REST sandbox** note
-("Get free API key (30 calls/day)"), not as an MCP limit. Which env values production
-actually runs with is not visible from the repo — **TODO: confirm with the operator.**
+("Get free API key (30 calls/day)"), not as an MCP limit.
+
+### Production configuration confirmed by the operator (2026-10-15)
+
+- Distinct daily caps aggregate across a `/24`: **60 companies** on ares, dd,
+  isir, sanctions, eu-registry, adis and cnb; **25 queries** on ares, dd, isir,
+  sanctions and eu-registry. The query cap is not configured on adis or cnb.
+- Hosted tool-call quotas are enabled on ares, cnb, dd and isir. Ladder mode is
+  off: the legacy allowance is **100/day per exact IP**. Whether the counter is
+  shared across services remains **unverified**; do not promise a shared allowance.
+- Hosted tool-call quotas are **not enabled on sanctions or adis**. Do not extend
+  the 100-call allowance to those servers; their distinct daily caps still apply.
+- Burst limits are **600/min** on the listed registry servers and ddplus,
+  **120/min** on payqr and **30/min** on realestate.
+
+These are a dated configuration snapshot, not a permanent entitlement. Follow the
+actual error response and any reset/retry fields rather than retrying to measure a cap.

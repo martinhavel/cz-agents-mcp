@@ -77,9 +77,11 @@ its tool catalogue, or any paid execution. No authenticated DD+ catalogue was fe
 These are protocol discovery checks, not completed company screenings or skill
 behaviour evaluations. Preliminary hosted Claude attempts did not load the custom
 skill and later encountered HTTP 429; they are excluded from skill evaluation.
-The valid runs below supersede the pending live-evaluation status. Operator
-confirmation of numerical production quotas remains pending. Earlier sandbox
-results above are historical.
+The valid runs below supersede the pending live-evaluation status. The operator's
+read-only confirmation on 2026-10-15 is recorded in `references/tools.md`:
+60-company and 25-query caps have service-specific coverage; the legacy
+100-call quota is enabled on ares/cnb/dd/isir, not sanctions/adis. Cross-service
+counter sharing remains unverified. Earlier sandbox results above are historical.
 
 ### Live skill evaluations (2026-10-14, 20:11:04–20:12:00 UTC)
 
