@@ -185,6 +185,7 @@ agents **when and how** to use these servers for Czech/EU company due diligence
 low on the free tier, how to handle `tier_required` and limits, how to tell a sanctions
 name match from a confirmed hit, and how to write a sourced, time-stamped report.
 It works fully on the free tier.
+Install from [Agensi](https://www.agensi.io/skills/cz-company-due-diligence).
 
 Install (Claude Code):
 

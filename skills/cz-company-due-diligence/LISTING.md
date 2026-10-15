@@ -24,6 +24,7 @@ Works fully on the free tier; paid DD+ tools are optional.
 insolvency, vat, mcp, counterparty-screening, ares, isir
 
 **Price:** Free
+Install from [Agensi](https://www.agensi.io/skills/cz-company-due-diligence).
 
 **License:** MIT
 
