@@ -1,6 +1,6 @@
 {
   "name": "@czagents/realestate",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Czech distressed real estate intelligence — anonymized district-level aggregates (insolvency and forced-sale counts, price trends; low-volume districts flagged low_activity at k<3). Free tier; full property search and owner data via the hosted realestate-pro service.",
   "type": "module",
   "main": "./dist/index.js",

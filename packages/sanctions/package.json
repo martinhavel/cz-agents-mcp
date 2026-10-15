@@ -1,10 +1,11 @@
 {
   "name": "@czagents/sanctions",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Sanctions screening for KYC/AML — check Czech companies and individuals against EU Financial Sanctions (FSF) and US OFAC SDN lists. Per-entity and per-statutory-member checks. Official consolidated lists, updated from source.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
+    "sanctions": "./dist/index.js",
     "cz-agents-sanctions": "./dist/index.js",
     "cz-agents-sanctions-refresh": "./dist/cli-refresh.js"
   },
@@ -42,7 +43,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@czagents/shared": "^0.1.8",
+    "@czagents/shared": "^0.1.12",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "@x402/core": "^2.19.0",
     "@x402/evm": "^2.19.0",

@@ -8,13 +8,13 @@
     "source": "github",
     "subfolder": "packages/realestate"
   },
-  "version": "0.3.2",
+  "version": "0.3.3",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/realestate",
-      "version": "0.3.2",
+      "version": "0.3.3",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

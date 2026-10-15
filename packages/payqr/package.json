@@ -1,6 +1,6 @@
 {
   "name": "@czagents/payqr",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "European payment QR codes — generate and read SPAYD (CZ/SK) and EPC/GiroCode (Eurozone) payment QR, plus standard QR (text, WiFi, vCard). Scan with any banking app to pre-fill a transfer. Runs locally, no data leaves your device. Free.",
   "type": "module",
   "main": "./dist/index.js",
@@ -39,7 +39,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@czagents/shared": "^0.1.8",
+    "@czagents/shared": "^0.1.12",
     "@modelcontextprotocol/sdk": "^1.10.0",
     "@x402/core": "^2.19.0",
     "@x402/evm": "^2.19.0",

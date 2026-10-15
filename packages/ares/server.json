@@ -8,13 +8,13 @@
     "source": "github",
     "subfolder": "packages/ares"
   },
-  "version": "0.1.9",
+  "version": "0.1.10",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@czagents/ares",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
