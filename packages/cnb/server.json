@@ -2,13 +2,14 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "dev.cz-agents/cnb",
   "description": "Official \u010cNB exchange rates \u2014 daily & historical CZK vs EUR, USD, 30+ currencies. For accounting.",
+  "title": "Czech National Bank Exchange Rates",
   "status": "active",
   "repository": {
     "url": "https://github.com/martinhavel/cz-agents-mcp",
     "source": "github",
     "subfolder": "packages/cnb"
   },
-  "version": "0.1.7",
+  "version": "0.1.8",
   "websiteUrl": "https://cz-agents.dev",
   "packages": [
     {
