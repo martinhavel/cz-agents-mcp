@@ -7,8 +7,8 @@
  *   t=<unix_ts>,v1=<hmac_sha256_hex>
  *
  * Events handled:
- *   - checkout.session.completed → mint token (returned in response so frontend
- *     can show it on the success page; also email-deliverable later)
+ *   - checkout.session.completed → mint token (available only in the internal
+ *     result; the HTTP acknowledgement never contains the credential)
  *   - customer.subscription.deleted / .updated (cancel) → revoke all tokens for sub
  *   - invoice.paid (subscription renewal) → reset counter for existing token
  *
@@ -35,7 +35,7 @@ export class WebhookError extends Error {
 
 /**
  * Process a raw webhook payload. Throws WebhookError on signature failure.
- * Returns minted token in result so the HTTP layer can pass it to the customer.
+ * Returns a public acknowledgement body and, separately, the internal minted token.
  */
 export function handleStripeWebhook(opts: {
   rawBody: string;
@@ -66,7 +66,7 @@ export function handleStripeWebhook(opts: {
     case 'invoice.paid':
       return handleInvoicePaid(event, opts.store);
     default:
-      return { status: 200, body: JSON.stringify({ received: true, ignored: event.type }) };
+      return { status: 200, body: JSON.stringify({ received: true, action: 'ignored' }) };
   }
 }
 
@@ -84,7 +84,7 @@ function handleCheckoutCompleted(
   const session = event.data.object as Record<string, unknown>;
   const customer_id = String(session['customer'] ?? '');
   if (!customer_id) {
-    return { status: 200, body: JSON.stringify({ received: true, skipped: 'no customer' }) };
+    return { status: 200, body: JSON.stringify({ received: true, action: 'skipped' }) };
   }
 
   // Stripe Checkout includes line items. We need the price_id; for subscriptions
@@ -97,12 +97,12 @@ function handleCheckoutCompleted(
   const session_id = (session['id'] as string | null) ?? null;
 
   if (!price_id) {
-    return { status: 200, body: JSON.stringify({ received: true, skipped: 'no price_id' }) };
+    return { status: 200, body: JSON.stringify({ received: true, action: 'skipped' }) };
   }
 
   const tier = config.priceTiers[price_id];
   if (!tier) {
-    return { status: 200, body: JSON.stringify({ received: true, skipped: `price ${price_id} not in tier map` }) };
+    return { status: 200, body: JSON.stringify({ received: true, action: 'skipped' }) };
   }
 
   const quantity = Number(metadata['quantity'] ?? session['quantity'] ?? 1);
@@ -115,7 +115,7 @@ function handleCheckoutCompleted(
       store.resetCounter(existing.token);
       return {
         status: 200,
-        body: JSON.stringify({ received: true, refreshed: existing.token }),
+        body: JSON.stringify({ received: true, action: 'refreshed' }),
         minted_token: existing,
       };
     }
@@ -133,7 +133,7 @@ function handleCheckoutCompleted(
 
   return {
     status: 200,
-    body: JSON.stringify({ received: true, minted: minted.token }),
+    body: JSON.stringify({ received: true, action: 'minted' }),
     minted_token: minted,
   };
 }
@@ -150,25 +150,25 @@ function handleSubscriptionChange(event: StripeEvent, store: TokenStore): Webhoo
     status === 'incomplete_expired' ||
     status === 'unpaid'
   ) {
-    const revoked = store.revokeBySubscription(sub_id);
-    return { status: 200, body: JSON.stringify({ received: true, revoked }) };
+    store.revokeBySubscription(sub_id);
+    return { status: 200, body: JSON.stringify({ received: true, action: 'revoked' }) };
   }
 
-  return { status: 200, body: JSON.stringify({ received: true, status }) };
+  return { status: 200, body: JSON.stringify({ received: true, action: 'unchanged' }) };
 }
 
 function handleInvoicePaid(event: StripeEvent, store: TokenStore): WebhookResult {
   const invoice = event.data.object as Record<string, unknown>;
   const sub_id = invoice['subscription'] as string | null;
   if (!sub_id) {
-    return { status: 200, body: JSON.stringify({ received: true, skipped: 'no subscription' }) };
+    return { status: 200, body: JSON.stringify({ received: true, action: 'skipped' }) };
   }
   const token = store.findBySubscription(sub_id);
   if (!token) {
-    return { status: 200, body: JSON.stringify({ received: true, skipped: 'no token for subscription' }) };
+    return { status: 200, body: JSON.stringify({ received: true, action: 'skipped' }) };
   }
   store.resetCounter(token.token);
-  return { status: 200, body: JSON.stringify({ received: true, reset: token.token }) };
+  return { status: 200, body: JSON.stringify({ received: true, action: 'reset' }) };
 }
 
 function extractPriceFromSession(session: Record<string, unknown>): string | null {
