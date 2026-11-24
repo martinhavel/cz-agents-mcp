@@ -106,6 +106,9 @@ describe('handleStripeWebhook', () => {
     expect(result.status).toBe(200);
     expect(result.minted_token?.tier).toBe('pro');
     expect(result.minted_token?.monthly_quota).toBe(50_000);
+    expect(JSON.parse(result.body)).toEqual({ received: true, action: 'minted' });
+    expect(result.body).not.toContain('czat_');
+    expect(result.body).not.toContain(result.minted_token!.token);
   });
 
   it('mints token with credits on pay-per-report checkout', () => {
@@ -130,6 +133,9 @@ describe('handleStripeWebhook', () => {
     const r1 = handleStripeWebhook({ rawBody: body, signatureHeader: sign(body), webhookSecret: SECRET, store, config: SANCTIONS_CONFIG, now: NOW });
     const r2 = handleStripeWebhook({ rawBody: body, signatureHeader: sign(body), webhookSecret: SECRET, store, config: SANCTIONS_CONFIG, now: NOW });
     expect(r2.minted_token?.token).toBe(r1.minted_token?.token);
+    expect(JSON.parse(r2.body)).toEqual({ received: true, action: 'refreshed' });
+    expect(r2.body).not.toContain('czat_');
+    expect(r2.body).not.toContain(r1.minted_token!.token);
   });
 
   it('skips unknown price_id with 200 OK', () => {
@@ -141,6 +147,7 @@ describe('handleStripeWebhook', () => {
     const result = handleStripeWebhook({ rawBody: body, signatureHeader: sign(body), webhookSecret: SECRET, store, config: SANCTIONS_CONFIG, now: NOW });
     expect(result.status).toBe(200);
     expect(result.minted_token).toBeUndefined();
+    expect(JSON.parse(result.body)).toEqual({ received: true, action: 'skipped' });
   });
 
   it('revokes tokens on subscription.deleted', () => {
@@ -170,14 +177,17 @@ describe('handleStripeWebhook', () => {
       type: 'invoice.paid',
       data: { object: { subscription: 'sub_5' } },
     });
-    handleStripeWebhook({ rawBody: body, signatureHeader: sign(body), webhookSecret: SECRET, store, config: SANCTIONS_CONFIG, now: NOW });
+    const result = handleStripeWebhook({ rawBody: body, signatureHeader: sign(body), webhookSecret: SECRET, store, config: SANCTIONS_CONFIG, now: NOW });
     expect(store.find(t.token)!.counter).toBe(0);
+    expect(JSON.parse(result.body)).toEqual({ received: true, action: 'reset' });
+    expect(result.body).not.toContain('czat_');
+    expect(result.body).not.toContain(t.token);
   });
 
   it('ignores unknown event types', () => {
     const body = JSON.stringify({ id: 'evt_x', type: 'price.updated', data: { object: {} } });
     const result = handleStripeWebhook({ rawBody: body, signatureHeader: sign(body), webhookSecret: SECRET, store, config: SANCTIONS_CONFIG, now: NOW });
     expect(result.status).toBe(200);
-    expect(JSON.parse(result.body).ignored).toBe('price.updated');
+    expect(JSON.parse(result.body)).toEqual({ received: true, action: 'ignored' });
   });
 });
