@@ -7,8 +7,8 @@
  *   t=<unix_ts>,v1=<hmac_sha256_hex>
  *
  * Events handled:
- *   - checkout.session.completed → mint token (returned in response so frontend
- *     can show it on the success page; also email-deliverable later)
+ *   - checkout.session.completed → mint token (available only in the internal
+ *     result; the HTTP acknowledgement never contains the credential)
  *   - customer.subscription.deleted / .updated (cancel) → revoke all tokens for sub
  *   - invoice.paid (subscription renewal) → reset counter for existing token
  *
@@ -35,7 +35,7 @@ export class WebhookError extends Error {
 
 /**
  * Process a raw webhook payload. Throws WebhookError on signature failure.
- * Returns minted token in result so the HTTP layer can pass it to the customer.
+ * Returns a public acknowledgement body and, separately, the internal minted token.
  */
 export function handleStripeWebhook(opts: {
   rawBody: string;
