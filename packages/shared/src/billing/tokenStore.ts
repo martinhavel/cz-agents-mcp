@@ -12,6 +12,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { ServiceKind, Tier, TokenRecord } from './types.js';
+import { protectToken, tokenProtectionEnabled } from './tokenProtection.js';
 
 // Two-phase init so ALTER TABLE migrations run before any index that
 // references a newly-added column:
@@ -32,7 +33,13 @@ CREATE TABLE IF NOT EXISTS tokens (
   period_started_at      INTEGER NOT NULL,
   created_at             INTEGER NOT NULL,
   updated_at             INTEGER NOT NULL,
-  revoked_at             INTEGER
+  revoked_at             INTEGER,
+  token_id               TEXT,
+  token_hmac             TEXT,
+  hmac_key_id            TEXT,
+  token_prefix           TEXT,
+  tenant_key             TEXT,
+  outbound_ct            TEXT
 );
 `;
 
@@ -45,6 +52,10 @@ const MIGRATIONS: Array<{ check: string; apply: string }> = [
     check: "SELECT 1 FROM pragma_table_info('tokens') WHERE name='expires_at'",
     apply: 'ALTER TABLE tokens ADD COLUMN expires_at INTEGER',
   },
+  ...['token_id', 'token_hmac', 'hmac_key_id', 'token_prefix', 'tenant_key', 'outbound_ct'].map(name => ({
+    check: `SELECT 1 FROM pragma_table_info('tokens') WHERE name='${name}'`,
+    apply: `ALTER TABLE tokens ADD COLUMN ${name} TEXT`,
+  })),
 ];
 
 const CREATE_INDEXES = `
@@ -52,6 +63,8 @@ CREATE INDEX IF NOT EXISTS idx_tokens_customer ON tokens(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_subscription ON tokens(stripe_subscription_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_session ON tokens(stripe_session_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_service_active ON tokens(service, revoked_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tokens_id ON tokens(token_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tokens_hmac ON tokens(hmac_key_id, token_hmac);
 `;
 
 const LOOKUP_SCHEMA = `CREATE TABLE IF NOT EXISTS lookup_purchases (
@@ -106,10 +119,12 @@ export class TokenStore {
     this.db = new Database(dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.exec(CREATE_TABLE);
-    for (const m of MIGRATIONS) {
-      const present = this.db.prepare(m.check).get();
-      if (!present) this.db.exec(m.apply);
-    }
+    this.db.transaction(() => {
+      for (const m of MIGRATIONS) {
+        const present = this.db.prepare(m.check).get();
+        if (!present) this.db.exec(m.apply);
+      }
+    }).immediate();
     this.db.exec(CREATE_INDEXES);
     this.db.exec(LOOKUP_SCHEMA);
     this.db.exec(RESERVATION_SCHEMA);
@@ -226,12 +241,14 @@ export class TokenStore {
     expires_at?: number | null;
   }): TokenRecord {
     const token = generateToken();
+    const protectedFields = tokenProtectionEnabled() ? protectToken(token, input.service) : null;
     const now = Date.now();
     this.db.prepare(`
       INSERT INTO tokens (token, service, tier, stripe_customer_id, stripe_subscription_id,
                           stripe_session_id, monthly_quota, counter, credits,
-                          period_started_at, created_at, updated_at, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+                          period_started_at, created_at, updated_at, expires_at,
+                          token_id, token_hmac, hmac_key_id, token_prefix, tenant_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       token,
       input.service,
@@ -245,6 +262,11 @@ export class TokenStore {
       now,
       now,
       input.expires_at ?? null,
+      protectedFields?.token_id ?? null,
+      protectedFields?.token_hmac ?? null,
+      protectedFields?.hmac_key_id ?? null,
+      protectedFields?.token_prefix ?? null,
+      protectedFields?.tenant_key ?? null,
     );
     return this.find(token)!;
   }
