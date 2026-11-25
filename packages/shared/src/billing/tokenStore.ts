@@ -12,7 +12,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { ServiceKind, Tier, TokenRecord } from './types.js';
-import { protectToken, tokenProtectionEnabled } from './tokenProtection.js';
+import { protectToken, protectionKey, protectionKeyId, tokenProtectionEnabled } from './tokenProtection.js';
 
 // Two-phase init so ALTER TABLE migrations run before any index that
 // references a newly-added column:
@@ -114,6 +114,14 @@ export class TokenStore {
 
   /** `ladder` (HOSTED_QUOTA_LADDER) = honour the per-row free quota (500 | 2000). */
   constructor(dbPath: string, options: { ladder?: boolean } = {}) {
+    try {
+      if (tokenProtectionEnabled()) {
+        protectionKey('CZ_AGENTS_TOKEN_HMAC_PEPPER');
+        protectionKeyId('CZ_AGENTS_TOKEN_HMAC_KEY_ID');
+      }
+    } catch {
+      throw new Error('TOKEN_F1_CONFIGURATION');
+    }
     this.ladder = options.ladder === true;
     mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
