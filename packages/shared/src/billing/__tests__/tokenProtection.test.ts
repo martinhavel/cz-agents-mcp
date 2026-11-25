@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Database from 'better-sqlite3';
@@ -16,6 +16,37 @@ describe('F1 expand and dual write', () => {
     vi.stubEnv('CZ_AGENTS_TOKEN_HMAC_KEY_ID', 'fixture-v1');
   });
   afterEach(() => { store?.close(); store = undefined; rmSync(dir, { recursive: true }); vi.unstubAllEnvs(); });
+
+  it('rejects incomplete enabled startup before creating the token database', () => {
+    const settings = {
+      CZ_AGENTS_TOKEN_HMAC_PEPPER: Buffer.alloc(32, 7).toString('base64'),
+      CZ_AGENTS_TOKEN_HMAC_KEY_ID: 'fixture-v1',
+    };
+    const path = join(dir, 'fresh', 'tokens.db');
+    const valid = () => {
+      vi.stubEnv('CZ_AGENTS_TOKEN_F1', '1');
+      for (const [name, value] of Object.entries(settings)) vi.stubEnv(name, value);
+    };
+    for (const name of Object.keys(settings)) {
+      for (const value of ['', '!invalid!']) {
+        valid(); vi.stubEnv(name, value);
+        expect(() => new TokenStore(path)).toThrow('TOKEN_F1_CONFIGURATION');
+        expect(existsSync(join(dir, 'fresh'))).toBe(false);
+      }
+    }
+    valid(); vi.stubEnv('CZ_AGENTS_TOKEN_F1', 'invalid');
+    expect(() => new TokenStore(path)).toThrow('TOKEN_F1_CONFIGURATION');
+    expect(existsSync(join(dir, 'fresh'))).toBe(false);
+    for (const flag of [undefined, '0']) {
+      vi.stubEnv('CZ_AGENTS_TOKEN_F1', flag);
+      for (const name of Object.keys(settings)) vi.stubEnv(name, '');
+      new TokenStore(path).close();
+    }
+    valid();
+    vi.stubEnv('CZ_AGENTS_TOKEN_ESCROW_KEY', '');
+    vi.stubEnv('CZ_AGENTS_TOKEN_ESCROW_KEY_ID', '');
+    new TokenStore(path).close(); // MCP must never require the webapp-only escrow key.
+  });
 
   it('expands a legacy database without changing its bearer, metadata or raw-reader contract', () => {
     const path = join(dir, 'tokens.db');
