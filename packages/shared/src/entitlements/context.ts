@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { TokenStore } from '../billing/tokenStore.js';
+import { writeTokenExpired } from '../billing/expiredToken.js';
 import { getClientIp } from '../rateLimit.js';
 import { accountContextFromToken } from './resolver.js';
 import type { HostedAccountContext } from './types.js';
@@ -33,7 +34,7 @@ export function authenticateHostedRequest(
     token=tokenStore.find(tokenValue);
     if (!token) { writeAuthError(res,401,'unauthorized','Token unknown or revoked.'); return null; }
     if (token.expires_at != null && Date.now()>token.expires_at) {
-      writeAuthError(res,402,'trial_expired','The token entitlement has expired.'); return null;
+      writeTokenExpired(res,token,'The token entitlement has expired.'); return null;
     }
   }
   const ip=getClientIp(req);

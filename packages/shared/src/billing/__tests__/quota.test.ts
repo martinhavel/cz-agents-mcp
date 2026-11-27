@@ -87,6 +87,27 @@ describe('createQuotaGuard', () => {
     expect(after?.requests_used).toBe(before?.requests_used);
   });
 
+  it('expired paid token → 401 invalid_token + WWW-Authenticate; expired trial → 402', () => {
+    const mint = (tier: 'pro' | 'starter') => store.mint({
+      service: 'dd', tier, stripe_customer_id: 'c', stripe_subscription_id: 's',
+      monthly_quota: 100, credits: null, expires_at: Date.now() - 1000,
+    });
+    const guard = createQuotaGuard({ store, service: 'dd' });
+
+    const paid = mockRes();
+    const r1 = guard(mockReq({ authorization: `Bearer ${mint('pro').token}` }), paid);
+    expect(r1.ok).toBe(false);
+    expect(paid.statusCode).toBe(401);
+    expect(paid.headers['www-authenticate']).toMatch(/^Bearer error="invalid_token", error_description="token expired", resource_metadata="https:\/\/.+"$/);
+    expect(JSON.parse(paid.body).error).toBe('invalid_token');
+
+    const trial = mockRes();
+    guard(mockReq({ authorization: `Bearer ${mint('starter').token}` }), trial);
+    expect(trial.statusCode).toBe(402);
+    expect(JSON.parse(trial.body).error).toBe('trial_expired');
+    expect(trial.headers['www-authenticate']).toBeUndefined();
+  });
+
   it('rejects unknown token with 401', () => {
     const guard = createQuotaGuard({ store, service: 'sanctions' });
     const res = mockRes();
