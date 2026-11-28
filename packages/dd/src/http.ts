@@ -38,6 +38,7 @@ import {
   getClientIp,
   getClientUa,
   createHostedToolQuota,
+  OAUTH_RESOURCE_METADATA_URL,
 } from '@czagents/shared';
 import { EntitlementStore,HostedEntitlementResolver,entitlementMode,accountContextFromToken,
   runWithHostedRequestContext,getHostedRequestContext } from '@czagents/shared/entitlements';
@@ -56,8 +57,6 @@ const PORT = Number(process.env.PORT ?? 3030);
 const MCP_PATH = process.env.MCP_PATH ?? '/mcp';
 const PUBLIC_MCP_URL = process.env.PUBLIC_MCP_URL ?? 'https://dd.cz-agents.dev/mcp';
 const OAUTH_ISSUER = process.env.OAUTH_ISSUER ?? 'https://app.cz-agents.dev';
-const OAUTH_RESOURCE_METADATA_URL =
-  process.env.OAUTH_RESOURCE_METADATA_URL ?? 'https://dd.cz-agents.dev/.well-known/oauth-protected-resource/mcp';
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 30);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000);
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES ?? 100_000);
@@ -272,8 +271,12 @@ async function main() {
     const sessionHeader = req.headers['mcp-session-id'];
     const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
     if (req.method === 'GET' && !sessionId) {
+      // An expired bearer must trigger reauthorization even on a sessionless probe.
+      if (req.headers.authorization && !authOnly(req, res).ok) return;
       res.writeHead(401, {
         'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Expose-Headers': 'WWW-Authenticate',
         'WWW-Authenticate': `Bearer resource_metadata="${OAUTH_RESOURCE_METADATA_URL}"`,
       });
       res.end(JSON.stringify({

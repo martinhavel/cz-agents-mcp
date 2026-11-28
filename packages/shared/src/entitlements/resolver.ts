@@ -193,7 +193,7 @@ export function accountContextFromToken(token:TokenRecord|null,pseudonymSeed:str
   const identified = token !== null && token.token !== '__anonymous__' && Boolean(token.stripe_customer_id);
   return {accountId,accountPseudonym:createHash('sha256').update(`${salt}|${accountId}`).digest('hex').slice(0,24),
     token,planCoverageTier:paid?'extended':'core',planDepthTier:paid?'ddplus':'basic',
-    source:token?.expires_at ? 'trial':'plan',
+    source:token?.expires_at && !paid ? 'trial':'plan',
     identityClass:identified?'identified':'anonymous',
     identityAgeDays:identified?identityAgeDays(token!.created_at):null};
 }

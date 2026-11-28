@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { BlockList, isIP } from 'node:net';
+import { writeTokenExpired } from './expiredToken.js';
 import { getClientIp } from '../rateLimit.js';
 import { McpRequestBodyError, readMcpRequestBody } from '../mcpRequestBody.js';
 import { AnonymousQuotaStore, ANONYMOUS_DAILY_TOOL_LIMIT } from './anonymousQuotaStore.js';
@@ -83,8 +84,10 @@ export function createHostedToolQuota(options: {
       if (header !== undefined && !value) return reject(res, 401, 'unauthorized', 'Malformed bearer credential.');
       const record = value ? tokens.find(value) : null;
       if (value && !record) return reject(res, 401, 'unauthorized', 'Token unknown or revoked.');
-      if (record?.expires_at != null && Date.now() > record.expires_at)
-        return reject(res, 402, 'trial_expired', 'Token expired.');
+      if (record?.expires_at != null && Date.now() > record.expires_at) {
+        writeTokenExpired(res, record, 'Token expired.');
+        return { ok: false };
+      }
       const identity = record?.service === 'identity';
       if (identity && options.service === 'dd')
         return reject(res, 401, 'unauthorized', 'This lookup credential does not authorize DD reports.');

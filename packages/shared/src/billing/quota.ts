@@ -11,6 +11,7 @@
  *   - Pay-per-report credits = 0 → 402 (Payment Required) with hint to top up.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { isPaidTier, writeTokenExpired } from './expiredToken.js';
 import type { TokenStore } from './tokenStore.js';
 import type { AuthOutcome, ServiceKind, TokenRecord } from './types.js';
 
@@ -56,8 +57,8 @@ export function createTokenAuthGuard(opts: QuotaOptions) {
     }
 
     if(record.expires_at != null && Date.now()>record.expires_at) {
-      writeJson(res,402,{error:'trial_expired',message:'Your trial has expired. Upgrade at https://cz-agents.dev/pricing.html'});
-      return {ok:false,status:402,reason:'trial_expired'};
+      writeTokenExpired(res,record);
+      return isPaidTier(record)?{ok:false,status:401,reason:'unknown_token'}:{ok:false,status:402,reason:'trial_expired'};
     }
     return {ok:true,token:record};
   };
@@ -75,13 +76,13 @@ export function consumeTokenQuota(store:TokenStore,record:TokenRecord,res:Server
       }
       const limit = updated.monthly_quota ?? updated.credits;
       if (limit !== null && limit !== undefined) res.setHeader('X-RateLimit-Limit', String(limit));
-      if (updated.expires_at != null) res.setHeader('X-Trial-Expires-At', new Date(updated.expires_at).toISOString());
+      if (updated.expires_at != null && !isPaidTier(updated)) res.setHeader('X-Trial-Expires-At', new Date(updated.expires_at).toISOString());
       return { ok: true, token: updated };
     } catch (e) {
       const code = e instanceof Error ? e.message : 'UNKNOWN';
       if (code === 'TRIAL_EXPIRED') {
-        writeJson(res, 402, { error: 'trial_expired', message: 'Your trial has expired. Upgrade at https://cz-agents.dev/pricing.html' });
-        return { ok: false, status: 402, reason: 'trial_expired' };
+        writeTokenExpired(res, record);
+        return isPaidTier(record) ? { ok: false, status: 401, reason: 'unknown_token' } : { ok: false, status: 402, reason: 'trial_expired' };
       }
       if (code === 'QUOTA_EXCEEDED') {
         res.setHeader('Retry-After', '60');
