@@ -240,6 +240,8 @@ describe('verdict degradation — unavailable sources', () => {
     expect(text).not.toContain('✅');
     expect(text).toContain('VR nešlo ověřit');
     expect(text).not.toContain('bez statutárů');
+    expect(text).toContain('nelze ověřit – VR nedostupný');
+    expect(text).not.toContain('bez sankcí (0/0 statutárů)');
   });
 
   it('VR checked with empty statutory body stays clean and reports no VR outage', () => {

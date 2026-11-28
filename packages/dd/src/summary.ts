@@ -96,7 +96,9 @@ function buildStatusLine(report: DdReport): string {
     ? 'sankce neprověřeny (sankce nedostupný)'
     : report.sanctions.company_match || report.sanctions.any_statutory_match
       ? `sankční shoda (${sanctionsMatches}/${report.statutory_body.length} statutárů)`
-      : `bez sankcí (${sanctionsMatches}/${report.statutory_body.length} statutárů)`;
+      : report.vr_checked === false
+        ? 'nelze ověřit – VR nedostupný'
+        : `bez sankcí (${sanctionsMatches}/${report.statutory_body.length} statutárů)`;
   parts.push(sanctionsText);
 
   if (report.vat.checked === false && report.vat.error === 'adis_not_configured') {
