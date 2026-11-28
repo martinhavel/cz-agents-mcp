@@ -14,7 +14,7 @@ COPY packages/isir ./packages/isir
 COPY packages/adis ./packages/adis
 COPY packages/dd ./packages/dd
 
-RUN npm install --workspaces --include-workspace-root
+RUN npm ci --workspaces --include-workspace-root
 RUN npm run build --workspace=@czagents/shared
 RUN npm run build --workspace=@czagents/ares
 RUN npm run build --workspace=@czagents/sanctions
