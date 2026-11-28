@@ -98,6 +98,8 @@ describe('createQuotaGuard', () => {
     const r1 = guard(mockReq({ authorization: `Bearer ${mint('pro').token}` }), paid);
     expect(r1.ok).toBe(false);
     expect(paid.statusCode).toBe(401);
+    expect(paid.headers['access-control-allow-origin']).toBe('*');
+    expect(paid.headers['access-control-expose-headers']).toBe('WWW-Authenticate');
     expect(paid.headers['www-authenticate']).toMatch(/^Bearer error="invalid_token", error_description="token expired", resource_metadata="https:\/\/.+"$/);
     expect(JSON.parse(paid.body).error).toBe('invalid_token');
 

@@ -271,8 +271,12 @@ async function main() {
     const sessionHeader = req.headers['mcp-session-id'];
     const sessionId = Array.isArray(sessionHeader) ? sessionHeader[0] : sessionHeader;
     if (req.method === 'GET' && !sessionId) {
+      // An expired bearer must trigger reauthorization even on a sessionless probe.
+      if (req.headers.authorization && !authOnly(req, res).ok) return;
       res.writeHead(401, {
         'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Expose-Headers': 'WWW-Authenticate',
         'WWW-Authenticate': `Bearer resource_metadata="${OAUTH_RESOURCE_METADATA_URL}"`,
       });
       res.end(JSON.stringify({

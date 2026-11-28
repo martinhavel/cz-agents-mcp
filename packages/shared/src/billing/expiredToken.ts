@@ -15,6 +15,8 @@ export function writeTokenExpired(res: ServerResponse, record: Pick<TokenRecord,
   if (isPaidTier(record)) {
     res.writeHead(401, {
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers': 'WWW-Authenticate',
       'WWW-Authenticate':
         `Bearer error="invalid_token", error_description="token expired", resource_metadata="${OAUTH_RESOURCE_METADATA_URL}"`,
     });

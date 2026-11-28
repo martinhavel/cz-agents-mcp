@@ -134,6 +134,27 @@ describe('hosted lookup tool quota at the HTTP boundary', () => {
     expect(store.find(paidDd.token)?.credits).toBe(0);
   });
 
+  it('returns CORS-visible 401 for an expired paid DD token while a valid paid token reaches HTTP execution', async () => {
+    const before = executed.dd;
+    const expired = store.mint({
+      service: 'dd', tier: 'pro', stripe_customer_id: 'expired_paid', stripe_subscription_id: 's',
+      monthly_quota: 100, credits: null, expires_at: Date.now() - 1,
+    });
+    const rejected = await post('dd', toolCall(1), expired.token);
+    expect(rejected.status).toBe(401);
+    expect(rejected.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(rejected.headers.get('Access-Control-Expose-Headers')).toBe('WWW-Authenticate');
+    expect(rejected.headers.get('WWW-Authenticate')).toMatch(/^Bearer error="invalid_token"/);
+    expect(executed.dd).toBe(before);
+
+    const valid = store.mint({
+      service: 'dd', tier: 'pro', stripe_customer_id: 'valid_paid', stripe_subscription_id: 's',
+      monthly_quota: 100, credits: null,
+    });
+    expect((await post('dd', toolCall(2), valid.token)).status).toBe(200);
+    expect(executed.dd).toBe(before + 1);
+  });
+
   it('atomically crosses free into paid quota, rejects exhaustion, and preserves free usage after refund/expiry', async () => {
     const identity = store.mint({ service: 'identity', tier: 'free', stripe_customer_id: 'identity_paid',
       stripe_subscription_id: null, monthly_quota: 2000, credits: null });
